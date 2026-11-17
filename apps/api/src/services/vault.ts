@@ -5,7 +5,8 @@
 // no type for them, and a file whose name says it is one is refused. The assistant never reads a
 // vault document. Private to the applicant workspace (consultants excluded).
 import { sha256Hex } from "@gms/documents";
-import { cleanLine } from "@gms/notify";
+import { DEFAULT_LOCALE, type Locale } from "@gms/i18n";
+import { cleanLine, emailT, type EmailKey } from "@gms/notify";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { audit, authorize, guardWrite, type ServiceContext, type ServiceWorkspace } from "./context.ts";
@@ -24,6 +25,20 @@ export const VAULT_TYPE_LABEL: Record<VaultType, string> = {
   logo: "Logo",
   other: "Other",
 };
+
+const VAULT_TYPE_KEY: Record<VaultType, EmailKey> = {
+  irs_letter: "vault.type.irs_letter",
+  audit: "vault.type.audit",
+  financials: "vault.type.financials",
+  board_list: "vault.type.board_list",
+  budget: "vault.type.budget",
+  annual_report: "vault.type.annual_report",
+  logo: "vault.type.logo",
+  other: "vault.type.other",
+};
+
+/** A vault document's type as an email names it, in the recipient's language ("Document" for a type the vault does not know). */
+export const vaultTypeLabel = (type: string | null | undefined, locale: Locale = DEFAULT_LOCALE): string => emailT(locale)(VAULT_TYPE_KEY[type as VaultType] ?? "vault.type.document");
 
 /** What the upload dialog says, and what a refused file is told. */
 export const VAULT_NEVER_MESSAGE =

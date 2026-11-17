@@ -43,3 +43,13 @@ export async function switchWorkspace(page: Page, name: string): Promise<void> {
 }
 
 export const dialog = (page: Page, name: string | RegExp): Locator => page.getByRole("dialog", { name });
+
+/**
+ * Text on the page, never the screen reader's copy of it. A banner that appears after an action is
+ * also spoken through the page's live region (#gms-announcer, src/lib/announce.ts), which holds the
+ * same words from 60 ms to about 3 s after the banner shows. `page.getByText` would match both in
+ * that window and fail in strict mode, or pass if it looked first: a race. Use this for any text
+ * looked up across the whole page (test/e2e-text.test.ts keeps `page.getByText` out of the flows).
+ */
+export const shown = (page: Page, text: string | RegExp, options?: { exact?: boolean }): Locator =>
+  page.getByText(text, options).and(page.locator(":not(#gms-announcer)"));

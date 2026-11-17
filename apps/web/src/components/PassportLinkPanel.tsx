@@ -10,11 +10,32 @@ import { env } from "../env.ts";
 import { formatDate } from "../lib/format.ts";
 import { ErrorBanner, Field, Loading } from "./ui.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 const STATE = {
-  pass: { icon: CircleCheck, cls: "rc-pass", word: "Connected" },
-  fail: { icon: CircleX, cls: "rc-fail", word: "Not connected" },
-  unknown: { icon: CircleDashed, cls: "rc-unk", word: "Unknown" },
-} as const;
+  pass: {
+    icon: CircleCheck,
+    cls: "rc-pass",
+    get word() {
+      return t("passportLinkPanel.state.pass");
+    },
+  },
+  fail: {
+    icon: CircleX,
+    cls: "rc-fail",
+    get word() {
+      return t("passportLinkPanel.state.fail");
+    },
+  },
+  unknown: {
+    icon: CircleDashed,
+    cls: "rc-unk",
+    get word() {
+      return t("passportLinkPanel.state.unknown");
+    },
+  },
+};
 
 const REQUIRED_SCOPES = ["org:read", "payee:read", "award:write", "disbursement:read", "disbursement:write"];
 
@@ -41,8 +62,8 @@ export function PassportLinkPanel({ workspaceId, onLinked }: { workspaceId: stri
     }
   }
 
-  if (status.status === "loading") return <Loading label="Checking the Passport connection" />;
-  if (status.status === "error") return <ErrorBanner error={status.error} onRetry={status.reload} title="The Passport connection could not be checked" />;
+  if (status.status === "loading") return <Loading label={t("passportLinkPanel.checkingThePassportConnection")} />;
+  if (status.status === "error") return <ErrorBanner error={status.error} onRetry={status.reload} title={t("passportLinkPanel.thePassportConnectionCouldNot")} />;
   const s = status.data;
   const look = STATE[s.check.state];
   const consoleUrl = s.passportOrgId ? `${env.passportWebUrl}/funders/${s.passportOrgId}/clients` : env.passportWebUrl;
@@ -52,7 +73,7 @@ export function PassportLinkPanel({ workspaceId, onLinked }: { workspaceId: stri
       <div className={`rc-row ${look.cls}`} style={{ borderTop: 0, padding: 0 }} role="status">
         <look.icon className="ic" role="img" aria-label={look.word} />
         <div>
-          <div className="l">{s.linked ? (s.check.state === "pass" ? "Passport is connected" : s.check.state === "unknown" ? "Passport connection saved; status unknown" : "Passport connection needs attention") : "Passport is not connected"}</div>
+          <div className="l">{s.linked ? (s.check.state === "pass" ? t("passportLinkPanel.passportIsConnected") : s.check.state === "unknown" ? t("passportLinkPanel.passportConnectionSavedStatusUnknown") : t("passportLinkPanel.passportConnectionNeedsAttention")) : t("passportLinkPanel.passportIsNotConnected")}</div>
           <div className="r">{s.check.reason}</div>
         </div>
         <span />
@@ -61,19 +82,19 @@ export function PassportLinkPanel({ workspaceId, onLinked }: { workspaceId: stri
       {s.linked && (
         <>
           <dl className="kv">
-            <dt>Client</dt>
+            <dt>{t("passportLinkPanel.client")}</dt>
             <dd className="mono">{s.clientId}</dd>
-            <dt>Linked</dt>
+            <dt>{t("passportLinkPanel.linked")}</dt>
             <dd>{formatDate(s.linkedAt)}</dd>
-            <dt>Last OK</dt>
-            <dd>{s.lastOkAt ? formatDate(s.lastOkAt) : "Not yet"}</dd>
-            <dt>Can release funds</dt>
-            <dd>{s.canDebit === null ? "Unknown" : s.canDebit ? "Yes, a funding source can be debited" : "No funding source yet; add one in Passport"}</dd>
+            <dt>{t("passportLinkPanel.lastOk")}</dt>
+            <dd>{s.lastOkAt ? formatDate(s.lastOkAt) : t("passportLinkPanel.notYet")}</dd>
+            <dt>{t("passportLinkPanel.canReleaseFunds")}</dt>
+            <dd>{s.canDebit === null ? t("passportLinkPanel.unknown") : s.canDebit ? t("passportLinkPanel.yesAFundingSourceCan") : t("passportLinkPanel.noFundingSourceYetAdd")}</dd>
           </dl>
           {unlink.error !== null && <ErrorBanner error={unlink.error} />}
           <div className="row" style={{ gap: "8px" }}>
             <button type="button" className="btn btn-secondary" onClick={status.reload}>
-              Check again
+              {t("passportLinkPanel.checkAgain")}
             </button>
             <button
               type="button"
@@ -83,7 +104,7 @@ export function PassportLinkPanel({ workspaceId, onLinked }: { workspaceId: stri
                 if (await unlink.run()) status.reload();
               }}
             >
-              Disconnect
+              {t("passportLinkPanel.disconnect")}
             </button>
           </div>
         </>
@@ -93,33 +114,33 @@ export function PassportLinkPanel({ workspaceId, onLinked }: { workspaceId: stri
         <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <ol style={{ listStyle: "decimal", paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "4px" }}>
             <li>
-              Open your organization's client page in Passport.{" "}
+              {t("passportLinkPanel.openYourOrganizationSClient")}
               <a href={consoleUrl} target="_blank" rel="noopener noreferrer">
-                Passport funder console <ExternalLink className="ic ic-sm" aria-hidden="true" />
+                {t("passportLinkPanel.passportFunderConsole")} <ExternalLink className="ic ic-sm" aria-hidden="true" />
               </a>
             </li>
             <li>
-              Create a client with these scopes: <span className="mono">{REQUIRED_SCOPES.join(" ")}</span>
+              {t.rich("passportLinkPanel.createAClientWithThese", { join: REQUIRED_SCOPES.join(" "), span: (chunks) => <span className="mono">{chunks}</span> })}
             </li>
-            <li>Paste its id and secret below. Passport shows the secret once.</li>
+            <li>{t("passportLinkPanel.pasteItsIdAndSecret")}</li>
           </ol>
           {!s.passportOrgId && (
-            <Field id="passport-org-id" label="Your organization's Passport ID" required help="Shown on your organization's page in Passport. The client is checked against it before anything is saved.">
+            <Field id="passport-org-id" label={t("passportLinkPanel.yourOrganizationSPassportId")} required help={t("passportLinkPanel.shownOnYourOrganizationS")}>
               <input className="inp mono" id="passport-org-id" value={orgId} onChange={(e) => setOrgId(e.target.value)} autoComplete="off" placeholder="00000000-0000-0000-0000-000000000000" required />
             </Field>
           )}
-          {link.error !== null && <ErrorBanner error={link.error} title="Passport could not be connected" />}
+          {link.error !== null && <ErrorBanner error={link.error} title={t("passportLinkPanel.passportCouldNotBeConnected")} />}
           <div className="fld-row">
-            <Field id="passport-client-id" label="Client id" required>
+            <Field id="passport-client-id" label={t("passportLinkPanel.clientId")} required>
               <input className="inp mono" id="passport-client-id" value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" required />
             </Field>
-            <Field id="passport-client-secret" label="Client secret" required help="Stored encrypted. It is never shown again.">
+            <Field id="passport-client-secret" label={t("passportLinkPanel.clientSecret")} required help={t("passportLinkPanel.storedEncryptedItIsNever")}>
               <input className="inp mono userback-block userback-ignore" id="passport-client-secret" type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="off" minLength={8} required />
             </Field>
           </div>
           <div>
             <button type="submit" className="btn btn-primary" disabled={link.state === "saving" || !clientId.trim() || clientSecret.length < 8 || (!s.passportOrgId && !UUID.test(orgId.trim()))}>
-              Connect Passport
+              {t("passportLinkPanel.connectPassport")}
             </button>
           </div>
         </form>

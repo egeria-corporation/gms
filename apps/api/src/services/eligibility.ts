@@ -67,5 +67,5 @@ export async function evaluateEligibility(ctx: ServiceContext, input: z.output<t
   // chooses the rules, so sending back what each one found (`actual`, and the sentence that quotes
   // it) would let any rule read any part of that record: `org.emails exists` returned the contacts.
   const verdict = { pass: "Met", fail: "Not met", unknown: "Could not be checked" } as const;
-  return foreign ? { ...result, results: result.results.map((r) => ({ rule: r.rule, label: r.label, outcome: r.outcome, ...(r.selfReported ? { selfReported: true } : {}), explain: `${r.label}: ${verdict[r.outcome]}.` })) } : result;
+  return foreign ? { ...result, results: result.results.map((r) => ({ rule: r.rule, label: r.label, outcome: r.outcome, ...(r.selfReported ? { selfReported: true } : {}), explain: `${r.label}: ${verdict[r.outcome]}.`, because: "outcome_only" as const })) } : result;
 }

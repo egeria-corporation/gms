@@ -10,6 +10,10 @@ import { KIND_LABEL, LICENCE, type GalleryAuthor, type GalleryForm, type Gallery
 import { useServices } from "../../app/services.tsx";
 import { FormView } from "../../forms/FormView.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+import { LanguageSwitcher } from "../../components/LanguageSwitcher.tsx";
+const tr = translator("public");
 export const KIND_ICON: Record<GalleryKind, LucideIcon> = { application_form: FileText, report_form: ClipboardCheck, rubric: ListChecks, email_template: Mail, program_kit: Package };
 
 export function KindBadge({ kind }: { kind: GalleryKind }) {
@@ -34,16 +38,16 @@ export function AuthorLine({ author }: { author: GalleryAuthor }) {
   }
   return (
     <span className="row small" style={{ gap: "8px", flexWrap: "wrap" }}>
-      <span>Shared by {author.name}</span>
+      <span>{tr("galleryParts.sharedBy", { name: author.name })}</span>
       {author.verified ? (
-        <span className="lvl lvl-3" title="This funder's organization is verified with OpenGrants Passport">
+        <span className="lvl lvl-3" title={tr("galleryParts.thisFunderSOrganizationIs")}>
           <BadgeCheck className="ic" aria-hidden="true" />
-          Verified by Passport
+          {tr("galleryParts.verifiedByPassport")}
         </span>
       ) : (
-        <span className="lvl lvl-na" title="This funder has not been verified with OpenGrants Passport">
+        <span className="lvl lvl-na" title={tr("galleryParts.thisFunderHasNotBeen")}>
           <ShieldOff className="ic" aria-hidden="true" />
-          Not verified
+          {tr("galleryParts.notVerified")}
         </span>
       )}
     </span>
@@ -53,23 +57,45 @@ export function AuthorLine({ author }: { author: GalleryAuthor }) {
 export function LicenceNote({ author }: { author?: GalleryAuthor }) {
   return (
     <p className="small muted">
-      Shared under{" "}
-      <a href={LICENCE.url} rel="license noreferrer" target="_blank">
-        {LICENCE.name}
-      </a>
-      : free to use and change, as long as you credit {author ? (author.kind === "opengrants" ? "OpenGrants" : author.name) : "the author"}.
+      {author
+        ? tr.rich("galleryParts.sharedUnderCredit", { licence: LICENCE.name, author: author.kind === "opengrants" ? "OpenGrants" : author.name, link: (chunks) => <a href={LICENCE.url} rel="license noreferrer" target="_blank">{chunks}</a> })
+        : tr.rich("galleryParts.sharedUnderCreditAuthor", { licence: LICENCE.name, link: (chunks) => <a href={LICENCE.url} rel="license noreferrer" target="_blank">{chunks}</a> })}
     </p>
   );
 }
+
+/** A tag value from the gallery's vocabulary in the page's language; a value it does not know shows as stored. */
+const TAG_VALUE: Record<string, () => string> = {
+  "Any field": () => tr("galleryParts.tag.fieldOfWork.anyField"),
+  "Arts and culture": () => tr("galleryParts.tag.fieldOfWork.artsAndCulture"),
+  "Community development": () => tr("galleryParts.tag.fieldOfWork.communityDevelopment"),
+  "Education": () => tr("galleryParts.tag.fieldOfWork.education"),
+  "Environment": () => tr("galleryParts.tag.fieldOfWork.environment"),
+  "Health": () => tr("galleryParts.tag.fieldOfWork.health"),
+  "Housing": () => tr("galleryParts.tag.fieldOfWork.housing"),
+  "Human services": () => tr("galleryParts.tag.fieldOfWork.humanServices"),
+  "Youth and families": () => tr("galleryParts.tag.fieldOfWork.youthAndFamilies"),
+  "Under $10,000": () => tr("galleryParts.tag.grantSize.under10k"),
+  "$10,000 to $50,000": () => tr("galleryParts.tag.grantSize.10kTo50k"),
+  "$50,000 to $250,000": () => tr("galleryParts.tag.grantSize.50kTo250k"),
+  "Over $250,000": () => tr("galleryParts.tag.grantSize.over250k"),
+  "Any size": () => tr("galleryParts.tag.grantSize.anySize"),
+  "Nonprofits": () => tr("galleryParts.tag.audience.nonprofits"),
+  "Community groups": () => tr("galleryParts.tag.audience.communityGroups"),
+  "Schools": () => tr("galleryParts.tag.audience.schools"),
+  "Small organizations": () => tr("galleryParts.tag.audience.smallOrganizations"),
+  "Faith-based organizations": () => tr("galleryParts.tag.audience.faithBasedOrganizations"),
+};
+export const tagLabel = (value: string) => TAG_VALUE[value]?.() ?? value;
 
 export function TagList({ tags }: { tags: GalleryTags }) {
   const all = [...tags.fieldOfWork, ...tags.grantSize, ...tags.audience];
   if (!all.length) return null;
   return (
-    <ul aria-label="Tags" className="row" style={{ gap: "6px", flexWrap: "wrap", listStyle: "none", padding: 0, margin: 0 }}>
+    <ul aria-label={tr("galleryParts.tags")} className="row" style={{ gap: "6px", flexWrap: "wrap", listStyle: "none", padding: 0, margin: 0 }}>
       {all.map((t) => (
         <li key={t} className="tag">
-          {t}
+          {tagLabel(t)}
         </li>
       ))}
     </ul>
@@ -77,10 +103,34 @@ export function TagList({ tags }: { tags: GalleryTags }) {
 }
 
 const SUBMISSION: Record<GallerySubmission["status"], { icon: LucideIcon; label: string; tone: string }> = {
-  pending: { icon: Hourglass, label: "Waiting for review", tone: "warn" },
-  approved: { icon: CircleCheck, label: "Published", tone: "ok" },
-  rejected: { icon: CircleX, label: "Declined", tone: "dng" },
-  withdrawn: { icon: Undo2, label: "Withdrawn", tone: "neutral" },
+  pending: {
+    icon: Hourglass,
+    get label() {
+      return tr("galleryParts.submission.pending.label");
+    },
+    tone: "warn",
+  },
+  approved: {
+    icon: CircleCheck,
+    get label() {
+      return tr("galleryParts.submission.approved.label");
+    },
+    tone: "ok",
+  },
+  rejected: {
+    icon: CircleX,
+    get label() {
+      return tr("galleryParts.submission.rejected.label");
+    },
+    tone: "dng",
+  },
+  withdrawn: {
+    icon: Undo2,
+    get label() {
+      return tr("galleryParts.submission.withdrawn.label");
+    },
+    tone: "neutral",
+  },
 };
 export function SubmissionBadge({ status }: { status: GallerySubmission["status"] }) {
   const { icon: Icon, label, tone } = SUBMISSION[status];
@@ -92,11 +142,35 @@ export function SubmissionBadge({ status }: { status: GallerySubmission["status"
   );
 }
 
-const WHAT: Record<GalleryStripped["what"], string> = { default: "Default value removed", help: "Help text removed", text: "Replaced in the text", name: "Organization name replaced" };
-const FOUND: Record<string, string> = { email: "email address", phone: "phone number", link: "web address", "organization name": "organization name" };
+const WHAT: Record<GalleryStripped["what"], string> = { 
+  get default() {
+    return tr("galleryParts.what.default");
+  }, 
+  get help() {
+    return tr("galleryParts.what.help");
+  }, 
+  get text() {
+    return tr("galleryParts.what.text");
+  }, 
+  get name() {
+    return tr("galleryParts.what.name");
+  } };
+const FOUND: Record<string, string> = { 
+  get email() {
+    return tr("galleryParts.found.email");
+  }, 
+  get phone() {
+    return tr("galleryParts.found.phone");
+  }, 
+  get link() {
+    return tr("galleryParts.found.link");
+  }, 
+  get "organization name"() {
+    return tr("galleryParts.found.organization_name");
+  } };
 
 /** What was taken out before sharing. The values themselves are never kept. */
-export function StrippedList({ stripped, empty = "Nothing needed to be taken out." }: { stripped: GalleryStripped[]; empty?: string }) {
+export function StrippedList({ stripped, empty = tr("galleryParts.nothingNeededToBeTaken") }: { stripped: GalleryStripped[]; empty?: string }) {
   if (!stripped.length) return <p className="small muted">{empty}</p>;
   return (
     <ul className="small" style={{ margin: 0, paddingLeft: "18px", display: "flex", flexDirection: "column", gap: "4px" }}>
@@ -113,16 +187,16 @@ export function StrippedList({ stripped, empty = "Nothing needed to be taken out
 function FormPreview({ form, index }: { form: GalleryForm; index: number }) {
   const definition = useMemo<FormDefinition>(() => ({ id: `gallery-${index}`, version: 1, title: form.title, jsonSchema: form.jsonSchema, uiSchema: form.uiSchema } as unknown as FormDefinition), [form, index]);
   return (
-    <div className="card" role="region" aria-label={`Form: ${form.title}`}>
+    <div className="card" role="region" aria-label={tr("galleryParts.form", { title: form.title })}>
       <div className="card-h">
         <h3>{form.title}</h3>
-        <span className="tag">{form.purpose === "report" ? "Report form" : "Application form"}</span>
+        <span className="tag">{form.purpose === "report" ? tr("galleryParts.reportForm") : tr("galleryParts.applicationForm")}</span>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {form.description && <p>{form.description}</p>}
         {form.instructions && (
           <div className="bnr bnr-info" style={{ display: "block" }}>
-            <span className="b">Instructions for applicants. </span>
+            <span className="b">{tr("galleryParts.instructionsForApplicants")} </span>
             {form.instructions}
           </div>
         )}
@@ -152,21 +226,21 @@ export function SnapshotPreview({ snapshot }: { snapshot: GallerySnapshot }) {
         const criteria = r.criteria as CriterionLike[];
         const total = criteria.reduce((n, c) => n + (c.weight ?? 0), 0);
         return (
-          <div key={`r${i}`} className="card" role="region" aria-label={`Rubric: ${r.name}`}>
+          <div key={`r${i}`} className="card" role="region" aria-label={tr("galleryParts.rubric", { name: r.name })}>
             <div className="card-h">
               <h3>{r.name}</h3>
               <span className="tag">
-                {criteria.length} criteri{criteria.length === 1 ? "on" : "a"}
+                {tr("galleryParts.criteriaCount", { count: criteria.length })}
               </span>
             </div>
-            <div className="tbl-wrap" tabIndex={0} role="region" aria-label={`${r.name} criteria, scrollable`} style={{ border: 0, borderRadius: 0 }}>
-              <table className="tbl" aria-label={`${r.name} criteria`}>
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label={tr("galleryParts.criteriaScrollable", { name: r.name })} style={{ border: 0, borderRadius: 0 }}>
+              <table className="tbl" aria-label={tr("galleryParts.criteria", { name: r.name })}>
                 <thead>
                   <tr>
-                    <th>Criterion</th>
-                    <th>Scale</th>
-                    <th>Weight</th>
-                    <th>How to score</th>
+                    <th>{tr("galleryParts.criterion")}</th>
+                    <th>{tr("galleryParts.scale")}</th>
+                    <th>{tr("galleryParts.weight")}</th>
+                    <th>{tr("galleryParts.howToScore")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -176,7 +250,7 @@ export function SnapshotPreview({ snapshot }: { snapshot: GallerySnapshot }) {
                         <div className="b">{c.label}</div>
                         {c.description && <div className="small muted">{c.description}</div>}
                       </td>
-                      <td>{c.scale?.type === "categorical" ? (c.scale.options ?? []).map((o) => o.label ?? o.value).join(" / ") : `${c.scale?.min ?? 1} to ${c.scale?.max ?? 5}`}</td>
+                      <td>{c.scale?.type === "categorical" ? (c.scale.options ?? []).map((o) => o.label ?? o.value).join(" / ") : tr("galleryParts.to", { value: c.scale?.min ?? 1, value2: c.scale?.max ?? 5 })}</td>
                       <td>{total ? `${Math.round(((c.weight ?? 0) / total) * 100)}%` : "—"}</td>
                       <td className="small" style={{ whiteSpace: "normal" }}>
                         {c.guidance ?? <span className="muted">—</span>}
@@ -190,21 +264,21 @@ export function SnapshotPreview({ snapshot }: { snapshot: GallerySnapshot }) {
         );
       })}
       {snapshot.emails.map((m, i) => (
-        <div key={`e${i}`} className="card" role="region" aria-label={`Email: ${m.name}`}>
+        <div key={`e${i}`} className="card" role="region" aria-label={tr("galleryParts.email", { name: m.name })}>
           <div className="card-h">
             <h3>{m.name}</h3>
-            <span className="tag">Email</span>
+            <span className="tag">{tr("galleryParts.email2")}</span>
           </div>
           <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             <div>
-              <span className="eyebrow">Subject</span>
+              <span className="eyebrow">{tr("galleryParts.subject")}</span>
               <div className="b">{m.subject}</div>
             </div>
             <div>
-              <span className="eyebrow">Message</span>
+              <span className="eyebrow">{tr("galleryParts.message")}</span>
               <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{m.body}</div>
             </div>
-            <p className="small muted">Words in double braces, such as {"{{recipient.name}}"}, are filled in for each person when the email is sent.</p>
+            <p className="small muted">{tr("galleryParts.wordsInDoubleBracesSuch")}</p>
           </div>
         </div>
       ))}
@@ -224,18 +298,18 @@ export function GalleryFrame({ children }: { children: ReactNode }) {
             <img src="/brand/opengrants-logo-black.png" alt="OpenGrants" style={{ height: "22px", width: "auto", display: "block" }} />
             <span style={{ color: "var(--og-teal-dark)", fontWeight: 500 }}>GMS</span>
           </Link>
-          <nav aria-label="Primary" style={{ display: "flex", alignItems: "center", gap: "24px", fontSize: "14px", fontWeight: 700, flexWrap: "wrap" }}>
+          <nav aria-label={tr("galleryParts.primary")} style={{ display: "flex", alignItems: "center", gap: "24px", fontSize: "14px", fontWeight: 700, flexWrap: "wrap" }}>
             <Link to="/templates" style={{ color: "var(--og-gray-800)", display: "inline-flex", alignItems: "center", gap: "6px" }}>
               <LayoutTemplate className="ic" aria-hidden="true" />
-              Template gallery
+              {tr("galleryParts.templateGallery")}
             </Link>
             {signedIn ? (
               <Link to="/workspaces" className="btn btn-secondary">
-                Your workspaces
+                {tr("galleryParts.yourWorkspaces")}
               </Link>
             ) : (
               <Link to="/signin" className="btn btn-secondary">
-                Sign in
+                {tr("galleryParts.signIn")}
               </Link>
             )}
           </nav>
@@ -246,14 +320,17 @@ export function GalleryFrame({ children }: { children: ReactNode }) {
         <div className="wrap-c">
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "20px", height: "20px" }} />
-            <span>Powered by OpenGrants GMS, free and open source</span>
+            <span>{tr("galleryParts.poweredByOpengrantsGmsFree")}</span>
           </div>
           <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
             <a href={LICENCE.url} rel="license noreferrer" target="_blank">
-              Templates: {LICENCE.name}
+              {tr("galleryParts.templates", { name: LICENCE.name })}
             </a>
-            <Link to="/">About OpenGrants GMS</Link>
+            <Link to="/">{tr("galleryParts.aboutOpengrantsGms")}</Link>
           </div>
+        </div>
+        <div className="wrap-c lang-row">
+          <LanguageSwitcher />
         </div>
       </footer>
     </div>

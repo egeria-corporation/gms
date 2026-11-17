@@ -4,6 +4,8 @@
 // Any WCAG A or AA violation fails, whatever its impact. The phone pass also fails on sideways
 // scrolling. A route added to App.tsx without an entry in a11y-routes.ts fails the first test.
 // The manual checks and the conformance report: docs/accessibility.md.
+// Every route and every dialog runs again in Spanish (docs/i18n.md), at both widths and in both
+// schemes: longer words can wrap into a different layout, and a dark-scheme colour can meet them.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -38,9 +40,14 @@ function appRoutePatterns(): string[] {
   return [...out].sort();
 }
 
+/** The Spanish pass: the same routes in the same four combinations (docs/i18n.md). */
+const SPANISH_COMBOS = COMBOS;
+
 /** Opens a case in a fresh browser context, as its person, and waits for the screen's data. */
-async function openCase(browser: Browser, c: RouteCase, combo: (typeof COMBOS)[number]): Promise<{ page: Page; problems: string[]; close: () => Promise<void> }> {
+async function openCase(browser: Browser, c: RouteCase, combo: (typeof COMBOS)[number], locale: "en" | "es" = "en"): Promise<{ page: Page; problems: string[]; close: () => Promise<void> }> {
   const context = await browser.newContext({ viewport: combo.viewport, colorScheme: combo.colorScheme });
+  // The language a visitor chose: the cookie the switcher sets (docs/i18n.md).
+  if (locale !== "en") await context.addCookies([{ name: "gms_lang", value: locale, url: test.info().project.use.baseURL ?? "http://localhost:5179" }]);
   if (c.who === "signed-out" || c.who === "guest-reviewer") {
     // The mock keeps its session in sessionStorage; start this tab signed out.
     await context.addInitScript(() => {
@@ -104,30 +111,56 @@ for (const [pattern, cases] of Object.entries(ROUTES)) {
   });
 }
 
-for (const dc of DIALOGS) {
-  test(`dialog: ${dc.dialog} (${dc.path})`, async ({ browser }) => {
-    const { page, problems, close } = await openCase(browser, { path: dc.path, who: dc.who }, COMBOS[0]!);
-    try {
-      const opener = page.getByRole("button", { name: dc.opener, exact: true }).first();
-      await opener.focus();
-      await page.keyboard.press("Enter");
-      const box = page.getByRole(dc.role ?? "dialog", { name: dc.dialog, exact: true });
-      await expect(box).toBeVisible();
-      await box.evaluate((el) => el.setAttribute("data-a11y-open", ""));
-      expect(await axeViolations(page, "[data-a11y-open]"), dc.dialog).toEqual([]);
-      if ((dc.role ?? "dialog") === "dialog") {
-        // Focus starts inside and Tab cannot leave a modal dialog.
-        for (let i = 0; i < 12; i++) {
-          expect(await box.evaluate((el) => el.contains(document.activeElement)), `focus inside after ${i} Tab presses`).toBe(true);
-          await page.keyboard.press("Tab");
-        }
+for (const [pattern, cases] of Object.entries(ROUTES)) {
+  cases.forEach((c, i) => {
+    test(`axe in Spanish: ${pattern} #${i + 1} (${c.who}, ${c.path})`, async ({ browser }) => {
+      for (const combo of SPANISH_COMBOS) {
+        await test.step(combo.name, async () => {
+          const { page, problems, close } = await openCase(browser, c, combo, "es");
+          try {
+            expect(await page.evaluate(() => document.documentElement.lang), "the page says it is in Spanish").toBe("es");
+            expect(await axeViolations(page), `${page.url()} in Spanish at ${combo.name}`).toEqual([]);
+            if (combo.viewport.width < 500 && !FIXED_LAYOUT.test(c.path)) {
+              const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+              expect(sideways, `${page.url()} scrolls sideways at ${combo.viewport.width}px in Spanish`).toBeLessThanOrEqual(0);
+            }
+            expect(problems, "no console or page errors").toEqual([]);
+          } finally {
+            await close();
+          }
+        });
       }
-      await page.keyboard.press("Escape");
-      await expect(box).toBeHidden();
-      await expect(opener, "focus returns to the control that opened it").toBeFocused();
-      expect(problems, "no console or page errors").toEqual([]);
-    } finally {
-      await close();
-    }
+    });
   });
+}
+
+for (const dc of DIALOGS) {
+  for (const locale of ["en", "es"] as const) {
+    const names = locale === "en" ? dc : dc.es;
+    test(`dialog${locale === "es" ? " in Spanish" : ""}: ${names.dialog} (${dc.path})`, async ({ browser }) => {
+      const { page, problems, close } = await openCase(browser, { path: dc.path, who: dc.who }, COMBOS[0]!, locale);
+      try {
+        const opener = page.getByRole("button", { name: names.opener, exact: true }).first();
+        await opener.focus();
+        await page.keyboard.press("Enter");
+        const box = page.getByRole(dc.role ?? "dialog", { name: names.dialog, exact: true });
+        await expect(box).toBeVisible();
+        await box.evaluate((el) => el.setAttribute("data-a11y-open", ""));
+        expect(await axeViolations(page, "[data-a11y-open]"), names.dialog).toEqual([]);
+        if ((dc.role ?? "dialog") === "dialog") {
+          // Focus starts inside and Tab cannot leave a modal dialog.
+          for (let i = 0; i < 12; i++) {
+            expect(await box.evaluate((el) => el.contains(document.activeElement)), `focus inside after ${i} Tab presses`).toBe(true);
+            await page.keyboard.press("Tab");
+          }
+        }
+        await page.keyboard.press("Escape");
+        await expect(box).toBeHidden();
+        await expect(opener, "focus returns to the control that opened it").toBeFocused();
+        expect(problems, "no console or page errors").toEqual([]);
+      } finally {
+        await close();
+      }
+    });
+  }
 }

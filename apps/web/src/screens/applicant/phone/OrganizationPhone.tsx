@@ -17,6 +17,8 @@ import { ErrorBanner, Notice } from "../../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../../lib/format.ts";
 import { ConnectedAppsCard, LockerCard, RepresentativesCard } from "../organizationExtras.tsx";
 import { VaultCard } from "../outside/keep.tsx";
+import { t, useApplicantText } from "../i18n.ts";
+import { readinessWords } from "../../../lib/readinessText.ts";
 
 const load = async (api: ApplicantApi) => {
   const [org, readiness, consents] = await Promise.all([api.organization(), api.readiness(), api.consents()]);
@@ -26,13 +28,19 @@ const load = async (api: ApplicantApi) => {
 type Json = Record<string, unknown>;
 const at = (obj: unknown, path: string): unknown => path.split(".").reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Json)[k] : undefined), obj);
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : typeof v === "number" ? String(v) : null);
-const IRS_SUBSECTION: Record<string, string> = { "03": "501(c)(3) public charity", "04": "501(c)(4) social welfare organization", "06": "501(c)(6) business league" };
+/** An IRS subsection's name, in the page's language. */
+const irsSubsection = (code: string): string =>
+  code === "03" ? t("organization.irs.c3") : code === "04" ? t("organization.irs.c4") : code === "06" ? t("organization.irs.c6") : t("organization.irs.other", { code });
 const STATE = {
-  pass: { cls: "rc-pass", icon: CircleCheck, word: "Passes" },
-  fail: { cls: "rc-fail", icon: CircleX, word: "Needs attention" },
-  unknown: { cls: "rc-unk", icon: CircleDashed, word: "Unknown" },
-} as const;
-const BASIS: Record<string, string> = { application: "Because you applied", passport_grant: "Granted in Passport", shared_submission: "Because you shared a report" };
+  pass: { cls: "rc-pass", icon: CircleCheck, get word() { return t("organization.state.pass"); } },
+  fail: { cls: "rc-fail", icon: CircleX, get word() { return t("organization.state.fail"); } },
+  unknown: { cls: "rc-unk", icon: CircleDashed, get word() { return t("organization.state.unknown"); } },
+};
+const BASIS: Record<string, string> = {
+  get application() { return t("organizationPhone.basis.application"); },
+  get passport_grant() { return t("teamAccess.basis.passport"); },
+  get shared_submission() { return t("organizationPhone.basis.shared"); },
+};
 
 function Row({ label, value, source, last = false }: { label: string; value: string | null; source: string; last?: boolean }) {
   return (
@@ -46,12 +54,13 @@ function Row({ label, value, source, last = false }: { label: string; value: str
           </span>
         )}
       </dt>
-      <dd style={{ margin: "0", fontSize: "16px", wordBreak: "break-word" }}>{value ?? <span className="muted">Not set</span>}</dd>
+      <dd style={{ margin: "0", fontSize: "16px", wordBreak: "break-word" }}>{value ?? <span className="muted">{t("organizationPhone.notSet")}</span>}</dd>
     </div>
   );
 }
 
 export default function OrganizationPhone() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const passportFlags = usePassportFlags();
   const base = `/w/${ws.handle}`;
@@ -59,14 +68,14 @@ export default function OrganizationPhone() {
   const refresh = useApplicantMutation((api) => api.refreshOrganization());
   return (
     <>
-      <title>{`Organization — ${ws.name}`}</title>
-      <PhoneShell title="Organization" active="Organization">
+      <title>{t("organization.pageTitle", { workspace: ws.name })}</title>
+      <PhoneShell title={t("organizationPhone.organization")} active="Organization">
         <main className="main" style={{ flex: 1 }}>
-          <Loaded query={query} label="Loading your Passport record">
+          <Loaded query={query} label={t("organizationPhone.loadingYourPassportRecord")}>
             {({ org, readiness, consents }) => {
               const o = org.organization as unknown as Json | null;
               const profile = (org.profile ?? {}) as Json;
-              const src = (path: string) => (org.profileSources[path] ? `From Passport · ${sourceLabel(org.profileSources[path])}` : "From Passport");
+              const src = (path: string) => (org.profileSources[path] ? t("organization.fromPassportVia", { source: sourceLabel(org.profileSources[path]) }) : t("organization.fromPassport"));
               const address = [at(o, "addresses.primary.street1"), at(o, "addresses.primary.city"), at(o, "addresses.primary.stateOrProvince"), at(o, "addresses.primary.postalCode")].map(text).filter(Boolean).join(", ") || null;
               const subsection = text(at(profile, "commonApp.irs.subsection"));
               const budget = at(profile, "commonApp.financials.budget");
@@ -88,7 +97,7 @@ export default function OrganizationPhone() {
                           {payee?.state === "pass" && (
                             <span className="pay pay-active">
                               <Check className="ic" aria-hidden="true" />
-                              Payee active
+                              {t("organizationPhone.payeeActive")}
                             </span>
                           )}
                         </div>
@@ -96,16 +105,14 @@ export default function OrganizationPhone() {
                     </div>
                     <div className="mtr">
                       <div className="lbls">
-                        <span>Passport readiness</span>
-                        <b>
-                          {done} of {total}
-                        </b>
+                        <span>{t("organizationPhone.passportReadiness")}</span>
+                        <b>{t("organizationPhone.doneOf", { done, total })}</b>
                       </div>
-                      <div className="track" role="img" aria-label={`${done} of ${total} readiness checks pass`}>
+                      <div className="track" role="img" aria-label={t("organizationPhone.checksPass", { done, total })}>
                         <div className="fill" style={{ width: `${Math.round((done / total) * 100)}%` }}></div>
                       </div>
                     </div>
-                    <p className="small muted">Everything here is read from your OpenGrants Passport record. Edit it there and every funder sees the change.</p>
+                    <p className="small muted">{t("organizationPhone.everythingHereIsReadFromYour")}</p>
                     {org.linked && (
                       <button
                         className="btn btn-secondary btn-lg btn-block"
@@ -116,18 +123,18 @@ export default function OrganizationPhone() {
                           if (next) query.set({ org: next, readiness, consents });
                         }}
                       >
-                        {refresh.state === "saving" ? "Refreshing…" : "Refresh from Passport"}
+                        {refresh.state === "saving" ? t("organizationPhone.refreshing") : t("organizationPhone.refreshFromPassport")}
                       </button>
                     )}
                   </div>
-                  {refresh.error ? <ErrorBanner error={refresh.error} title="Passport could not be read" /> : null}
+                  {refresh.error ? <ErrorBanner error={refresh.error} title={t("organizationPhone.passportCouldNotBeRead")} /> : null}
                   {!org.linked && (
-                    <Notice tone="info" title="Not verified: this workspace is not linked to Passport">
-                      Funders see the details you entered in <Link to={`/w/${ws.handle}/settings#organization-details`}>Settings</Link>, marked as not verified.
+                    <Notice tone="info" title={t("organizationPhone.notVerifiedThisWorkspaceIsNot")}>
+                      {t.rich("organization.selfDeclaredNote", { link: (chunks) => <Link to={`/w/${ws.handle}/settings#organization-details`}>{chunks}</Link> })}
                       {passportFlags.linking && (
                         <>
                           {" "}
-                          <Link to="/onboarding/applicant">Continue with Passport</Link> to verify your organization and bring in your record.
+                          {t.rich("organization.continueNote", { link: (chunks) => <Link to="/onboarding/applicant">{chunks}</Link> })}
                         </>
                       )}
                     </Notice>
@@ -136,39 +143,39 @@ export default function OrganizationPhone() {
                   <section className="card" aria-labelledby="prof-h">
                     <div className="card-h" style={{ padding: "14px 16px" }}>
                       <h3 id="prof-h" style={{ fontSize: "16px" }}>
-                        Profile
+                        {t("organizationPhone.profile")}
                       </h3>
                       {org.editUrl && (
                         <a href={org.editUrl} className="small b">
-                          Edit in Passport
+                          {t("organizationPhone.editInPassport")}
                         </a>
                       )}
                     </div>
                     <dl style={{ margin: "0", display: "flex", flexDirection: "column" }}>
-                      <Row label="Legal name" value={text(at(o, "name")) ?? org.displayName} source="From Passport" />
-                      <Row label="Tax status" value={subsection ? (IRS_SUBSECTION[subsection] ?? `IRS subsection ${subsection}`) : null} source={src("/commonApp/irs/subsection")} />
-                      <Row label="EIN" value={text(at(o, "identifiers.org:us:ein.id"))} source="From Passport" />
-                      <Row label="Mailing address" value={address} source="From Passport" />
-                      <Row label="Website" value={text(at(o, "socials.website"))} source="From Passport" />
-                      <Row label="Annual operating budget" value={typeof budget === "number" ? formatMinor(Math.round(budget * 100)) : null} source={src("/commonApp/financials/budget")} />
-                      <Row label="Mission" value={text(at(o, "mission"))} source="From Passport" last />
+                      <Row label={t("organizationPhone.legalName")} value={text(at(o, "name")) ?? org.displayName} source={t("organization.fromPassport")} />
+                      <Row label={t("organizationPhone.taxStatus")} value={subsection ? irsSubsection(subsection) : null} source={src("/commonApp/irs/subsection")} />
+                      <Row label="EIN" value={text(at(o, "identifiers.org:us:ein.id"))} source={t("organization.fromPassport")} />
+                      <Row label={t("organizationPhone.mailingAddress")} value={address} source={t("organization.fromPassport")} />
+                      <Row label={t("organizationPhone.website")} value={text(at(o, "socials.website"))} source={t("organization.fromPassport")} />
+                      <Row label={t("organizationPhone.annualOperatingBudget")} value={typeof budget === "number" ? formatMinor(Math.round(budget * 100)) : null} source={src("/commonApp/financials/budget")} />
+                      <Row label={t("organizationPhone.mission")} value={text(at(o, "mission"))} source={t("organization.fromPassport")} last />
                     </dl>
                   </section>
 
                   <section className="card" aria-labelledby="payee-h">
                     <div className="card-h" style={{ padding: "14px 16px" }}>
                       <h3 id="payee-h" style={{ fontSize: "16px" }}>
-                        Payee status
+                        {t("organizationPhone.payeeStatus")}
                       </h3>
                       {payee?.state === "pass" ? (
                         <span className="pay pay-active">
                           <Check className="ic" aria-hidden="true" />
-                          Active
+                          {t("organizationPhone.active")}
                         </span>
                       ) : (
                         <span className="pay pay-none">
                           <Clock className="ic" aria-hidden="true" />
-                          {payee?.state === "unknown" ? "Unknown" : "Not verified"}
+                          {payee?.state === "unknown" ? t("organizationPhone.unknown") : t("organizationPhone.notVerified")}
                         </span>
                       )}
                     </div>
@@ -177,25 +184,25 @@ export default function OrganizationPhone() {
                         <Landmark className="ic ic-md" aria-hidden="true" style={{ color: "var(--og-teal-dark)" }} />
                         <div>
                           <div className="b" style={{ fontSize: "15px" }}>
-                            {payee?.reason ?? "Verify a payout destination in Passport"}
+                            {payee?.reason ?? t("organizationPhone.verifyAPayoutDestinationInPassport")}
                           </div>
-                          <div className="small muted">The destination itself is shown and changed only in Passport</div>
+                          <div className="small muted">{t("organizationPhone.theDestinationItselfIsShownAnd")}</div>
                         </div>
                       </div>
                       <div className="bnr bnr-neu" style={{ padding: "10px 12px" }}>
                         <Clock className="ic" aria-hidden="true" />
                         <div>
                           <div className="t" style={{ fontSize: "14px" }}>
-                            Change control
+                            {t("organizationPhone.changeControl")}
                           </div>
                           <div className="d" style={{ fontSize: "13px" }}>
-                            Destination changes are made in Passport by an authorized signer, take 5 business days to cool off, and pause any payment due in that window. Funders see the status, never the account details.
+                            {t("organizationPhone.destinationChangesAreMadeInPassport")}
                           </div>
                         </div>
                       </div>
                       {org.editUrl && (
                         <a href={org.editUrl} className="btn btn-secondary btn-lg btn-block">
-                          Manage destination in Passport
+                          {t("organizationPhone.manageDestinationInPassport")}
                         </a>
                       )}
                     </div>
@@ -204,9 +211,9 @@ export default function OrganizationPhone() {
                   <section className="card" aria-labelledby="ready-h">
                     <div className="card-h" style={{ padding: "14px 16px" }}>
                       <h3 id="ready-h" style={{ fontSize: "16px" }}>
-                        Readiness
+                        {t("organizationPhone.readiness")}
                       </h3>
-                      <span className="small muted">{org.syncedAt ? `Synced ${formatDate(org.syncedAt)}` : "Not synced"}</span>
+                      <span className="small muted">{org.syncedAt ? t("organizationPhone.syncedOn", { date: formatDate(org.syncedAt) }) : t("organizationPhone.notSynced")}</span>
                     </div>
                     <ul className="rc" style={{ padding: "4px 16px 12px", fontSize: "15px" }}>
                       {readiness.checks.map((c, i) => {
@@ -215,8 +222,8 @@ export default function OrganizationPhone() {
                           <li key={c.key} className={`rc-row ${look.cls}`} style={i === 0 ? { borderTop: 0 } : undefined}>
                             <look.icon className="ic" role="img" aria-label={look.word} />
                             <div>
-                              <div className="l">{c.label}</div>
-                              <div className="r">{c.reason}</div>
+                              <div className="l">{readinessWords(c).label}</div>
+                              <div className="r">{readinessWords(c).reason}</div>
                             </div>
                             <span></span>
                           </li>
@@ -228,15 +235,15 @@ export default function OrganizationPhone() {
                   <section className="card" aria-labelledby="access-h">
                     <div className="card-h" style={{ padding: "14px 16px" }}>
                       <h3 id="access-h" style={{ fontSize: "16px" }}>
-                        Who has access
+                        {t("organizationPhone.whoHasAccess")}
                       </h3>
                       <Link to={`${base}/team`} className="small b">
-                        Manage
+                        {t("organizationPhone.manage")}
                       </Link>
                     </div>
                     {active.length === 0 ? (
                       <p className="small muted" style={{ padding: "12px 16px 16px" }}>
-                        No funder can read your record yet. Applying to a funder shares it with that funder.
+                        {t("organizationPhone.noFunderCanReadYourRecord")}
                       </p>
                     ) : (
                       <ul style={{ display: "flex", flexDirection: "column" }}>
@@ -244,10 +251,10 @@ export default function OrganizationPhone() {
                           <li key={c.id} className="row" style={{ padding: "12px 16px", gap: "12px", minHeight: "56px", ...(i < active.length - 1 ? { borderBottom: "1px solid var(--og-gray-100)" } : {}) }}>
                             <div className="grow">
                               <div className="b" style={{ fontSize: "15px" }}>
-                                {c.funder.name ?? "Funder"}
+                                {c.funder.name ?? t("organizationPhone.funder")}
                               </div>
                               <div className="small muted">
-                                {BASIS[c.basis] ?? c.basis} · since {formatDate(c.grantedAt)}
+                                {BASIS[c.basis] ?? c.basis} · {t("organizationPhone.since", { date: formatDate(c.grantedAt) })}
                               </div>
                             </div>
                           </li>

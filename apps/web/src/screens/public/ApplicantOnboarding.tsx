@@ -18,19 +18,39 @@ import { safeNext } from "../../lib/passportSignIn.ts";
 import { ErrorBanner, errorMessage, Loading } from "../../components/ui.tsx";
 import { ConnectApps, InviteTeammates } from "./onboardingExtras.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+import { readinessWords } from "../../lib/readinessText.ts";
+
+
+
+const t = translator("public");
 const REASONS: Record<string, string> = {
-  declined: "You chose not to share your Passport record. Nothing was linked.",
-  expired: "That took too long and the request expired. Start again.",
-  invalid_state: "The request could not be verified. Start again.",
-  not_configured: "Passport linking is not configured on this server.",
-  passport_unavailable: "Passport can’t be reached right now. Try again in a few minutes.",
-  passport_refused: "Passport refused the request for this organization.",
-  passport_error: "Passport reported an error. Try again.",
+  get declined() {
+    return t("applicantOnboarding.reasons.declined");
+  },
+  get expired() {
+    return t("applicantOnboarding.reasons.expired");
+  },
+  get invalid_state() {
+    return t("applicantOnboarding.reasons.invalid_state");
+  },
+  get not_configured() {
+    return t("applicantOnboarding.reasons.not_configured");
+  },
+  get passport_unavailable() {
+    return t("applicantOnboarding.reasons.passport_unavailable");
+  },
+  get passport_refused() {
+    return t("applicantOnboarding.reasons.passport_refused");
+  },
+  get passport_error() {
+    return t("applicantOnboarding.reasons.passport_error");
+  },
 };
 
-const SCOPES = ["Read your organization profile", "Read your Common App profile (budget, staff, tax status) where you have confirmed it", "Propose changes to your profile (you approve each one in Passport)"];
+const SCOPES = () => ([t("applicantOnboarding.scopes.n0"), t("applicantOnboarding.scopes.n1"), t("applicantOnboarding.scopes.n2")]);
 
-const STEPS = ["Choose how to set up", "Confirm imported profile", "Ready"] as const;
+const STEPS = () => ([t("applicantOnboarding.steps.n0"), t("applicantOnboarding.steps.n1"), t("applicantOnboarding.steps.n2")] as const);
 
 /** A public handle for a workspace, from the legal name; applicants never see or choose it. */
 function handleFor(name: string, attempt: number): string {
@@ -150,15 +170,15 @@ export default function ApplicantOnboarding() {
   const o = record?.org.organization as unknown as Json | null | undefined;
   const address = [at(o, "addresses.primary.street1"), at(o, "addresses.primary.city"), at(o, "addresses.primary.stateOrProvince")].map(text).filter(Boolean).join(", ");
   const imported = [
-    { id: "p-legal", label: "Legal name", value: text(at(o, "name")) },
+    { id: "p-legal", label: t("applicantOnboarding.legalName"), value: text(at(o, "name")) },
     { id: "p-ein", label: "EIN", value: text(at(o, "identifiers.org:us:ein.id")).replace(/^(\d{2})(\d{7})$/, "$1-$2") },
-    { id: "p-addr", label: "Address", value: address },
-    { id: "p-email", label: "Primary email", value: text(at(o, "emails.primary")) },
+    { id: "p-addr", label: t("applicantOnboarding.address"), value: address },
+    { id: "p-email", label: t("applicantOnboarding.primaryEmail"), value: text(at(o, "emails.primary")) },
   ].filter((f) => f.value);
 
   return (
     <>
-      <title>Set up your applicant workspace — OpenGrants GMS</title>
+      <title>{t("applicantOnboarding.setUpYourApplicantWorkspace")}</title>
       <div className="gms gms-applicant gms-frame">
         <header className="topbar">
           <Link to="/" className="logo">
@@ -166,13 +186,13 @@ export default function ApplicantOnboarding() {
             <span className="suffix">GMS</span>
           </Link>
           <span className="muted small" style={{ marginLeft: "8px" }}>
-            Set up your applicant workspace
+            {t("applicantOnboarding.setUpYourApplicantWorkspace2")}
           </span>
           <div className="row" style={{ marginLeft: "auto", gap: "4px" }}>
             {email && (
               <Link to="/account/agents" className="av av-t">
                 <span aria-hidden="true">{initialsOf(email)}</span>
-                <span className="sr">Account: {email}</span>
+                <span className="sr">{t("applicantOnboarding.account", { email })}</span>
               </Link>
             )}
           </div>
@@ -181,16 +201,16 @@ export default function ApplicantOnboarding() {
         <main className="main" style={{ maxWidth: "960px", width: "100%", margin: "0 auto" }}>
           <div className="ph">
             <div>
-              <h1>{record?.org.displayName ? `Welcome, ${record.org.displayName}` : "Set up your organization"}</h1>
+              <h1>{record?.org.displayName ? t("applicantOnboarding.welcome", { displayName: record.org.displayName }) : t("applicantOnboarding.setUpYourOrganization")}</h1>
               <div className="meta">
-                <span>{flags.linking ? "Link your Passport record, or set up with a few details of your own. Either way you can apply." : "Tell us about your organization and you are ready to apply."}</span>
+                <span>{flags.linking ? t("applicantOnboarding.linkYourPassportRecordOr") : t("applicantOnboarding.tellUsAboutYourOrganization")}</span>
               </div>
             </div>
           </div>
 
           <div className="card" style={{ padding: "16px 24px" }}>
-            <ol className="stp" aria-label="Onboarding steps" style={{ flexWrap: "wrap", rowGap: "8px" }}>
-              {STEPS.map((label, i) => (
+            <ol className="stp" aria-label={t("applicantOnboarding.onboardingSteps")} style={{ flexWrap: "wrap", rowGap: "8px" }}>
+              {STEPS().map((label, i) => (
                 <li key={label} style={{ display: "contents" }}>
                   {i > 0 && <span className={i <= step ? "ln done" : "ln"} aria-hidden="true"></span>}
                   <div className={i < step ? "s done" : i === step ? "s on" : "s"} aria-current={i === step ? "step" : undefined}>
@@ -202,19 +222,19 @@ export default function ApplicantOnboarding() {
             </ol>
           </div>
 
-          {outcome === "finish" && finishError === null && <Loading label="Linking your organization" />}
-          {finishError !== null && <ErrorBanner error={finishError} title="Your organization was not linked" />}
+          {outcome === "finish" && finishError === null && <Loading label={t("applicantOnboarding.linkingYourOrganization")} />}
+          {finishError !== null && <ErrorBanner error={finishError} title={t("applicantOnboarding.yourOrganizationWasNotLinked")} />}
           {outcome === "error" && (
             <div className="bnr bnr-dng" role="alert">
               <CircleX className="ic" aria-hidden="true" />
               <div>
-                <div className="t">Your organization was not linked</div>
-                <div className="d">{REASONS[reason] ?? "Something went wrong while linking. Try again."}</div>
+                <div className="t">{t("applicantOnboarding.yourOrganizationWasNotLinked")}</div>
+                <div className="d">{REASONS[reason] ?? t("applicantOnboarding.somethingWentWrongWhileLinking")}</div>
               </div>
             </div>
           )}
-          {start.error ? <ErrorBanner error={start.error} title="Passport could not be opened" /> : null}
-          {loadError && workspace ? <ErrorBanner error={loadError} title="Your Passport record could not be read" /> : null}
+          {start.error ? <ErrorBanner error={start.error} title={t("applicantOnboarding.passportCouldNotBeOpened")} /> : null}
+          {loadError && workspace ? <ErrorBanner error={loadError} title={t("applicantOnboarding.yourPassportRecordCouldNot")} /> : null}
           {meState.status === "loading" && <Loading />}
 
           {step === 0 && meState.status !== "loading" && !flags.ready && <Loading />}
@@ -228,19 +248,19 @@ export default function ApplicantOnboarding() {
                       <div className="b" style={{ fontSize: "15px" }}>
                         OpenGrants Passport
                       </div>
-                      <div className="small muted">You will be asked there what to share with OpenGrants GMS</div>
+                      <div className="small muted">{t("applicantOnboarding.youWillBeAskedThere")}</div>
                     </div>
                     <span className="bdg bdg-ok" style={{ marginLeft: "auto" }}>
                       <Star className="ic" aria-hidden="true" />
-                      Recommended
+                      {t("applicantOnboarding.recommended")}
                     </span>
                   </div>
                   <h2 id="consent-h" style={{ fontSize: "18px" }}>
-                    Continue with Passport
+                    {t("applicantOnboarding.continueWithPassport")}
                   </h2>
-                  <p className="small">Verified, forms fill themselves in, and you can receive payments through Passport.</p>
+                  <p className="small">{t("applicantOnboarding.verifiedFormsFillThemselvesIn")}</p>
                   <ul style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "15px" }}>
-                    {SCOPES.map((s) => (
+                    {SCOPES().map((s) => (
                       <li className="cb" key={s}>
                         <span className="c on" aria-hidden="true">
                           <Check className="ic ic-sm" />
@@ -249,13 +269,13 @@ export default function ApplicantOnboarding() {
                       </li>
                     ))}
                   </ul>
-                  <p className="small muted">The GMS never sees account details and cannot change your bank destination. You can withdraw this consent in Passport at any time.</p>
+                  <p className="small muted">{t("applicantOnboarding.theGmsNeverSeesAccount")}</p>
                   <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
                     <button className="btn btn-primary btn-lg" type="button" onClick={onContinue} disabled={start.state === "going"}>
-                      {start.state === "going" ? "Opening Passport…" : "Continue with Passport"}
+                      {start.state === "going" ? t("applicantOnboarding.openingPassport") : t("applicantOnboarding.continueWithPassport")}
                     </button>
                     <Link to="/" className="btn btn-secondary btn-lg">
-                      Not now
+                      {t("applicantOnboarding.notNow")}
                     </Link>
                   </div>
                 </section>
@@ -265,23 +285,23 @@ export default function ApplicantOnboarding() {
                 <div className="row" style={{ gap: "12px" }}>
                   <ShieldOff className="ic" aria-hidden="true" />
                   <h2 id="own-h" style={{ fontSize: "18px" }}>
-                    Set up without Passport
+                    {t("applicantOnboarding.setUpWithoutPassport")}
                   </h2>
                 </div>
                 <p className="small">
-                  Enter a few details yourself. Funders see your organization as <b>not verified</b>, forms are not filled in for you, and payments through Passport are not available until you link it.
-                  {flags.linking && " You can link Passport later."}
+                  {t.rich("applicantOnboarding.enterAFewDetailsYourself", { b: (chunks) => <b>{chunks}</b> })}
+                  {flags.linking && ` ${t("applicantOnboarding.youCanLinkPassportLater")}`}
                 </p>
                 {workspace ? (
                   <Link to={wanted ? `/w/${workspace.handle}/find?${wantedQuery(wanted)}` : `/w/${workspace.handle}`} className="btn btn-secondary btn-lg" style={{ alignSelf: "flex-start" }}>
-                    Continue without Passport
+                    {t("applicantOnboarding.continueWithoutPassport")}
                   </Link>
                 ) : !withoutPassport ? (
                   <button type="button" className="btn btn-secondary btn-lg" style={{ alignSelf: "flex-start" }} onClick={() => setWithoutPassport(true)}>
-                    Set up without Passport
+                    {t("applicantOnboarding.setUpWithoutPassport")}
                   </button>
                 ) : (
-                  <ProfileForm idPrefix="onb" initial={{ contactEmail: email, ...(presetName ? { legalName: presetName } : {}) }} submitLabel="Create my workspace" busy={creating.state === "saving"} error={creating.error ?? null} onSubmit={createWithoutPassport} />
+                  <ProfileForm idPrefix="onb" initial={{ contactEmail: email, ...(presetName ? { legalName: presetName } : {}) }} submitLabel={t("applicantOnboarding.createMyWorkspace")} busy={creating.state === "saving"} error={creating.error ?? null} onSubmit={createWithoutPassport} />
                 )}
               </section>
             </div>
@@ -291,10 +311,10 @@ export default function ApplicantOnboarding() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "20px", alignItems: "start" }}>
               <section className="card" aria-labelledby="imp-h">
                 <div className="card-h">
-                  <h3 id="imp-h">From your Passport record</h3>
+                  <h3 id="imp-h">{t("applicantOnboarding.fromYourPassportRecord")}</h3>
                   <span className="prov prov-passport">
                     <BadgeCheck className="ic" aria-hidden="true" />
-                    From Passport
+                    {t("applicantOnboarding.fromPassport")}
                   </span>
                 </div>
                 <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -309,12 +329,12 @@ export default function ApplicantOnboarding() {
                   <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                     {record.org.editUrl && (
                       <a href={record.org.editUrl} className="small b">
-                        Something wrong? Edit in Passport
+                        {t("applicantOnboarding.somethingWrongEditInPassport")}
                       </a>
                     )}
                     {!confirmed && (
                       <button className="btn btn-primary" type="button" onClick={() => setConfirmed(true)}>
-                        This looks right
+                        {t("applicantOnboarding.thisLooksRight")}
                       </button>
                     )}
                   </div>
@@ -323,7 +343,7 @@ export default function ApplicantOnboarding() {
 
               <section className="card" aria-labelledby="ready-h">
                 <div className="card-h">
-                  <h3 id="ready-h">Readiness</h3>
+                  <h3 id="ready-h">{t("applicantOnboarding.readiness")}</h3>
                   <LevelBadge level={record.readiness.level} />
                 </div>
                 <div className="card-b">
@@ -332,10 +352,10 @@ export default function ApplicantOnboarding() {
                       const Icon = c.state === "pass" ? CircleCheck : c.state === "fail" ? CircleX : CircleDashed;
                       return (
                         <li key={c.key} className={`rc-row rc-${c.state === "unknown" ? "unk" : c.state}`} style={i === 0 ? { borderTop: 0 } : undefined}>
-                          <Icon className="ic" role="img" aria-label={c.state === "pass" ? "Passes" : c.state === "fail" ? "Needs attention" : "Unknown"} />
+                          <Icon className="ic" role="img" aria-label={c.state === "pass" ? t("applicantOnboarding.passes") : c.state === "fail" ? t("applicantOnboarding.needsAttention") : t("applicantOnboarding.unknown")} />
                           <div>
-                            <div className="l">{c.label}</div>
-                            <div className="r">{c.reason}</div>
+                            <div className="l">{readinessWords(c).label}</div>
+                            <div className="r">{readinessWords(c).reason}</div>
                           </div>
                           <span />
                         </li>
@@ -343,11 +363,11 @@ export default function ApplicantOnboarding() {
                     })}
                   </ul>
                   <p className="small muted" style={{ marginTop: "10px" }}>
-                    You can apply at any level. A funder who pays through Passport needs your payee verified (L3).
+                    {t("applicantOnboarding.youCanApplyAtAny")}
                   </p>
                   {step === 2 && workspace && (
                     <Link to={wanted ? `/w/${workspace.handle}/find?${wantedQuery(wanted)}` : `/w/${workspace.handle}`} className="btn btn-primary btn-lg" style={{ marginTop: "12px" }}>
-                      Go to your workspace
+                      {t("applicantOnboarding.goToYourWorkspace")}
                     </Link>
                   )}
                 </div>

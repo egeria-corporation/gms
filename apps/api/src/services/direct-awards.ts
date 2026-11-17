@@ -5,7 +5,8 @@
 // applicant workspace where they are an admin (review F-01: never by name or EIN). Accepting runs
 // `accept_offer` through the award machine, so the Passport mirror and every effect behave as for
 // any accepted award, and records the organization's consent to share its record with the funder.
-import { cleanLine, cleanText, containsLink, directAwardInvitationEmail, DIRECT_AWARD_MESSAGE_MAX } from "@gms/notify";
+import { DEFAULT_LOCALE, type Locale } from "@gms/i18n";
+import { awardAcceptedNotice, awardDeclinedNotice, cleanLine, cleanText, containsLink, directAwardInvitationEmail, DIRECT_AWARD_MESSAGE_MAX } from "@gms/notify";
 import { toMinor } from "@gms/protocol";
 import { ledgerEvent } from "@gms/ledger";
 import { awardCgStatus, awardEffects, awardMachine } from "@gms/workflow";
@@ -20,6 +21,7 @@ import { STAFF_ROLES, awardDetail, currencyOf, emitFor, fundingOf, grantPorts, h
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { MemoryInvitationLimiter, RepoDirectAwardStore, type ClaimOutcome, type DirectAwardStore, type InvitationLimiter, type SendKey, type SendLimitName, type SendLimits } from "./direct-award-store.ts";
 import { mailMembers } from "./member-mail.ts";
+import { addressLocale } from "./recipient-locale.ts";
 import { checkSigner } from "./organization.ts";
 import { namesOf, verificationOf, type VerificationLevel } from "./profile.ts";
 import type { Repos, Row } from "./repos/types.ts";
@@ -227,7 +229,10 @@ const newToken = async () => {
 async function sendInvitation(ctx: ServiceContext, award: Award, inv: AwardInvitation, token: string): Promise<boolean> {
   const funder = funderIdentity(required(await ctx.repos.table("workspaces").one({ id: award.workspace_id }), "Workspace"));
   const period = keyDatesOf(award).periodOfPerformance;
+  // The invited address's language when it belongs to someone with a saved preference; English otherwise.
+  const locale = await addressLocale(ctx, inv.email);
   const email = directAwardInvitationEmail({
+    locale,
     funderName: funder.name,
     funderVerified: funder.verified,
     organizationName: inv.organization_name,
@@ -242,7 +247,7 @@ async function sendInvitation(ctx: ServiceContext, award: Award, inv: AwardInvit
     expiresOn: inv.expires_at.slice(0, 10),
   });
   try {
-    await ctx.ports.mailer!.send({ from: ctx.config.mailFrom!, to: [inv.email], subject: email.subject, text: email.text, html: email.html, idempotencyKey: `award-invitation:${inv.id}:${inv.sent_count}` });
+    await ctx.ports.mailer!.send({ from: ctx.config.mailFrom!, to: [inv.email], subject: email.subject, text: email.text, html: email.html, locale, idempotencyKey: `award-invitation:${inv.id}:${inv.sent_count}` });
     return true;
   } catch {
     // The invitation stands; the funder can resend it.
@@ -356,9 +361,10 @@ function granteeStatus(inv: AwardInvitation, award: Award, now: Date): "pending"
 }
 
 /** Email the funder's staff about the invitation (their in-app notice comes from the ledger). Never fails the action. */
-async function noticeToFunder(ctx: ServiceContext, award: Award, subject: string, text: string, key: string) {
+async function noticeToFunder(ctx: ServiceContext, award: Award, notice: (locale: Locale) => { subject: string; text: string }, key: string) {
   const funder = await ctx.repos.table("workspaces").one({ id: award.workspace_id });
-  await mailMembers(ctx, { workspaceId: award.workspace_id, category: "award", roles: NOTIFIED_ROLES, subject, text, ...(funder ? { link: `${ctx.config.webBaseUrl}/w/${funder.handle}/awards/${apiId("award", award.id)}` } : {}), idempotencyKey: key }).catch(() => undefined);
+  const en = notice(DEFAULT_LOCALE);
+  await mailMembers(ctx, { workspaceId: award.workspace_id, category: "award", roles: NOTIFIED_ROLES, subject: en.subject, text: en.text, localized: notice, ...(funder ? { link: `${ctx.config.webBaseUrl}/w/${funder.handle}/awards/${apiId("award", award.id)}` } : {}), idempotencyKey: key }).catch(() => undefined);
 }
 
 /** Ledger an expired link that someone tried to use, once per link. */
@@ -496,7 +502,7 @@ export async function acceptInvitation(ctx: ServiceContext, input: z.output<type
   if (awardEffects("accepted").mirrorToPassport) await mirrorAward(recipientCtx, accepted);
   // The accepting workspace's name is the grantee's own text: printed only when it reads as no link.
   const accepter = containsLink(target.display_name) ? inv.organization_name : cleanLine(target.display_name);
-  await noticeToFunder(ctx, award, `${accepter} accepted ${award.title}`, `${accepter} accepted the award "${award.title}" that was offered to ${inv.organization_name}. The organization now shares its record with you, and the award follows its usual steps from here.`, `award-claimed:${award.id}`);
+  await noticeToFunder(ctx, award, (locale) => awardAcceptedNotice({ accepter, award: award.title, organization: inv.organization_name, locale }), `award-claimed:${award.id}`);
   return { awardId: apiId("award", award.id), workspaceId: target.id };
 }
 
@@ -516,6 +522,6 @@ export async function declineInvitation(ctx: ServiceContext, input: z.output<typ
   if (!declined) throw new ApiError(409, "invitation_used", "This invitation was already used");
   // The reason is the declining person's own words for the funder; it stays on the invitation, out of the ledger.
   await audit(ctx, "award.invitation_declined", "award", award.id, { invitationId: inv.id, email: maskEmail(inv.email), reasonGiven: !!input.reason }, award.workspace_id);
-  await noticeToFunder(ctx, award, `${inv.organization_name} declined ${award.title}`, `The award "${award.title}" offered to ${inv.organization_name} was declined.${input.reason ? `\n\nTheir reason: ${input.reason}` : ""}\n\nYou can withdraw the award, or keep it open.`, `award-declined:${award.id}`);
+  await noticeToFunder(ctx, award, (locale) => awardDeclinedNotice({ award: award.title, organization: inv.organization_name, reason: input.reason ?? null, locale }), `award-declined:${award.id}`);
   return { status: "declined" as const };
 }

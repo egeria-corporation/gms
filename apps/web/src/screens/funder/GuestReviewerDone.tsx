@@ -14,14 +14,16 @@ import { signInPath } from "../../auth/RequireAuth.tsx";
 import { ErrorBanner, Field, Loading, problemFor } from "../../components/ui.tsx";
 import { slugify } from "../../lib/format.ts";
 import { GuestFrame, NotAGuest } from "./GuestReviewerWelcome.tsx";
+import { t, useFunderMessages } from "./i18n.ts";
 
 export default function GuestReviewerDone() {
+  useFunderMessages();
   const [params] = useSearchParams();
   const guest = useGuestMembership(params.get("ws"));
   const membership = guest.status === "ready" ? guest.membership : null;
   return (
-    <GuestFrame title="Thank you" funder={membership?.name ?? null}>
-      {guest.status === "loading" && <Loading label="Opening the reviewer portal" />}
+    <GuestFrame title={t("guestReviewerDone.thankYou")} funder={membership?.name ?? null}>
+      {guest.status === "loading" && <Loading label={t("guestReviewerDone.openingTheReviewerPortal")} />}
       {guest.status === "ready" && !membership && <NotAGuest />}
       {membership && <Done workspaceId={membership.id} />}
     </GuestFrame>
@@ -30,7 +32,7 @@ export default function GuestReviewerDone() {
 
 function Done({ workspaceId }: { workspaceId: string }) {
   const query = useGuestReviewQuery((api) => api.done(workspaceId), [workspaceId]);
-  if (query.status === "loading") return <Loading label="Opening the reviewer portal" />;
+  if (query.status === "loading") return <Loading label={t("guestReviewerDone.openingTheReviewerPortal")} />;
   if (query.status === "error") return <ErrorBanner error={query.error} onRetry={query.reload} />;
   const d = query.data;
   if (!d.done)
@@ -38,13 +40,13 @@ function Done({ workspaceId }: { workspaceId: string }) {
       <section className="card" aria-labelledby="gd-title">
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           <h1 id="gd-title" style={{ fontSize: "20px" }}>
-            {d.open} {d.open === 1 ? "review is" : "reviews are"} still open
+            {t("guestReviewerDone.openCount", { count: d.open })}
           </h1>
-          <p className="muted">When every review assigned to you is submitted, this page says so.</p>
+          <p className="muted">{t("guestReviewerDone.whenEveryReviewAssigned")}</p>
           <div>
             <Link to={`/review/assignments?ws=${encodeURIComponent(d.funder.handle)}`} className="btn btn-primary">
               <ClipboardCheck className="ic" aria-hidden="true" />
-              Back to my assignments
+              {t("guestReviewerDone.backToMyAssignments")}
             </Link>
           </div>
         </div>
@@ -56,11 +58,10 @@ function Done({ workspaceId }: { workspaceId: string }) {
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <PartyPopper className="ic ic-lg" aria-hidden="true" />
           <h1 id="gd-title" style={{ fontSize: "22px" }}>
-            Thank you. Your reviews are in.
+            {t("guestReviewerDone.thankYouYourReviews")}
           </h1>
           <p>
-            You submitted {d.submitted} {d.submitted === 1 ? "review" : "reviews"} for {d.funder.name}. They have everything they need from you. You can still read your reviews in{" "}
-            <Link to={`/review/assignments?ws=${encodeURIComponent(d.funder.handle)}`}>your assignments</Link>.
+            {t.rich("guestReviewerDone.youSubmittedFor", { count: d.submitted, name: d.funder.name, link: (chunks) => <Link to={`/review/assignments?ws=${encodeURIComponent(d.funder.handle)}`}>{chunks}</Link> })}
           </p>
         </div>
       </section>
@@ -83,7 +84,7 @@ function PanelOffer({ workspaceId, done }: { workspaceId: string; done: GuestDon
   if (state === "dismissed")
     return (
       <p className="small muted" role="status">
-        Got it. We won’t show this again.
+        {t("guestReviewerDone.gotItWeWont")}
       </p>
     );
   return (
@@ -91,13 +92,13 @@ function PanelOffer({ workspaceId, done }: { workspaceId: string; done: GuestDon
       <div className="card-h" style={{ justifyContent: "space-between" }}>
         <h2 id="gd-offer" style={{ fontSize: "15px" }} className="row">
           <Users className="ic" aria-hidden="true" />
-          Run a review panel for your own organization, free
+          {t("guestReviewerDone.runAReviewPanel")}
         </h2>
         {state === "offer" && (
           <button
             type="button"
             className="iconbtn"
-            aria-label="Dismiss"
+            aria-label={t("guestReviewerDone.dismiss")}
             onClick={() => {
               setState("dismissed");
               void api.offer(workspaceId, "dismissed").catch(() => undefined);
@@ -110,7 +111,7 @@ function PanelOffer({ workspaceId, done }: { workspaceId: string; done: GuestDon
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {state === "offer" ? (
           <>
-            <p>You just saw how {done.funder.name} runs its review. OpenGrants GMS gives any funder the same, free: application forms, reviewers, scoring, decisions and awards in one place.</p>
+            <p>{t("guestReviewerDone.youJustSawHow", { name: done.funder.name })}</p>
             <div className="row" style={{ gap: "8px" }}>
               <button
                 type="button"
@@ -120,7 +121,7 @@ function PanelOffer({ workspaceId, done }: { workspaceId: string; done: GuestDon
                   void api.offer(workspaceId, "clicked").catch(() => undefined);
                 }}
               >
-                Set up my organization
+                {t("guestReviewerDone.setUpMyOrganization")}
                 <ArrowRight className="ic" aria-hidden="true" />
               </button>
               <button
@@ -131,7 +132,7 @@ function PanelOffer({ workspaceId, done }: { workspaceId: string; done: GuestDon
                   void api.offer(workspaceId, "dismissed").catch(() => undefined);
                 }}
               >
-                Not now
+                {t("guestReviewerDone.notNow")}
               </button>
             </div>
           </>
@@ -173,11 +174,11 @@ function CreateFunder({ workspaceId, suggestion }: { workspaceId: string; sugges
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "12px" }} aria-label="Set up your funder workspace">
-      <Field id="gd-name" label="Organization name" required help={suggestion ? `Suggested from your email address (${suggestion.domain}). Change it to your organization’s name.` : "The name funders and applicants will see."} error={problemFor(error, "displayName")}>
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "12px" }} aria-label={t("guestReviewerDone.setUpYourFunder")}>
+      <Field id="gd-name" label={t("guestReviewerDone.organizationName")} required help={suggestion ? t("guestReviewerDone.suggestedFromYourEmail", { domain: suggestion.domain }) : t("guestReviewerDone.theNameFundersAnd")} error={problemFor(error, "displayName")}>
         <input id="gd-name" className="inp" value={name} onChange={(e) => setName(e.target.value)} autoComplete="organization" />
       </Field>
-      <Field id="gd-handle" label="Public handle" help={`Your public page will be at /f/${handleValue || "your-handle"}.`} error={problemFor(error, "handle")}>
+      <Field id="gd-handle" label={t("guestReviewerDone.publicHandle")} help={t("guestReviewerDone.yourPublicPageWill", { handle: handleValue || t("guestReviewerDone.yourHandle") })} error={problemFor(error, "handle")}>
         <input
           id="gd-handle"
           className="inp"
@@ -188,13 +189,13 @@ function CreateFunder({ workspaceId, suggestion }: { workspaceId: string; sugges
           }}
         />
       </Field>
-      {error ? <ErrorBanner error={error} title="The workspace was not created" /> : null}
+      {error ? <ErrorBanner error={error} title={t("guestReviewerDone.theWorkspaceWasNot")} /> : null}
       <div className="row" style={{ gap: "8px" }}>
         <button type="submit" className="btn btn-primary" disabled={busy || !name.trim() || handleValue.length < 3}>
-          {busy ? "Creating…" : "Create my funder workspace"}
+          {busy ? t("guestReviewerDone.creating") : t("guestReviewerDone.createMyFunderWorkspace")}
         </button>
       </div>
-      <p className="small muted">Free. You become its admin; nothing is emailed to you about it.</p>
+      <p className="small muted">{t("guestReviewerDone.freeYouBecomeIts")}</p>
     </form>
   );
 }

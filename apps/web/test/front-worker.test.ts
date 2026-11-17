@@ -28,6 +28,8 @@ interface Mf {
   dispose(): Promise<void>;
 }
 let mf: Mf;
+/** The bundled Worker script, as deployed. */
+let script = "";
 let work: string;
 let h: ApiHarness;
 const apiCalls: string[] = [];
@@ -101,9 +103,10 @@ beforeAll(async () => {
   execFileSync(process.execPath, [join(web, "..", "..", "scripts", "build-front-worker.mjs"), "--name", "front-test", "--host", HOST, "--api", "api-test", "--redirect-from", "old.gms.test", "--dist", dist, "--out", out], { stdio: "pipe" });
   const esbuild = (await import(fromWrangler.resolve("esbuild"))) as { build(o: Record<string, unknown>): Promise<{ outputFiles: { text: string }[] }> };
   const bundle = await esbuild.build({ entryPoints: [join(out, "index.js")], bundle: true, format: "esm", platform: "neutral", target: "es2022", write: false, logLevel: "silent" });
+  script = bundle.outputFiles[0]!.text;
 
   const { Miniflare, convertV4MiniflareOptions } = (await import(fromWrangler.resolve("miniflare"))) as { Miniflare: new (o: unknown) => Mf; convertV4MiniflareOptions: (o: unknown) => unknown };
-  mf = new Miniflare(convertV4MiniflareOptions({ workers: [{ name: "front", modules: true, script: bundle.outputFiles[0]!.text, compatibilityDate: "2026-10-01", serviceBindings: { API: api } }] }));
+  mf = new Miniflare(convertV4MiniflareOptions({ workers: [{ name: "front", modules: true, script, compatibilityDate: "2026-10-01", serviceBindings: { API: api } }] }));
 }, 60_000);
 
 // Shutting the runtime down costs about what starting it does, so it gets the same allowance; the
@@ -118,6 +121,15 @@ const get = (path: string, init?: RequestInit) => mf.dispatchFetch(`https://${HO
 const count = (html: string, needle: string) => html.split(needle).length - 1;
 const ldOf = (html: string) => JSON.parse(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/.exec(html)![1]!) as unknown;
 const contentOf = (html: string, attr: string) => new RegExp(`<meta ${attr} content="([^"]*)"`).exec(html)?.[1];
+
+describe("front Worker: its script", () => {
+  it("carries the catalogs its pages' meta and cards read, and no screen's catalog", () => {
+    expect(script).toContain('"accountSettings.revokeConfirm"'); // public
+    expect(script).toContain('"readiness.connectToSee"'); // shared
+    expect(script).not.toContain('"outsideDecide.scoreOfMax"'); // applicant
+    expect(script).not.toContain('"reviewParity.boardDocket"'); // funder
+  });
+});
 
 describe("front Worker: public pages", () => {
   it("gives an opportunity page its own title, description, canonical, share image and JSON-LD", async () => {
@@ -153,6 +165,26 @@ describe("front Worker: public pages", () => {
     expect(contentOf(html, 'name="description"')).toMatch(/^1 call open for applications, 1 forecasted, 1 closed\./);
     expect(ldOf(html)).toMatchObject({ "@type": "Organization", name: "Riverbend Community Foundation", mainEntityOfPage: "https://gms.test/f/riverbend" });
     expect(contentOf(html, 'property="og:image"')).toMatch(/^https:\/\/gms\.test\/og\/f\/riverbend\.png\?v=/);
+  });
+
+  it("serves Spanish meta and <html lang> for ?lang=es, and lists both languages on every public page", async () => {
+    const es = await (await get("/f/riverbend/o/open-call?lang=es")).text();
+    expect(es).toMatch(/<html[^>]* lang="es"/);
+    expect(contentOf(es, 'name="description"')).toBe("Recibe solicitudes hasta el 30 de septiembre de 2099. Subvenciones de $50,000 \u2013 $150,000. Grants for community health navigation in Riverbend County.");
+    expect(es).toContain('<link rel="canonical" href="https://gms.test/f/riverbend/o/open-call?lang=es" />');
+    expect(contentOf(es, 'property="og:locale"')).toBe("es_US");
+    expect((await (await get("/f/riverbend?lang=es")).text())).toContain("<title>Subvenciones de Riverbend Community Foundation</title>");
+    expect(contentOf(await (await get("/?lang=es")).text(), 'name="description"')).toMatch(/^Gestione programas de subvenciones/);
+    expect(contentOf(await (await get("/templates?lang=es")).text(), 'name="description"')).toMatch(/^Formularios de solicitud de subvenciones/);
+    for (const path of ["/", "/f/riverbend", "/f/riverbend/o/open-call", "/switch", "/switch/fluxx", "/templates"]) {
+      const html = await (await get(path)).text();
+      const base = `https://gms.test${path}`;
+      expect(html, path).toMatch(/<html[^>]* lang="en"/);
+      expect(html, path).toContain(`<link rel="alternate" hreflang="en" href="${base}" />`);
+      expect(html, path).toContain(`<link rel="alternate" hreflang="es" href="${base}?lang=es" />`);
+      expect(html, path).toContain(`<link rel="alternate" hreflang="x-default" href="${base}" />`);
+      expect(count(html, 'hreflang="'), path).toBe(3);
+    }
   });
 
   it("gives the landing page its canonical address and its own card", async () => {
@@ -240,6 +272,18 @@ describe("front Worker: share images", () => {
       expect(png.length).toBeLessThan(600 * 1024);
       expect((await decodePng(png)).width).toBe(1200);
     }
+  }, 30_000);
+
+  it("draws the card in the page's language: a Spanish page points at a Spanish card", async () => {
+    const page = await (await get("/f/riverbend?lang=es")).text();
+    const image = contentOf(page, 'property="og:image"')!.replace(/&amp;/g, "&");
+    expect(image).toMatch(/^https:\/\/gms\.test\/og\/f\/riverbend\.png\?lang=es&v=[0-9a-z]+$/);
+    const es = await get(new URL(image).pathname + new URL(image).search);
+    const en = await get("/og/f/riverbend.png");
+    expect([es.status, en.status]).toEqual([200, 200]);
+    const [esPng, enPng] = [new Uint8Array(await es.arrayBuffer()), new Uint8Array(await en.arrayBuffer())];
+    expect(pngSize(esPng)).toEqual({ width: 1200, height: 627 });
+    expect(Buffer.from(esPng).equals(Buffer.from(enPng))).toBe(false);
   }, 30_000);
 
   it("answers 404 for a page that does not exist and the default card when the API fails", async () => {

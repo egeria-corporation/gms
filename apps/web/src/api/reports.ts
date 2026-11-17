@@ -5,7 +5,9 @@
 //
 // `createHttpReportsApi` calls the GMS Worker; `createMockReportsApi` (mocks/reports.ts)
 // implements the same interface in the browser.
+import { LOCALE_QUERY } from "@gms/i18n";
 import { ApiError } from "./client.ts";
+import { getLocale } from "../i18n/current.ts";
 import type { ExportFile } from "./outside.ts";
 
 export type DataSetKey = "applications" | "awards" | "payments" | "requirements" | "organizations";
@@ -174,7 +176,9 @@ export function createHttpReportsApi(opts: HttpReportsOptions): ReportsApi {
     return json.data as T;
   }
   async function file(method: string, path: string, fallback: string, body?: unknown): Promise<ExportFile> {
-    const res = await send(method, path, body);
+    // The page's language, so the server writes the CSV's header row in it (the browser's rewrite in
+    // screens/funder/reportWords.ts stays as a fallback for a server that does not).
+    const res = await send(method, `${path}${path.includes("?") ? "&" : "?"}${LOCALE_QUERY}=${getLocale()}`, body);
     const named = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(res.headers.get("Content-Disposition") ?? "")?.[1];
     return { filename: named ?? fallback, blob: await res.blob() };
   }

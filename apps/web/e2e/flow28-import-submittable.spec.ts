@@ -6,7 +6,7 @@
 // unfinished submissions set aside with the reason → import → the zip of submission PDFs matched
 // to the imported awards by submission id and attached.
 import { makeZip } from "../test/zip.ts";
-import { expect, start, test } from "./helpers.ts";
+import { expect, shown, start, test } from "./helpers.ts";
 
 /** Made at run time; no file holds a value of this shape. */
 const NINE = ["900", "00", "0001"].join("");
@@ -37,7 +37,7 @@ test("import funded submissions from Submittable, with their PDFs", async ({ app
     await page.getByLabel("Choose a file").setInputFiles({ name: "submissions.csv", mimeType: "text/csv", buffer: Buffer.from(SUBMITTABLE, "utf8") });
     await page.getByRole("button", { name: "Read the file" }).click();
     await expect(page.getByRole("heading", { name: "Match columns to fields" })).toBeVisible();
-    await expect(page.getByText("Matched as a Submittable export")).toBeVisible();
+    await expect(shown(page, "Matched as a Submittable export")).toBeVisible();
     await expect(page.getByLabel(/^Organization/)).toHaveValue("Organization");
     await expect(page.getByLabel(/^Amount awarded/)).toHaveValue("Amount Awarded");
     await expect(page.getByLabel(/^Row ID/)).toHaveValue("Submission ID");
@@ -56,7 +56,7 @@ test("import funded submissions from Submittable, with their PDFs", async ({ app
     await expect(rows).toContainText("Not awarded in Submittable (Status: Declined)");
     await expect(rows).toContainText("Not awarded in Submittable (Status: In-Progress)");
     await page.getByRole("button", { name: "Import 3 awards" }).click();
-    await expect(page.getByText("3 awards imported")).toBeVisible();
+    await expect(shown(page, "3 awards imported")).toBeVisible();
   });
 
   await test.step("attach the zip of submission PDFs to the imported awards", async () => {
@@ -65,6 +65,6 @@ test("import funded submissions from Submittable, with their PDFs", async ({ app
     await expect(page.getByRole("group", { name: "Files matched" })).toContainText("2 files match an award");
     await expect(page.getByRole("list", { name: "Files left out" })).toContainText("Submission 70012346.pdf");
     await page.getByRole("button", { name: "Attach 2 files" }).click();
-    await expect(page.getByText("2 files attached")).toBeVisible();
+    await expect(shown(page, "2 files attached")).toBeVisible();
   });
 });

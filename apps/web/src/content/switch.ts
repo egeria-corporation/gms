@@ -6,7 +6,17 @@
 // date stamp. Product names are text, never logos. Tone: factual and respectful; where we differ,
 // we say so plainly. Source labels are neutral (the owner and the address) where the page could not
 // be opened to read its title.
+//
+// Languages (docs/i18n.md): each system's facts (summary, exports, what moves over, its export step
+// and questions, owners and prices) stay as written, with their sources. The pages' own text (the
+// steps, what stays behind, how the GMS differs, the common questions, the form's choices and the
+// page titles) is in the `public` catalog under `switchContent.*`, read through `switchText()` and
+// `seoFor(entry, locale)`. The English constants below are that same text in English.
+import { formatDateTimeIn, type Key, type Locale } from "@gms/i18n";
+import { getLocale, translate } from "../i18n/current.ts";
 
+/** The month the facts were last checked, and how it reads in English. */
+export const FACTS_AS_OF_MONTH = "2026-11";
 export const FACTS_AS_OF = "November 2026";
 export const LIST_PRICE_LABEL = `list price as published, as of ${FACTS_AS_OF}`;
 export const TRADEMARK_NOTE = `Product names are trademarks of their owners. Facts as of ${FACTS_AS_OF}; tell us if something changed.`;
@@ -281,10 +291,68 @@ export const TIMING_OPTIONS = [
 ] as const;
 export const NOTE_MAX = 2000;
 
+// ------------------------------------------------------------------------------------ in a language
+
+const OPTION_KEY = {
+  other: "switchContent.option.system.other",
+  programs: { "1": "switchContent.option.programs.one", "2-5": "switchContent.option.programs.n2to5", "6-20": "switchContent.option.programs.n6to20", "21+": "switchContent.option.programs.over20", unsure: "switchContent.option.unsure" },
+  pastAwards: { "0-99": "switchContent.option.pastAwards.under100", "100-999": "switchContent.option.pastAwards.n100to999", "1000-9999": "switchContent.option.pastAwards.n1000to9999", "10000+": "switchContent.option.pastAwards.over10000", unsure: "switchContent.option.unsure" },
+  timing: { asap: "switchContent.option.timing.asap", "3-months": "switchContent.option.timing.n3months", "6-months": "switchContent.option.timing.n6months", "12-months": "switchContent.option.timing.n12months", exploring: "switchContent.option.timing.exploring" },
+} as const;
+
+/** The switch pages' own text in a language (the current one by default); system facts stay as written. */
+export function switchText(locale: Locale = getLocale()) {
+  const t = (key: Key<"public">, values?: Record<string, string>) => translate("public", key, values, locale);
+  const factsAsOf = formatDateTimeIn(locale, `${FACTS_AS_OF_MONTH}-01`, { month: "long", year: "numeric", timeZone: "UTC" }) ?? FACTS_AS_OF;
+  return {
+    factsAsOf,
+    ourName: t("switchContent.ourName"),
+    ourPrice: t("switchContent.ourPrice"),
+    pricedByQuote: t("switchContent.pricedByQuote"),
+    listPriceLabel: t("switchContent.listPriceLabel", { date: factsAsOf }),
+    trademarkNote: t("switchContent.trademarkNote", { date: factsAsOf }),
+    staysBehind: { what: t("switchContent.staysBehind.what"), why: t("switchContent.staysBehind.why") },
+    differences: [
+      [t("switchContent.differences.free.title"), t("switchContent.differences.free.detail")],
+      [t("switchContent.differences.seats.title"), t("switchContent.differences.seats.detail")],
+      [t("switchContent.differences.openSource.title"), t("switchContent.differences.openSource.detail")],
+      [t("switchContent.differences.commonGrants.title"), t("switchContent.differences.commonGrants.detail")],
+      [t("switchContent.differences.tracking.title"), t("switchContent.differences.tracking.detail")],
+    ] as [string, string][],
+    commonFaq: [
+      [t("switchContent.faq.free.q"), t("switchContent.faq.free.a")],
+      [t("switchContent.faq.atOnce.q"), t("switchContent.faq.atOnce.a")],
+      [t("switchContent.faq.keepUsing.q"), t("switchContent.faq.keepUsing.a")],
+      [t("switchContent.faq.bank.q"), t("switchContent.faq.bank.a")],
+      [t("switchContent.faq.leave.q"), t("switchContent.faq.leave.a")],
+      [t("switchContent.faq.who.q"), t("switchContent.faq.who.a")],
+    ] as [string, string][],
+    /** Step one is the system's own export step, as written. */
+    steps: (entry: SwitchEntry): [string, string][] => [
+      [entry.kind === "spreadsheets" ? t("switchContent.steps.exportSpreadsheets") : t("switchContent.steps.exportFrom", { name: entry.name }), entry.exportStep],
+      [t("switchContent.steps.upload.title"), t("switchContent.steps.upload.detail")],
+      [t("switchContent.steps.dryRun.title"), t("switchContent.steps.dryRun.detail")],
+      [t("switchContent.steps.import.title"), t("switchContent.steps.import.detail")],
+    ],
+    /** A choice's label in the request form; systems are listed by their names. */
+    systemLabel: (o: (typeof SYSTEM_OPTIONS)[number]): string => (o.value === "other" ? t(OPTION_KEY.other) : o.label),
+    programsLabel: (value: (typeof PROGRAM_OPTIONS)[number]["value"]): string => t(OPTION_KEY.programs[value]),
+    pastAwardsLabel: (value: (typeof PAST_AWARD_OPTIONS)[number]["value"]): string => t(OPTION_KEY.pastAwards[value]),
+    timingLabel: (value: (typeof TIMING_OPTIONS)[number]["value"]): string => t(OPTION_KEY.timing[value]),
+  };
+}
+
 // ------------------------------------------------------------------------------------ page metadata
 
-/** Title, description and Open Graph text per page, for the front worker to serve to crawlers. */
-export function seoFor(entry: SwitchEntry | null): Seo {
+/** Title, description and Open Graph text per page, for the front worker to serve to crawlers, in a language (English by default). */
+export function seoFor(entry: SwitchEntry | null, locale: Locale = "en"): Seo {
+  if (locale !== "en") {
+    const t = (key: Key<"public">, values?: Record<string, string>) => translate("public", key, values, locale);
+    const date = switchText(locale).factsAsOf;
+    return entry
+      ? { title: t("switchContent.seo.systemTitle", { name: entry.listName }), description: t("switchContent.seo.systemDescription", { name: entry.name, date }), ogTitle: t("switchContent.seo.systemOgTitle", { name: entry.name }), ogDescription: t("switchContent.seo.systemOgDescription", { summary: entry.summary }) }
+      : { title: t("switchContent.seo.indexTitle"), description: t("switchContent.seo.indexDescription", { date }), ogTitle: t("switchContent.seo.indexOgTitle"), ogDescription: t("switchContent.seo.indexOgDescription") };
+  }
   if (!entry)
     return {
       title: "Switch to OpenGrants GMS: what moves over, and a free migration",

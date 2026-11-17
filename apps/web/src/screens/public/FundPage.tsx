@@ -12,15 +12,18 @@ import { ErrorBanner } from "../../components/ui.tsx";
 import { DeadlineBadge, OpportunityCard } from "./FunderPage.tsx";
 import { PublicFrame, PublicState } from "./PublicFrame.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
 export default function FundPage() {
   const { handle = "", fundSlug = "" } = useParams();
   const page = useApiQuery(async (api) => api.publicFund(handle, fundSlug), [handle, fundSlug]);
 
-  if (page.status === "loading") return <PublicState title="Loading…" />;
+  if (page.status === "loading") return <PublicState title={t("fundPage.loading")} />;
   if (page.status === "error") {
     if (page.error instanceof ApiError && page.error.status === 404) return <NotFound />;
     return (
-      <PublicState title="This page could not be loaded">
+      <PublicState title={t("fundPage.thisPageCouldNotBe")}>
         <ErrorBanner error={page.error} onRetry={page.reload} />
       </PublicState>
     );
@@ -35,8 +38,8 @@ export default function FundPage() {
         funder={funder}
         nav={
           <>
-            <Link to={home}>All of {funder.name}</Link>
-            {forecasted.length > 0 && <a href="#forecast">Forecasted</a>}
+            <Link to={home}>{t("fundPage.allOf", { name: funder.name })}</Link>
+            {forecasted.length > 0 && <a href="#forecast">{t("fundPage.forecasted")}</a>}
           </>
         }
         hero={
@@ -46,7 +49,7 @@ export default function FundPage() {
               <h1>{fund.name}</h1>
             </div>
             <p className="sub" style={{ color: "var(--on-tenant)" }}>
-              A fund of {funder.name}
+              {t("fundPage.aFundOf", { name: funder.name })}
             </p>
             {fund.description && (
               <p className="sub" style={{ color: "var(--on-tenant)" }}>
@@ -60,11 +63,11 @@ export default function FundPage() {
           <section id="open">
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", marginBottom: "16px" }}>
               <div>
-                <span className="eyebrow">Accepting applications</span>
-                <h2 style={{ marginBottom: "0", marginTop: "6px" }}>Open opportunities</h2>
+                <span className="eyebrow">{t("fundPage.acceptingApplications")}</span>
+                <h2 style={{ marginBottom: "0", marginTop: "6px" }}>{t("fundPage.openOpportunities")}</h2>
               </div>
               <span className="muted" style={{ fontSize: "14px" }}>
-                {open.length} open
+                {t("fundPage.open", { length: open.length })}
               </span>
             </div>
             {open.length > 0 ? (
@@ -76,17 +79,17 @@ export default function FundPage() {
             ) : (
               <div className="card empty" style={{ minHeight: "200px", justifyContent: "center" }}>
                 <Calendar className="ic" aria-hidden="true" />
-                <h3>Nothing is open in this fund right now</h3>
+                <h3>{t("fundPage.nothingIsOpenInThis")}</h3>
                 <p>
-                  <Link to={home}>See what {funder.name} has open.</Link>
+                  <Link to={home}>{t("fundPage.seeWhatHasOpen", { name: funder.name })}</Link>
                 </p>
               </div>
             )}
           </section>
           {forecasted.length > 0 && (
             <section id="forecast">
-              <span className="eyebrow">Planned</span>
-              <h2 style={{ marginTop: "6px" }}>Forecasted</h2>
+              <span className="eyebrow">{t("fundPage.planned")}</span>
+              <h2 style={{ marginTop: "6px" }}>{t("fundPage.forecasted")}</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {forecasted.map((o) => (
                   <div className="card" key={o.id} style={{ padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "20px", flexWrap: "wrap" }}>
@@ -94,8 +97,8 @@ export default function FundPage() {
                       <h3 style={{ fontSize: "18px" }}>{o.title}</h3>
                       <DeadlineBadge opp={o} />
                     </div>
-                    <Link to={`/f/${funder.handle}/o/${o.slug}`} className="btn btn-secondary" aria-label={`Details of ${o.title}`}>
-                      Details
+                    <Link to={`/f/${funder.handle}/o/${o.slug}`} className="btn btn-secondary" aria-label={t("fundPage.detailsOf", { title: o.title })}>
+                      {t("fundPage.details")}
                     </Link>
                   </div>
                 ))}

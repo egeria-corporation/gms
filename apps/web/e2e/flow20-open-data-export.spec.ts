@@ -4,13 +4,13 @@
 // (drafts until a prefix is saved) → keep an award confidential and the count drops → the public
 // feed is off by default and cannot be switched on without a prefix.
 import { readFile } from "node:fs/promises";
-import { expect, rail, start, test } from "./helpers.ts";
+import { expect, rail, shown, start, test } from "./helpers.ts";
 
 test("funder previews and downloads its open data", async ({ app: page }) => {
   await start(page, "/w/riverbend");
   await rail(page, "Reporting").click();
   const panel = page.getByRole("region", { name: "Open data" });
-  const stat = (label: string) => panel.locator(".stat").filter({ has: page.getByText(label, { exact: true }) }).locator(".stat-v");
+  const stat = (label: string) => panel.locator(".stat").filter({ has: shown(page, label, { exact: true }) }).locator(".stat-v");
 
   await test.step("the panel counts what goes out and why the rest stays out", async () => {
     await expect(panel.getByRole("heading", { name: "Open data" })).toBeVisible();

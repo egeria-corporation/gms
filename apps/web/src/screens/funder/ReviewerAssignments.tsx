@@ -15,22 +15,19 @@ import { Dialog } from "../../components/Dialog.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { SignPolicyDialog } from "./ReviewParity.tsx";
+import { t, useFunderMessages } from "./i18n.ts";
 
 /** How an assignment names its application: the code under anonymized review, else the title. */
-export const assignmentName = (a: Pick<ReviewAssignment, "applicationTitle" | "applicantCode" | "anonymized">) => (a.anonymized && a.applicantCode ? `Applicant ${a.applicantCode}` : (a.applicationTitle ?? "Application"));
+export const assignmentName = (a: Pick<ReviewAssignment, "applicationTitle" | "applicantCode" | "anonymized">) => (a.anonymized && a.applicantCode ? t("reviewerAssignments.applicantCode", { code: a.applicantCode }) : (a.applicationTitle ?? t("reviewerAssignments.application")));
 
-const COI_STATEMENTS = [
-  "I am not an employee, board member, or contractor of this organization, and have not been in the last three years.",
-  "No member of my household has a financial interest in this organization or this project.",
-  "I have not discussed this application with the applicant outside the review process.",
-];
+const COI_STATEMENTS = () => [t("reviewerAssignments.coi.notEmployee"), t("reviewerAssignments.coi.household"), t("reviewerAssignments.coi.notDiscussed")];
 
-export const ASSIGNMENT_LOOK: Record<ReviewAssignment["status"], { label: string; tone: string }> = {
-  assigned: { label: "Not started", tone: "neutral" },
-  coi_declared: { label: "Ready to score", tone: "info" },
-  in_progress: { label: "In progress", tone: "prog" },
-  submitted: { label: "Submitted", tone: "ok" },
-  recused: { label: "Recused", tone: "done" },
+export const ASSIGNMENT_LOOK: Record<ReviewAssignment["status"], { readonly label: string; tone: string }> = {
+  assigned: { get label() { return t("reviewerAssignments.look.assigned"); }, tone: "neutral" },
+  coi_declared: { get label() { return t("reviewerAssignments.look.coiDeclared"); }, tone: "info" },
+  in_progress: { get label() { return t("reviewerAssignments.look.inProgress"); }, tone: "prog" },
+  submitted: { get label() { return t("reviewerAssignments.look.submitted"); }, tone: "ok" },
+  recused: { get label() { return t("reviewerAssignments.look.recused"); }, tone: "done" },
 };
 
 interface Portal {
@@ -58,7 +55,7 @@ export function ReviewerFrame({ tab, title, children }: { tab: "assignments" | "
 
   return (
     <>
-      <title>{`${title} — Reviewer portal`}</title>
+      <title>{t("reviewerAssignments.reviewerPortal", { title })}</title>
       <div className="gms gms-funder gms-frame">
         <header className="topbar">
           <Link to="/review/assignments" className="logo">
@@ -66,40 +63,40 @@ export function ReviewerFrame({ tab, title, children }: { tab: "assignments" | "
             <span className="suffix">GMS</span>
           </Link>
           <Link to="/workspaces" className="ws">
-            Reviewer portal{membership ? ` · ${membership.name}` : ""}
-            <span className="role">Reviewer</span>
+            {t("reviewerAssignments.reviewerPortal2")}{membership ? ` · ${membership.name}` : ""}
+            <span className="role">{t("reviewerAssignments.reviewer")}</span>
             <ChevronDown className="ic" aria-hidden="true" />
           </Link>
           <div className="row" style={{ marginLeft: "auto", gap: "4px" }}>
-            <Link to="/notifications" className="iconbtn" aria-label="Notifications">
+            <Link to="/notifications" className="iconbtn" aria-label={t("reviewerAssignments.notifications")}>
               <Bell className="ic ic-md" aria-hidden="true" />
             </Link>
             {me && (
               <Link to="/account/agents" className="av av-t">
                 <span aria-hidden="true">{initialsOf(me.email)}</span>
-                <span className="sr">Account: {me.email}</span>
+                <span className="sr">{t("reviewerAssignments.account", { email: me.email })}</span>
               </Link>
             )}
           </div>
         </header>
-        <nav aria-label="Reviewer portal" style={{ background: "#fff", borderBottom: "1px solid #D6DEDE", padding: "0 32px" }}>
+        <nav aria-label={t("reviewerAssignments.reviewerPortal2")} style={{ background: "#fff", borderBottom: "1px solid #D6DEDE", padding: "0 32px" }}>
           <div className="tabs" style={{ borderBottom: 0 }}>
             <Link to="/review/assignments" className={tab === "assignments" ? "tab on" : "tab"} aria-current={tab === "assignments" ? "page" : undefined}>
               <ClipboardCheck className="ic" aria-hidden="true" />
-              My assignments
+              {t("reviewerAssignments.myAssignments")}
             </Link>
             <span className={tab === "scoring" ? "tab on" : "tab"} aria-current={tab === "scoring" ? "page" : undefined}>
               <Star className="ic" aria-hidden="true" />
-              Scoring
+              {t("reviewerAssignments.scoring")}
             </span>
           </div>
         </nav>
         <main className="main" style={{ maxWidth: "1120px", width: "100%", margin: "0 auto" }}>
-          {(meState.status === "loading" || workspace.status === "loading") && <Loading label="Opening the reviewer portal" />}
+          {(meState.status === "loading" || workspace.status === "loading") && <Loading label={t("reviewerAssignments.openingTheReviewerPortal")} />}
           {workspace.status === "error" && <ErrorBanner error={workspace.error} onRetry={workspace.reload} />}
           {meState.status === "ready" && !membership && (
-            <EmptyState icon={ClipboardCheck} title="No reviews assigned to you">
-              You are not a reviewer for any funder yet. An invitation email brings you here.
+            <EmptyState icon={ClipboardCheck} title={t("reviewerAssignments.noReviewsAssignedTo")}>
+              {t("reviewerAssignments.youAreNotA")}
             </EmptyState>
           )}
           {ready && <PortalContext.Provider value={{ workspace: workspace.data!, userId: me.userId, email: me.email }}>{children}</PortalContext.Provider>}
@@ -110,7 +107,7 @@ export function ReviewerFrame({ tab, title, children }: { tab: "assignments" | "
 }
 
 function CoiDialog({ assignment, onClose, onDeclared }: { assignment: ReviewAssignment; onClose: () => void; onDeclared: (a: ReviewAssignment) => void }) {
-  const [checks, setChecks] = useState<boolean[]>(() => COI_STATEMENTS.map(() => false));
+  const [checks, setChecks] = useState<boolean[]>(() => COI_STATEMENTS().map(() => false));
   const [conflict, setConflict] = useState(false);
   const [reason, setReason] = useState("");
   const declare = useApiMutation((api, hasConflict: boolean) => api.updateAssignment(assignment.id, { action: "declare_coi", hasConflict, ...(hasConflict && reason.trim() ? { reason: reason.trim() } : {}) }));
@@ -120,7 +117,7 @@ function CoiDialog({ assignment, onClose, onDeclared }: { assignment: ReviewAssi
       <div className="hd">
         <div>
           <h3 id="coi-title" style={{ fontSize: "16px" }}>
-            Conflict of interest declaration
+            {t("reviewerAssignments.conflictOfInterestDeclaration")}
           </h3>
           <p className="small muted">{assignmentName(assignment)}</p>
         </div>
@@ -129,8 +126,8 @@ function CoiDialog({ assignment, onClose, onDeclared }: { assignment: ReviewAssi
         {declare.error !== null && <ErrorBanner error={declare.error} />}
         {!conflict ? (
           <>
-            <p>Confirm each statement before this application opens for scoring.</p>
-            {COI_STATEMENTS.map((s, i) => (
+            <p>{t("reviewerAssignments.confirmEachStatementBefore")}</p>
+            {COI_STATEMENTS().map((s, i) => (
               <label key={s} className="cb">
                 <input type="checkbox" checked={checks[i]} onChange={(e) => setChecks((c) => c.map((v, j) => (j === i ? e.target.checked : v)))} />
                 <span>{s}</span>
@@ -140,28 +137,28 @@ function CoiDialog({ assignment, onClose, onDeclared }: { assignment: ReviewAssi
         ) : (
           <div className="fld">
             <label className="lbl" htmlFor="coi-reason">
-              What is the conflict?
+              {t("reviewerAssignments.whatIsTheConflict")}
             </label>
             <textarea className="ta" id="coi-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
-            <span className="help">Program staff see this. You are recused and the application will not open.</span>
+            <span className="help">{t("reviewerAssignments.programStaffSeeThis")}</span>
           </div>
         )}
       </div>
       <div className="ft">
         <button type="button" className="btn btn-danger" style={{ marginRight: "auto" }} onClick={() => setConflict((c) => !c)}>
           <Ban className="ic" aria-hidden="true" />
-          {conflict ? "Back" : "I have a conflict"}
+          {conflict ? t("reviewerAssignments.back") : t("reviewerAssignments.iHaveAConflict")}
         </button>
         <button type="button" className="btn btn-secondary" onClick={onClose}>
-          Cancel
+          {t("reviewerAssignments.cancel")}
         </button>
         {conflict ? (
           <button type="button" className="btn btn-danger-solid" disabled={declare.state === "saving" || !reason.trim()} onClick={async () => { const a = await declare.run(true); if (a) onDeclared(a); }}>
-            Recuse me
+            {t("reviewerAssignments.recuseMe")}
           </button>
         ) : (
           <button type="button" className="btn btn-primary" disabled={!allChecked || declare.state === "saving"} onClick={async () => { const a = await declare.run(false); if (a) onDeclared(a); }}>
-            Declare no conflict and open
+            {t("reviewerAssignments.declareNoConflictAnd")}
           </button>
         )}
       </div>
@@ -184,7 +181,7 @@ function AssignmentList() {
     setAskedToSign(false);
     if (firstUnsigned) setSigning(firstUnsigned);
   }, [askedToSign, list.status, firstUnsigned]);
-  if (list.status === "loading") return <Loading label="Loading your assignments" />;
+  if (list.status === "loading") return <Loading label={t("reviewerAssignments.loadingYourAssignments")} />;
   if (list.status === "error") return <ErrorBanner error={list.error} onRetry={list.reload} />;
   const rows = list.data;
   const count = (s: ReviewAssignment["status"]) => rows.filter((r) => r.status === s).length;
@@ -197,20 +194,20 @@ function AssignmentList() {
       <div className="ph">
         <div>
           <div className="title">
-            <h1>My assignments</h1>
+            <h1>{t("reviewerAssignments.myAssignments")}</h1>
           </div>
           <div className="meta">
-            <span>Signed in as {email}</span>
+            <span>{t("reviewerAssignments.signedInAs", { email })}</span>
             <span>·</span>
             <span>
-              {rows.length} {rows.length === 1 ? "assignment" : "assignments"}
+              {t("reviewerAssignments.assignmentCount", { count: rows.length })}
             </span>
           </div>
         </div>
         <div className="actions">
           <span className="row small muted" style={{ gap: "6px" }}>
             <ChartColumn className="ic" aria-hidden="true" />
-            {count("submitted")} submitted · {count("in_progress")} in progress · {count("assigned") + count("coi_declared")} not started · {count("recused")} recused
+            {t("reviewerAssignments.submittedInProgressNot", { count: count("submitted"), count2: count("in_progress"), count3: count("assigned") + count("coi_declared"), count4: count("recused") })}
           </span>
         </div>
       </div>
@@ -218,11 +215,11 @@ function AssignmentList() {
         <div className="bnr bnr-ok" role="status">
           <ClipboardCheck className="ic" aria-hidden="true" />
           <div>
-            <div className="t">Every review is in</div>
-            <div className="d">Thank you. There is nothing left for you to score here.</div>
+            <div className="t">{t("reviewerAssignments.everyReviewIsIn")}</div>
+            <div className="d">{t("reviewerAssignments.thankYouThereIs")}</div>
           </div>
           <Link to={`/review/done?ws=${encodeURIComponent(workspace.handle)}`} className="btn btn-secondary btn-sm act">
-            See what&rsquo;s next
+            {t("reviewerAssignments.seeWhatsNext")}
           </Link>
         </div>
       )}
@@ -230,30 +227,30 @@ function AssignmentList() {
         <div key={competitionId} className="bnr bnr-warn" role="status">
           <Signature className="ic" aria-hidden="true" />
           <div>
-            <div className="t">Sign the conflict-of-interest policy first</div>
+            <div className="t">{t("reviewerAssignments.signTheConflictOf")}</div>
             <div className="d">
-              {rows.filter((r) => r.competitionId === competitionId && r.policyRequired).length} {rows.filter((r) => r.competitionId === competitionId && r.policyRequired).length === 1 ? "application waits" : "applications wait"} for your signature. Applications in this competition open once you have signed its policy.
+              {t("reviewerAssignments.waitForSignature", { count: rows.filter((r) => r.competitionId === competitionId && r.policyRequired).length })}
             </div>
           </div>
           <button type="button" className="btn btn-primary btn-sm act" aria-haspopup="dialog" onClick={() => setSigning(competitionId)}>
-            Read and sign…
+            {t("reviewerAssignments.readAndSign")}
           </button>
         </div>
       ))}
       <div className="bnr bnr-neu">
         <EyeOff className="ic" aria-hidden="true" />
         <div>
-          <div className="t">What you can see</div>
+          <div className="t">{t("reviewerAssignments.whatYouCanSee")}</div>
           <div className="d">
             {anonymized
-              ? "Some of your applications are under anonymized review: you do not see who applied. They show as a code such as Applicant A-1042, and the organization's name in an answer shows as [applicant]."
-              : "Applicant contact details and fields flagged as personal are hidden from external reviewers. You see the organization name and the responses marked visible to reviewers."}
+              ? t("reviewerAssignments.someOfYourApplications")
+              : t("reviewerAssignments.applicantContactDetailsAnd")}
           </div>
         </div>
       </div>
       {rows.length === 0 && (
-        <EmptyState icon={ClipboardCheck} title="Nothing assigned yet">
-          Assignments appear here when program staff assign applications to you.
+        <EmptyState icon={ClipboardCheck} title={t("reviewerAssignments.nothingAssignedYet")}>
+          {t("reviewerAssignments.assignmentsAppearHereWhen")}
         </EmptyState>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px" }}>
@@ -263,7 +260,7 @@ function AssignmentList() {
           return (
             <article key={a.id} className="card" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "10px" }}>
               <div className="row" style={{ justifyContent: "space-between", gap: "8px" }}>
-                <h2 style={{ fontSize: "16px" }}>{a.policyRequired ? "Waiting for your signature" : assignmentName(a)}</h2>
+                <h2 style={{ fontSize: "16px" }}>{a.policyRequired ? t("reviewerAssignments.waitingForYourSignature") : assignmentName(a)}</h2>
                 <span className={`bdg bdg-${look.tone}`}>
                   <ClipboardCheck className="ic" aria-hidden="true" />
                   {look.label}
@@ -273,23 +270,23 @@ function AssignmentList() {
                 <div className="row small" style={{ gap: "6px" }}>
                   <span className="bdg bdg-info">
                     <EyeOff className="ic" aria-hidden="true" />
-                    Anonymized review
+                    {t("reviewerAssignments.anonymizedReview")}
                   </span>
                   {a.applicationTitle && <span className="muted">{a.applicationTitle}</span>}
                 </div>
               )}
               <div className="small muted">
-                Stage: {a.stage}
-                {a.dueAt ? ` · due ${formatDate(a.dueAt)}` : ""}
-                {a.review?.overall !== null && a.review?.overall !== undefined ? ` · your score ${a.review.overall.toFixed(1)}` : ""}
+                {t("reviewerAssignments.stage", { stage: a.stage })}
+                {a.dueAt ? t("reviewerAssignments.due", { date: formatDate(a.dueAt) }) : ""}
+                {a.review?.overall !== null && a.review?.overall !== undefined ? t("reviewerAssignments.yourScore", { overall: a.review.overall.toFixed(1) }) : ""}
               </div>
               {a.policyRequired ? (
-                <span className="small muted">Opens once you have signed the competition&rsquo;s conflict-of-interest policy.</span>
+                <span className="small muted">{t("reviewerAssignments.opensOnceYouHave")}</span>
               ) : a.status === "recused" ? (
-                <span className="small muted">You are recused from this application.</span>
+                <span className="small muted">{t("reviewerAssignments.youAreRecusedFrom")}</span>
               ) : (
                 <button type="button" className="btn btn-secondary" style={{ alignSelf: "flex-start" }} aria-haspopup={a.status === "assigned" ? "dialog" : undefined} onClick={open}>
-                  {a.status === "assigned" ? "Declare conflicts and open" : a.status === "submitted" ? "View my review" : "Continue scoring"}
+                  {a.status === "assigned" ? t("reviewerAssignments.declareConflictsAndOpen") : a.status === "submitted" ? t("reviewerAssignments.viewMyReview") : t("reviewerAssignments.continueScoring")}
                 </button>
               )}
             </article>
@@ -322,8 +319,9 @@ function AssignmentList() {
 }
 
 export default function ReviewerAssignments() {
+  useFunderMessages();
   return (
-    <ReviewerFrame tab="assignments" title="My assignments">
+    <ReviewerFrame tab="assignments" title={t("reviewerAssignments.myAssignments")}>
       <AssignmentList />
     </ReviewerFrame>
   );

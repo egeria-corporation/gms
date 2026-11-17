@@ -7,6 +7,9 @@ import { Bell, LayoutGrid } from "lucide-react";
 import { initialsOf } from "../api/client.ts";
 import { useServices } from "../app/services.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 export function AccountShell({ active, children }: { active: "notifications" | "account" | "workspaces"; children: ReactNode }) {
   const { sessionState, meState } = useServices();
   const email = sessionState.status === "signedIn" ? sessionState.session.email : "";
@@ -20,15 +23,15 @@ export function AccountShell({ active, children }: { active: "notifications" | "
         </Link>
         <Link to="/workspaces" className="ws" aria-current={active === "workspaces" ? "page" : undefined}>
           <LayoutGrid className="ic" aria-hidden="true" />
-          Workspaces
+          {t("accountShell.workspaces")}
         </Link>
         <div className="row" style={{ marginLeft: "auto", gap: "4px" }}>
-          <Link to="/notifications" className="iconbtn" aria-label="Notifications" aria-current={active === "notifications" ? "page" : undefined} style={active === "notifications" ? { background: "var(--og-gray-100)", color: "var(--og-navy-dark)" } : undefined}>
+          <Link to="/notifications" className="iconbtn" aria-label={t("accountShell.notifications")} aria-current={active === "notifications" ? "page" : undefined} style={active === "notifications" ? { background: "var(--og-gray-100)", color: "var(--og-navy-dark)" } : undefined}>
             <Bell className="ic ic-md" aria-hidden="true" />
           </Link>
           <Link to="/account/agents" className="av" aria-current={active === "account" ? "page" : undefined}>
             <span aria-hidden="true">{initialsOf(email)}</span>
-            <span className="sr">Account: {email}</span>
+            <span className="sr">{t("accountShell.account", { email })}</span>
           </Link>
         </div>
       </header>

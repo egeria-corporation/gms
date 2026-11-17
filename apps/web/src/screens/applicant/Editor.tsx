@@ -28,6 +28,9 @@ import { fieldLabel, patchFor, rebase, sectionFor, sectionsOf, sectionState, typ
 import { EditorAssistant } from "./editorAssist.tsx";
 import type { DraftInvitation } from "../../api/invites.ts";
 import { InviteDialog, InviteOptions, InvitePicker, InviteSentNote, TeamNote, useDraftInvites } from "./inviteDraft.tsx";
+import { validationMessage } from "../../forms/FormView.tsx";
+import { t, useApplicantText } from "./i18n.ts";
+import { explainResult } from "../../lib/eligibilityText.ts";
 
 interface EditorData {
   app: Application;
@@ -172,7 +175,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   const formOwners = owners[activeFormId] ?? {};
   const memberName = (userId: string | undefined) => {
     const m = data.members.find((x) => x.userId === userId);
-    return m ? (m.name ?? m.email ?? "Teammate") : null;
+    return m ? (m.name ?? m.email ?? t("editor.teammate")) : null;
   };
   const openComments = comments.filter((c) => !c.resolvedAt);
   const goTo = (label: string) => document.getElementById(slug(label))?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -232,29 +235,33 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
       {
         key: "sections",
         state: stageErrors.length === 0 ? "pass" : "fail",
-        label: "Required sections complete",
-        reason: stageErrors.length === 0 ? `${sections.length} of ${sections.length} sections` : `${stageErrors.length} answer${stageErrors.length === 1 ? "" : "s"} to fix`,
+        label: t("editor.check.sections"),
+        reason: stageErrors.length === 0 ? t("editor.check.sectionsDone", { done: sections.length, total: sections.length }) : t("editor.check.answersToFix", { count: stageErrors.length }),
         fixHref: null,
       },
       {
         key: "eligibility",
         state: !eligibility || eligibility.eligible === "unknown" ? "unknown" : eligibility.eligible ? "pass" : "fail",
-        label: "Eligibility preview",
+        label: t("editor.eligibilityPreview"),
         reason: !eligibility
-          ? "Not evaluated yet"
+          ? t("editor.check.notEvaluated")
           : eligibility.eligible === true
-            ? `${eligibility.results.length} of ${eligibility.results.length} rules pass against your Passport record`
+            ? t("editor.check.rulesPass", { passed: eligibility.results.length, total: eligibility.results.length })
             : eligibility.eligible === false
-              ? (eligibility.results.find((r) => r.outcome === "fail")?.label ?? "A rule does not pass")
-              : `${unknown} rule${unknown === 1 ? "" : "s"} could not be checked; a program officer reviews them`,
+              ? (eligibility.results.find((r) => r.outcome === "fail")?.label ?? t("editor.check.ruleFails"))
+              : t("editor.check.rulesUnknown", { count: unknown }),
         fixHref: eligibility?.eligible === false ? `${base}/organization` : null,
       },
       {
         key: "passport",
         // Passport is optional: without it the organization goes in as not verified, which is no obstacle.
         state: data.readiness?.linked ? "pass" : "unknown",
-        label: data.readiness?.linked ? "Passport connected" : "Passport not connected (optional)",
-        reason: data.readiness?.linked ? `Level ${data.readiness?.level ?? "unknown"} and your attestation are attached at submission` : "Your organization is submitted as not verified. Connect Passport to attach a verification level",
+        label: data.readiness?.linked ? t("editor.check.passportConnected") : t("editor.check.passportNotConnected"),
+        reason: data.readiness?.linked
+          ? data.readiness?.level
+            ? t("editor.check.levelAttached", { level: data.readiness.level })
+            : t("editor.check.levelUnknownAttached")
+          : t("editor.check.notVerified"),
         fixHref: data.readiness?.linked ? null : "/onboarding/applicant",
       },
     ];
@@ -283,8 +290,8 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
 
   if (!active || !def) {
     return (
-      <Notice tone="info" title="Nothing to edit at this stage">
-        This application has no open form. <Link to={`${base}/applications/${app.id}`}>See its status</Link>
+      <Notice tone="info" title={t("editor.nothingToEditAtThisStage")}>
+        {t("editor.noOpenForm")} <Link to={`${base}/applications/${app.id}`}>{t("editor.seeItsStatus")}</Link>
       </Notice>
     );
   }
@@ -296,9 +303,9 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   return (
     <>
       <div className="crumbs">
-        <Link to={base}>Dashboard</Link>
+        <Link to={base}>{t("editor.dashboard")}</Link>
         <span>›</span>
-        <Link to={`${base}/applications`}>Applications</Link>
+        <Link to={`${base}/applications`}>{t("editor.applications")}</Link>
         <span>›</span>
         <span>{app.title}</span>
       </div>
@@ -310,7 +317,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
           <div className="row small muted" style={{ gap: "10px", flexWrap: "wrap" }}>
             {summary?.opportunity.title && <span>{summary.opportunity.title}</span>}
             <span>·</span>
-            <StatusBadge kind="application" status={app.status} label={`${summary?.stage.label ?? app.stage} · ${app.status === "draft" ? "Draft" : "Revision requested"}`} />
+            <StatusBadge kind="application" status={app.status} label={`${summary?.stage.label ?? app.stage} · ${app.status === "draft" ? t("editor.draft") : t("editor.revisionRequested")}`} />
             {closes && (
               <>
                 <span>·</span>
@@ -323,28 +330,28 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
         </div>
         <div className="row" style={{ marginLeft: "auto", gap: "14px", flexWrap: "wrap" }}>
           <span className="notice" role="status">
-            {save.state === "saving" && "Saving…"}
+            {save.state === "saving" && t("editor.saving")}
             {save.state === "saved" && (
               <>
                 <Check className="ic" aria-hidden="true" />
-                Saved {save.at ? timeAgo(save.at) : ""}
+                {save.at ? t("editor.savedAgo", { ago: timeAgo(save.at) }) : t("editor.saved")}
               </>
             )}
             {save.state === "idle" && (
               <>
                 <Check className="ic" aria-hidden="true" />
-                All changes saved
+                {t("editor.allChangesSaved")}
               </>
             )}
             {save.state === "error" && (
               <span className="err-msg">
                 <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
-                Not saved: {errorMessage(save.error)}
+                {t("editor.notSaved", { error: errorMessage(save.error) })}
               </span>
             )}
           </span>
-          <div className="pres" role="img" aria-label={`Editing now: ${[me, ...peers].map((p) => p.name).join(", ")}`}>
-            <Avatar name={me.name} note="(you)" live />
+          <div className="pres" role="img" aria-label={t("editor.editingNow", { names: [me, ...peers].map((p) => p.name).join(", ") })}>
+            <Avatar name={me.name} note={t("editor.youNote")} live />
             {peers.map((p, i) => (
               <Avatar key={p.userId} name={p.name} {...(p.section ? { note: `· ${p.section}` } : {})} index={i + 1} live />
             ))}
@@ -352,23 +359,23 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
           {/* The template preview is a design reference with sample content: demo mode only. */}
           {mock && (
             <Link to="/preview/pdf/application-snapshot" className="btn btn-secondary">
-              Preview
+              {t("editor.preview")}
             </Link>
           )}
           <button className="btn btn-primary" type="button" aria-haspopup="dialog" onClick={() => setSubmitOpen(true)}>
-            Submit…
+            {t("editor.submit")}
           </button>
         </div>
       </div>
 
       {app.status === "revision_requested" && (
-        <Notice tone="warn" title="The funder asked for a revision">
-          Make the changes and submit again. <Link to={`${base}/applications/${app.id}`}>Read the request</Link>
+        <Notice tone="warn" title={t("editor.theFunderAskedForARevision")}>
+          {t("editor.makeTheChanges")} <Link to={`${base}/applications/${app.id}`}>{t("editor.readTheRequest")}</Link>
         </Notice>
       )}
 
       {phone && (
-        <nav className="pillrow" aria-label="Sections" style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "4px 0", scrollbarWidth: "none" }}>
+        <nav className="pillrow" aria-label={t("editor.sections")} style={{ display: "flex", gap: "8px", overflowX: "auto", padding: "4px 0", scrollbarWidth: "none" }}>
           {sections.map((sec) => {
             const st = sectionState(sec, active.response, errors);
             const Icon = SEC_ICON[st.state];
@@ -384,18 +391,18 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
       <div style={{ display: "grid", gridTemplateColumns: "248px minmax(0, 1fr) 320px", gap: "20px", alignItems: "start" }}>
         <aside className="card" style={{ padding: "12px", ...(phone ? { display: "none" } : {}) }}>
           <div className="eyebrow" style={{ padding: "4px 10px 10px" }}>
-            Sections · {sections.filter((s) => sectionState(s, active.response, errors).state === "done").length} of {sections.length} complete
+            {t("editor.sectionsComplete", { done: sections.filter((s) => sectionState(s, active.response, errors).state === "done").length, total: sections.length })}
           </div>
           {editableForms.length > 1 && (
-            <div className="seg" role="group" aria-label="Form" style={{ margin: "0 6px 10px" }}>
+            <div className="seg" role="group" aria-label={t("editor.form")} style={{ margin: "0 6px 10px" }}>
               {editableForms.map((f) => (
                 <button key={f.formId} type="button" className={f.formId === activeFormId ? "on" : ""} aria-pressed={f.formId === activeFormId} onClick={() => setActiveFormId(f.formId)}>
-                  {defs[f.formId]?.title ?? "Form"}
+                  {defs[f.formId]?.title ?? t("editor.form")}
                 </button>
               ))}
             </div>
           )}
-          <nav className="sec" aria-label="Application sections">
+          <nav className="sec" aria-label={t("editor.applicationSections")}>
             {sections.map((s) => {
               const st = sectionState(s, active.response, errors);
               const Icon = SEC_ICON[st.state];
@@ -415,7 +422,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                   <Icon className="ic" aria-hidden="true" />
                   <div>
                     <div className="nm">{s.label}</div>
-                    <div className="st">{st.state === "done" ? "Complete" : st.state === "prog" ? `In progress · ${st.problems.length} to fix` : "Not started"}</div>
+                    <div className="st">{st.state === "done" ? t("editor.complete") : st.state === "prog" ? t("editor.inProgressToFix", { count: st.problems.length }) : t("editor.notStarted")}</div>
                   </div>
                   <span className="meta">
                     {n > 0 && (
@@ -433,15 +440,15 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               <a key={f.formId} href={`#locked-${f.formId}`} className="s-lock">
                 <Lock className="ic" aria-hidden="true" />
                 <div>
-                  <div className="nm">{defs[f.formId]?.title ?? "Earlier stage"} responses</div>
-                  <div className="st">Locked · prior stage, read-only</div>
+                  <div className="nm">{t("editor.formResponses", { form: defs[f.formId]?.title ?? t("editor.earlierStage") })}</div>
+                  <div className="st">{t("editor.lockedPriorStageReadOnly")}</div>
                 </div>
                 <span className="meta"></span>
               </a>
             ))}
           </nav>
           <div className="small muted" style={{ padding: "10px 10px 4px" }}>
-            Form v{active.version} · pinned by {summary?.funder.name ?? "the funder"}
+            {summary?.funder.name ? t("editor.formPinnedBy", { version: String(active.version), funder: summary.funder.name }) : t("editor.formPinned", { version: String(active.version) })}
           </div>
         </aside>
 
@@ -449,19 +456,19 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
           {!consultant && <TeamNote canInvite={!!inviteList?.canInvite} onInvite={() => setInviting({ section: null })} />}
           {invited && <InviteSentNote sent={invited} onDone={() => setInvited(null)} />}
           {rejected.length > 0 && (
-            <Notice tone="info" title={data.readiness?.linked ? "Some fields follow your Passport record" : "Some fields follow your organization details"}>
-              {rejected.map((p) => fieldLabel(def, p)).join(", ")} can only be changed in {data.readiness?.linked ? "Passport" : "Settings"}.{" "}
-              {data.readiness?.linked ? data.org?.editUrl && <a href={data.org?.editUrl}>Edit in Passport</a> : <Link to={`${base}/settings#organization-details`}>Open Settings</Link>}
+            <Notice tone="info" title={data.readiness?.linked ? t("editor.someFieldsFollowYourPassportRecord") : t("editor.someFieldsFollowYourOrganizationDetails")}>
+              {data.readiness?.linked ? t("editor.onlyInPassport", { fields: rejected.map((p) => fieldLabel(def, p)).join(", ") }) : t("editor.onlyInSettings", { fields: rejected.map((p) => fieldLabel(def, p)).join(", ") })}{" "}
+              {data.readiness?.linked ? data.org?.editUrl && <a href={data.org?.editUrl}>{t("editor.editInPassport")}</a> : <Link to={`${base}/settings#organization-details`}>{t("editor.openSettings")}</Link>}
             </Notice>
           )}
           <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
             <button className="btn btn-sm btn-secondary" type="button" aria-haspopup="dialog" onClick={() => setLibraryOpen(true)} disabled={!data.answers.length || !textFields.length}>
               <BookOpen className="ic" aria-hidden="true" />
-              Insert from answer library
+              {t("editor.insertFromAnswerLibrary")}
             </button>
             {!showAll && errors.length > 0 && (
               <button className="btn btn-sm btn-ghost" type="button" onClick={() => setShowAll(true)}>
-                Show everything left to fix
+                {t("editor.showEverythingLeftToFix")}
               </button>
             )}
           </div>
@@ -486,36 +493,36 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
           <section className="card" aria-labelledby="att-h">
             <div className="card-h">
               <div>
-                <h3 id="att-h">Attachments</h3>
-                <p className="small muted">Files uploaded here stay with this application. Files in your Passport locker are referenced, not copied.</p>
+                <h3 id="att-h">{t("editor.attachments")}</h3>
+                <p className="small muted">{t("editor.filesUploadedHereStayWithThis")}</p>
               </div>
               <span className="bdg bdg-neutral">
                 <FileText className="ic" aria-hidden="true" />
-                {attachments.length} file{attachments.length === 1 ? "" : "s"}
+                {t("editor.fileCount", { count: attachments.length })}
               </span>
             </div>
             <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {attachments.map((d) => (
                 <div className="doc" key={d.id}>
-                  <span className={`ft${fileKind(d.name) ? ` ft-${fileKind(d.name)}` : ""}`}>{(fileKind(d.name) || "file").toUpperCase()}</span>
+                  <span className={`ft${fileKind(d.name) ? ` ft-${fileKind(d.name)}` : ""}`}>{fileKind(d.name) ? fileKind(d.name).toUpperCase() : t("form.file")}</span>
                   <div className="grow">
                     <div className="nm">{d.name}</div>
                     <div className="mt">
                       <span>{kb(d.size)}</span>
                       <span>·</span>
-                      {d.source === "passport_locker" ? <span className="prov prov-passport">Passport locker</span> : <span>Uploaded {timeAgo(d.uploadedAt)}</span>}
+                      {d.source === "passport_locker" ? <span className="prov prov-passport">{t("editor.passportLocker")}</span> : <span>{t("editor.uploadedAgo", { ago: timeAgo(d.uploadedAt) })}</span>}
                       <span>·</span>
-                      <span className="mono">
+                      <samp className="mono">
                         sha256 {d.sha256.slice(0, 4)}…{d.sha256.slice(-4)}
-                      </span>
-                      {d.scanStatus === "not_scanned" && <span>· not scanned</span>}
+                      </samp>
+                      {d.scanStatus === "not_scanned" && <span>· {t("editor.notScanned")}</span>}
                     </div>
                   </div>
                 </div>
               ))}
               <label className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
                 <Upload className="ic" aria-hidden="true" />
-                Upload a file
+                {t("editor.uploadAFile")}
                 <input
                   type="file"
                   className="sr"
@@ -532,20 +539,20 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
           {lockedForms.map((f) => {
             const d = defs[f.formId];
             return d ? (
-              <section className="card" key={f.formId} id={`locked-${f.formId}`} aria-label={`${d.title} responses`}>
+              <section className="card" key={f.formId} id={`locked-${f.formId}`} aria-label={t("editor.formResponses", { form: d.title })}>
                 <div className="card-h">
                   <div>
-                    <h3>{d.title} responses</h3>
-                    <p className="small muted">Prior-stage responses are read-only and visible to reviewers.</p>
+                    <h3>{t("editor.formResponses", { form: d.title })}</h3>
+                    <p className="small muted">{t("editor.priorStageResponsesAreReadOnly")}</p>
                   </div>
                   <span className="bdg bdg-neutral">
                     <Lock className="ic" aria-hidden="true" />
-                    Locked
+                    {t("editor.locked")}
                   </span>
                 </div>
                 <details className="card-b">
                   <summary className="b" style={{ cursor: "pointer" }}>
-                    Show what was submitted
+                    {t("editor.showWhatWasSubmitted")}
                   </summary>
                   <div style={{ marginTop: "12px" }}>
                     <FormView form={d} response={f.response} mode="funder" provenance={f.provenance} />
@@ -558,7 +565,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
 
         {dock(
         <aside
-          {...(phone ? { className: "sheet", "aria-label": "Validation and comments" } : {})}
+          {...(phone ? { className: "sheet", "aria-label": t("editor.validationAndComments") } : {})}
           style={{ display: "flex", flexDirection: "column", gap: phone ? "0" : "16px", minWidth: 0, ...(phone ? { flex: "none", maxHeight: "60vh", overflowY: sheetOpen ? "auto" : "hidden" } : {}) }}
         >
           {phone && (
@@ -566,23 +573,23 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               <div className="grab" aria-hidden="true"></div>
               <button type="button" className="row" aria-expanded={sheetOpen} aria-controls="ed-sheet" style={{ width: "100%", minHeight: "44px", padding: "0 16px", border: 0, background: "transparent", font: "inherit", fontWeight: 700, color: "var(--og-navy-dark)", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setSheetOpen(!sheetOpen)}>
                 <span>
-                  Validation{stageErrors.length ? ` · ${stageErrors.length} to fix` : " · nothing to fix"} · Comments {openComments.length}
+                  {stageErrors.length ? t("editor.sheetToFix", { count: stageErrors.length, comments: openComments.length }) : t("editor.sheetNothingToFix", { comments: openComments.length })}
                 </span>
-                <span className="small muted">{sheetOpen ? "Hide" : "Show"}</span>
+                <span className="small muted">{sheetOpen ? t("editor.hide") : t("editor.show")}</span>
               </button>
             </>
           )}
           <div id="ed-sheet" className="card" style={phone ? { border: 0, borderRadius: 0, display: sheetOpen ? undefined : "none" } : undefined}>
             <div style={{ padding: "0 12px" }}>
               <Tabs<PanelTab>
-                label="Application panel"
+                label={t("editor.applicationPanel")}
                 idPrefix="ed"
                 active={tab}
                 onChange={setTab}
                 tabs={[
-                  { key: "validation", label: "Validation", count: errors.length },
-                  { key: "comments", label: "Comments", count: openComments.length },
-                  { key: "assignments", label: "Assignments" },
+                  { key: "validation", label: t("editor.tab.validation"), count: errors.length },
+                  { key: "comments", label: t("editor.tab.comments"), count: openComments.length },
+                  { key: "assignments", label: t("editor.tab.assignments") },
                 ]}
               />
             </div>
@@ -591,22 +598,22 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                 {errors.length === 0 ? (
                   <div className="row" style={{ gap: "8px", color: "var(--s-ok-fg)", fontWeight: 700 }}>
                     <CircleCheck className="ic" aria-hidden="true" />
-                    Nothing left to fix in this form
+                    {t("editor.nothingLeftToFixInThis")}
                   </div>
                 ) : (
                   <>
                     <div className="eyebrow" style={{ marginBottom: "6px" }}>
-                      To fix · {errors.length}
+                      {t("editor.toFixCount", { count: errors.length })}
                     </div>
                     <ul className="rc">
                       {errors.map((e, i) => {
                         const s = sectionFor(sections, e.field);
                         return (
                           <li key={`${e.field}-${i}`} className="rc-row rc-fail" style={i === 0 ? { borderTop: 0 } : undefined}>
-                            <CircleX className="ic" role="img" aria-label="Needs attention" />
+                            <CircleX className="ic" role="img" aria-label={t("editor.needsAttention")} />
                             <div>
                               <div className="l">{fieldLabel(def, e.field)}</div>
-                              <div className="r">{e.message}</div>
+                              <div className="r">{validationMessage(e)}</div>
                             </div>
                             {s ? (
                               <a
@@ -618,7 +625,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                                   goTo(s.label);
                                 }}
                               >
-                                Fix →
+                                {t("editor.fix")}
                               </a>
                             ) : (
                               <span />
@@ -631,7 +638,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                 )}
                 <div className="divider" style={{ margin: "14px 0" }}></div>
                 <div className="eyebrow" style={{ marginBottom: "8px" }}>
-                  Eligibility preview
+                  {t("editor.eligibilityPreview")}
                 </div>
                 {eligibility ? (
                   <ul style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "14px" }}>
@@ -639,25 +646,25 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                       const Icon = r.outcome === "pass" ? CircleCheck : r.outcome === "fail" ? CircleX : CircleDashed;
                       const color = r.outcome === "pass" ? "var(--s-ok-fg)" : r.outcome === "fail" ? "var(--s-dng-fg)" : "var(--og-gray-600)";
                       return (
-                        <li key={i} className="row" style={{ gap: "6px", color, alignItems: "flex-start" }} title={r.explain}>
-                          <Icon className="ic" role="img" aria-label={r.outcome === "pass" ? "Passes" : r.outcome === "fail" ? "Does not pass" : "Could not be checked"} style={{ marginTop: "3px" }} />
+                        <li key={i} className="row" style={{ gap: "6px", color, alignItems: "flex-start" }} title={explainResult(r)}>
+                          <Icon className="ic" role="img" aria-label={r.outcome === "pass" ? t("editor.passes") : r.outcome === "fail" ? t("editor.doesNotPass") : t("editor.couldNotBeChecked")} style={{ marginTop: "3px" }} />
                           {r.label} <SelfReportedTag result={r} />
                         </li>
                       );
                     })}
                   </ul>
                 ) : (
-                  <p className="small muted">Eligibility is evaluated when you submit.</p>
+                  <p className="small muted">{t("editor.eligibilityIsEvaluatedWhenYouSubmit")}</p>
                 )}
                 {data.readiness?.linked && (
                   <div className="bnr bnr-info" style={{ marginTop: "12px" }}>
                     <ShieldCheck className="ic" aria-hidden="true" />
                     <div>
                       <div className="t" style={{ fontSize: "14px" }}>
-                        Passport level {data.readiness?.level ?? "—"} will be attached
+                        {t("editor.levelWillBeAttached", { level: data.readiness?.level ?? "—" })}
                       </div>
                       <div className="d" style={{ fontSize: "13px" }}>
-                        Your attestation and payee status travel with the submission.
+                        {t("editor.yourAttestationAndPayeeStatusTravel")}
                       </div>
                     </div>
                   </div>
@@ -681,7 +688,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
 
               <TabPanel idPrefix="ed" tab="assignments" active={tab}>
                 <p className="small muted" style={{ marginBottom: "10px" }}>
-                  Who owns each section. A consultant only sees the applications they are scoped to.
+                  {t("editor.whoOwnsEachSectionAConsultant")}
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   {sections.map((s) => (
@@ -701,11 +708,11 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                           setOwners((prev) => ({ ...prev, [activeFormId]: r.sections }));
                         }}
                       >
-                        <option value="">Unassigned</option>
+                        <option value="">{t("editor.unassigned")}</option>
                         {data.members.map((m) => (
                           <option key={m.userId} value={m.userId}>
                             {m.name ?? m.email ?? m.userId}
-                            {m.role === "consultant" ? " (consultant)" : ""}
+                            {m.role === "consultant" ? ` ${t("editor.consultantNote")}` : ""}
                           </option>
                         ))}
                         <InviteOptions list={inviteList} match={(d) => d.section === s.label && (d.formId ?? "").replace(/^frm_/, "") === activeFormId} />
@@ -740,24 +747,24 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
         <div className="hd">
           <div>
             <h2 id="submit-title" style={{ fontSize: "20px" }}>
-              Ready to submit?
+              {t("editor.readyToSubmit")}
             </h2>
             <p className="small muted" style={{ marginTop: "4px" }}>
               {[summary?.funder.name, summary?.opportunity.title, summary?.stage.label].filter(Boolean).join(" · ")}
             </p>
           </div>
-          <button className="iconbtn" type="button" aria-label="Close" onClick={() => setSubmitOpen(false)}>
+          <button className="iconbtn" type="button" aria-label={t("editor.close")} onClick={() => setSubmitOpen(false)}>
             <X className="ic ic-md" aria-hidden="true" />
           </button>
         </div>
         <div className="bd" style={{ gap: "10px" }}>
           <ReadinessChecklist checklist={checklist} />
-          {submit.error && submitProblems.length === 0 ? <ErrorBanner error={submit.error} title="The application was not submitted" /> : null}
+          {submit.error && submitProblems.length === 0 ? <ErrorBanner error={submit.error} title={t("editor.theApplicationWasNotSubmitted")} /> : null}
           {submitProblems.length > 0 && (
             <div className="bnr bnr-dng" role="alert">
               <CircleX className="ic" aria-hidden="true" />
               <div>
-                <div className="t">The server found {submitProblems.length} thing{submitProblems.length === 1 ? "" : "s"} to fix</div>
+                <div className="t">{t("editor.serverFound", { count: submitProblems.length })}</div>
                 <ul className="d">
                   {submitProblems.slice(0, 6).map((p, i) => (
                     <li key={i}>
@@ -773,35 +780,35 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               <ShieldCheck className="ic" aria-hidden="true" />
               <div>
                 <div className="t">
-                  Your Passport level <LevelBadge level={data.readiness?.level} /> and attestation will be attached to this submission
+                  {t.rich("editor.levelBadgeAttached", { badge: <LevelBadge level={data.readiness?.level} /> })}
                 </div>
-                <div className="d">{summary?.funder.name ?? "The funder"} receives a snapshot of this application, your attestation and your payee status (bank name and last four digits only). Nothing else from Passport is shared.</div>
+                <div className="d">{summary?.funder.name ? t("editor.receivesSnapshotPassport", { funder: summary.funder.name }) : t("editor.receivesSnapshotPassportTheFunder")}</div>
               </div>
             </div>
           ) : (
             <div className="bnr bnr-neu">
               <ShieldOff className="ic" aria-hidden="true" />
               <div>
-                <div className="t">Your organization is not verified with OpenGrants Passport</div>
-                <div className="d">{summary?.funder.name ?? "The funder"} receives a snapshot of this application and sees the organization details you entered, marked as not verified.</div>
+                <div className="t">{t("editor.yourOrganizationIsNotVerifiedWith")}</div>
+                <div className="d">{summary?.funder.name ? t("editor.receivesSnapshotSelf", { funder: summary.funder.name }) : t("editor.receivesSnapshotSelfTheFunder")}</div>
               </div>
             </div>
           )}
           <p className="small muted">
-            {summary?.stage.closes ? `You can withdraw until the stage closes. ` : ""}
-            {data.readiness?.linked ? "Submitting gives this funder permission to read your Passport record for this application." : "Submitting gives this funder permission to read the organization details you entered for this application."}
+            {summary?.stage.closes ? `${t("editor.canWithdraw")} ` : ""}
+            {data.readiness?.linked ? t("editor.submittingGivesThisFunderPermissionTo") : t("editor.submittingGivesThisFunderPermissionTo2")}
           </p>
         </div>
         <div className="ft">
           <button className="btn btn-secondary" type="button" onClick={() => setSubmitOpen(false)}>
-            Cancel
+            {t("editor.cancel")}
           </button>
           <button className="btn btn-primary btn-lg" type="button" onClick={onSubmit} disabled={!checklist.ready || submit.state === "sending"} aria-describedby={checklist.ready ? undefined : "submit-why"}>
-            {submit.state === "sending" ? "Submitting…" : "Submit application"}
+            {submit.state === "sending" ? t("editor.submitting") : t("editor.submitApplication")}
           </button>
           {!checklist.ready && (
             <span id="submit-why" className="sr">
-              Fix the failing checks before submitting
+              {t("editor.fixTheFailingChecksBeforeSubmitting")}
             </span>
           )}
         </div>
@@ -821,22 +828,22 @@ function CommentsPanel({ comments, def, onAdd, onResolve }: { comments: Comment[
   const fields = Object.entries(def.jsonSchema.properties ?? {});
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      {comments.length === 0 && <p className="small muted">No comments yet. Comments are for your team; the funder never sees them.</p>}
+      {comments.length === 0 && <p className="small muted">{t("editor.noCommentsYetCommentsAreFor")}</p>}
       {comments.map((c) => (
         <div key={c.id} className={c.resolvedAt ? "cmt cmt-res" : "cmt"}>
           <div className="hd">
             <Avatar name={c.author} size="sm" />
             <span className="who">{c.author}</span>
             <span>· {timeAgo(c.createdAt)}</span>
-            <span className="int-mark">Team</span>
+            <span className="int-mark">{t("editor.team")}</span>
           </div>
-          {c.fieldPath && <div className="fld-ref">on “{fieldLabel(def, c.fieldPath)}”</div>}
+          {c.fieldPath && <div className="fld-ref">{t("editor.onField", { field: fieldLabel(def, c.fieldPath) })}</div>}
           <div className="bd">{c.body}</div>
           {c.resolvedAt ? (
-            <span className="small muted">Resolved {timeAgo(c.resolvedAt)}</span>
+            <span className="small muted">{t("editor.resolvedAgo", { ago: timeAgo(c.resolvedAt) })}</span>
           ) : (
             <button className="btn btn-sm btn-ghost" type="button" style={{ alignSelf: "flex-start" }} onClick={() => void onResolve(c.id)}>
-              Resolve
+              {t("editor.resolve")}
             </button>
           )}
         </div>
@@ -856,10 +863,10 @@ function CommentsPanel({ comments, def, onAdd, onResolve }: { comments: Comment[
         }}
       >
         <label className="sr" htmlFor="cmt-field">
-          Field this comment is about
+          {t("editor.fieldThisCommentIsAbout")}
         </label>
         <select className="sel" id="cmt-field" style={{ height: "36px", fontSize: "14px" }} value={field} onChange={(e) => setField(e.target.value)}>
-          <option value="">Whole application</option>
+          <option value="">{t("editor.wholeApplication")}</option>
           {fields.map(([k, s]) => (
             <option key={k} value={`/${k}`}>
               {typeof s.title === "string" ? s.title : k}
@@ -867,11 +874,11 @@ function CommentsPanel({ comments, def, onAdd, onResolve }: { comments: Comment[
           ))}
         </select>
         <label className="sr" htmlFor="cmt-body">
-          Write a comment for your team
+          {t("editor.writeACommentForYourTeam")}
         </label>
-        <textarea className="ta" id="cmt-body" style={{ minHeight: "60px" }} placeholder="Write a comment for your team" value={body} onChange={(e) => setBody(e.target.value)} />
+        <textarea className="ta" id="cmt-body" style={{ minHeight: "60px" }} placeholder={t("editor.writeACommentForYourTeam")} value={body} onChange={(e) => setBody(e.target.value)} />
         <button className="btn btn-secondary" type="submit" disabled={busy || !body.trim()} style={{ alignSelf: "flex-start" }}>
-          Comment
+          {t("editor.comment")}
         </button>
       </form>
     </div>
@@ -887,30 +894,30 @@ function InsertAnswer({ answers, fields, onInsert, onClose }: { answers: Answer[
       <div className="hd">
         <div>
           <h3 id="lib-title" style={{ fontSize: "16px" }}>
-            Insert from answer library
+            {t("editor.insertFromAnswerLibrary")}
           </h3>
-          <p className="small muted">The text replaces what is in the field. You can edit it afterwards; the library copy is not changed.</p>
+          <p className="small muted">{t("editor.theTextReplacesWhatIsIn")}</p>
         </div>
-        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+        <button className="iconbtn" type="button" aria-label={t("editor.close")} onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
       <div className="bd">
         <div className="fld">
           <label className="lbl" htmlFor="lib-answer">
-            Answer
+            {t("editor.answer")}
           </label>
           <select className="sel" id="lib-answer" value={answerId} onChange={(e) => setAnswerId(e.target.value)}>
             {answers.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.title} · v{a.version} · {a.words} words
+                {a.title} · {t("editor.version", { version: String(a.version) })} · {t("editor.wordsCount", { count: a.words })}
               </option>
             ))}
           </select>
         </div>
         <div className="fld">
           <label className="lbl" htmlFor="lib-field">
-            Insert into
+            {t("editor.insertInto")}
           </label>
           <select className="sel" id="lib-field" value={field} onChange={(e) => setField(e.target.value)}>
             {fields.map((f) => (
@@ -928,10 +935,10 @@ function InsertAnswer({ answers, fields, onInsert, onClose }: { answers: Answer[
       </div>
       <div className="ft">
         <button className="btn btn-secondary" type="button" onClick={onClose}>
-          Cancel
+          {t("editor.cancel")}
         </button>
         <button className="btn btn-primary" type="button" disabled={!answer || !field} onClick={() => answer && void onInsert(answer, field)}>
-          Insert
+          {t("editor.insert")}
         </button>
       </div>
     </>
@@ -946,20 +953,21 @@ const keyOf = (data: object): number => {
 };
 
 export default function Editor({ openSubmit = false, phone = false }: { openSubmit?: boolean; phone?: boolean }) {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const { appId = "" } = useParams();
   const query = useApplicantQuery((api) => loadEditor(api, appId), [appId, ws.id]);
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
   const body = (
     <main className="main" style={phone ? { flex: 1 } : { gap: "16px" }}>
-      <Loaded query={query} label="Opening the application">
+      <Loaded query={query} label={t("editor.openingTheApplication")}>
         {(data) =>
           data.app.status === "draft" || data.app.status === "revision_requested" ? (
             // A fresh read from the server remounts the body, so its state starts from that read.
             <EditorBody key={keyOf(data)} data={data} openSubmit={openSubmit} phone={phone} />
           ) : (
-            <Notice tone="info" title="This application has been submitted and can no longer be edited">
-              <Link to={`/w/${ws.handle}/applications/${data.app.id}`}>See where it stands</Link>
+            <Notice tone="info" title={t("editor.thisApplicationHasBeenSubmittedAnd")}>
+              <Link to={`/w/${ws.handle}/applications/${data.app.id}`}>{t("editor.seeWhereItStands")}</Link>
             </Notice>
           )
         }
@@ -968,9 +976,9 @@ export default function Editor({ openSubmit = false, phone = false }: { openSubm
   );
   return (
     <>
-      <title>{query.status === "ready" ? `${query.data.app.title} — ${ws.name}` : `Application — ${ws.name}`}</title>
+      <title>{query.status === "ready" ? `${query.data.app.title} — ${ws.name}` : t("editor.pageTitle", { workspace: ws.name })}</title>
       {phone ? (
-        <PhoneShell title="Application" active="Applications">
+        <PhoneShell title={t("editor.application")} active="Applications">
           {body}
         </PhoneShell>
       ) : (

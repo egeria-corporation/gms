@@ -17,19 +17,21 @@ import { EmptyState, ErrorBanner, Field, Loading, PageHeader } from "../../compo
 import { formatMinor, parseDollars } from "../../lib/format.ts";
 import { DecisionSummary, PanelDetail, type DecisionTally } from "./PanelDetail.tsx";
 import { DocketDialog } from "./ReviewParity.tsx";
+import { t, useFunderMessages } from "./i18n.ts";
 
 interface Draft {
   outcome: DecisionOutcome | "";
   amount: string;
 }
-const OUTCOMES: [DecisionOutcome, string][] = [
-  ["approve", "Approve"],
-  ["waitlist", "Waitlist"],
-  ["decline", "Decline"],
+const OUTCOMES = (): [DecisionOutcome, string][] => [
+  ["approve", t("funderPanel.outcome.approve")],
+  ["waitlist", t("funderPanel.outcome.waitlist")],
+  ["decline", t("funderPanel.outcome.decline")],
 ];
 const fmt = (n: number | null) => (n === null ? "—" : n.toFixed(1));
 
 export default function Panel() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const { compId = "" } = useParams();
@@ -62,7 +64,7 @@ export default function Panel() {
       if (d.outcome === "approve") {
         const minor = parseDollars(d.amount);
         if (minor === null || minor <= 0) {
-          problems.push(`Enter an amount for ${r.applicant ?? r.title}`);
+          problems.push(t("funderPanel.problem.amountFor", { name: r.applicant ?? r.title }));
           continue;
         }
         decisions.push({ applicationId: r.applicationId, outcome: "approve", amountMinor: minor });
@@ -84,7 +86,7 @@ export default function Panel() {
     const proposed = await api.proposeDecisions(compId, inputs.decisions);
     return api.commitDecisions({ competitionId: compId, decisionIds: proposed.decisions.map((d) => d.id), ...(over && override.trim() ? { override: { reason: override.trim() } } : {}) });
   });
-  const blocked = inputs.problems[0] ?? (inputs.decisions.length === 0 ? "Choose a decision for at least one application" : over && !isAdmin ? `Approvals exceed the program budget by ${formatMinor(-remaining!)}. Lower an allocation, or ask an admin to override` : over && !override.trim() ? `Approvals exceed the program budget by ${formatMinor(-remaining!)}. Give a reason to override` : null);
+  const blocked = inputs.problems[0] ?? (inputs.decisions.length === 0 ? t("funderPanel.problem.noDecision") : over && !isAdmin ? t("funderPanel.problem.overAskAdmin", { amount: formatMinor(-remaining!) }) : over && !override.trim() ? t("funderPanel.problem.overGiveReason", { amount: formatMinor(-remaining!) }) : null);
   const setDraft = (id: string, patch: Partial<Draft>, row: RankingRow) =>
     setDrafts((d) => {
       const cur = d[id] ?? { outcome: "", amount: "" };
@@ -108,12 +110,12 @@ export default function Panel() {
 
   return (
     <>
-      <title>{`Panel — ${competition.data?.title ?? "Competition"} — ${ws.name}`}</title>
+      <title>{t("funderPanel.panel", { title: competition.data?.title ?? t("funderPanel.competition"), name: ws.name })}</title>
       <FunderShell active="Reviews">
         <main className="main">
           <PageHeader
-            crumbs={[{ label: ws.name, to: base }, { label: competition.data?.title ?? "Competition", to: `${base}/competitions/${compId}` }, { label: "Panel" }]}
-            title="Panel and decisions"
+            crumbs={[{ label: ws.name, to: base }, { label: competition.data?.title ?? t("funderPanel.competition"), to: `${base}/competitions/${compId}` }, { label: t("funderPanel.panel2") }]}
+            title={t("funderPanel.panelAndDecisions")}
             meta={
               <>
                 <span>{competition.data?.title}</span>
@@ -121,7 +123,7 @@ export default function Panel() {
                   <>
                     <span>·</span>
                     <label className="row">
-                      Stage
+                      {t("funderPanel.stage")}
                       <select className="sel" style={{ width: "auto", height: "28px" }} value={ranking.data.stage} onChange={(e) => setParams({ stage: e.target.value })}>
                         {competition.data.stages.map((s) => (
                           <option key={s.key} value={s.key}>
@@ -132,7 +134,7 @@ export default function Panel() {
                     </label>
                     <span>·</span>
                     <span>
-                      {ranking.data.rubric.name} v{ranking.data.rubric.version}
+                      {t("funderPanel.v", { name: ranking.data.rubric.name, version: ranking.data.rubric.version })}
                     </span>
                   </>
                 )}
@@ -141,11 +143,11 @@ export default function Panel() {
             actions={
               <>
                 <Link to={`${base}/reviews/assign`} className="btn btn-secondary">
-                  Review assignments
+                  {t("funderPanel.reviewAssignments")}
                 </Link>
                 <button type="button" className="btn btn-secondary" aria-haspopup="dialog" disabled={!ranking.data} onClick={() => setDocket(true)}>
                   <FileText className="ic" aria-hidden="true" />
-                  Board docket…
+                  {t("funderPanel.boardDocket")}
                 </button>
               </>
             }
@@ -154,11 +156,11 @@ export default function Panel() {
           <section className="card stick-head" aria-labelledby="alloc-h" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
             <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
               <h2 id="alloc-h" style={{ fontSize: "16px" }}>
-                Program headroom
+                {t("funderPanel.programHeadroom")}
               </h2>
               <div className="row">
                 <button type="button" className="btn btn-secondary" disabled={propose.state === "saving" || inputs.decisions.length === 0 || inputs.problems.length > 0} onClick={async () => (await propose.run()) && reload()}>
-                  Save as proposed
+                  {t("funderPanel.saveAsProposed")}
                 </button>
                 <button
                   type="button"
@@ -169,24 +171,24 @@ export default function Panel() {
                   onClick={() => setConfirming(true)}
                 >
                   <Gavel className="ic" aria-hidden="true" />
-                  Commit decisions
+                  {t("funderPanel.commitDecisions")}
                 </button>
               </div>
             </div>
             {allocation.status === "error" && <ErrorBanner error={allocation.error} onRetry={allocation.reload} />}
-            <div className={over ? "mtr mtr-over" : "mtr"} role="group" aria-label="Program budget headroom">
+            <div className={over ? "mtr mtr-over" : "mtr"} role="group" aria-label={t("funderPanel.programBudgetHeadroom")}>
               <div className="lbls">
                 <span>
-                  Available <b>{budget === null ? "No program budget set" : formatMinor(budget)}</b>
+                  {t("funderPanel.available")} <b>{budget === null ? t("funderPanel.noProgramBudgetSet") : formatMinor(budget)}</b>
                 </span>
                 <span>
-                  Allocated <b>{formatMinor(committed)}</b>
+                  {t.rich("funderPanel.allocated", { amount: formatMinor(committed), b: (chunks) => <b>{chunks}</b> })}
                 </span>
                 <span>
-                  Pending <b>{formatMinor(pendingMinor)}</b>
+                  {t.rich("funderPanel.pending", { amount: formatMinor(pendingMinor), b: (chunks) => <b>{chunks}</b> })}
                 </span>
                 <span>
-                  Remaining <b>{remaining === null ? "—" : formatMinor(remaining)}</b>
+                  {t("funderPanel.remaining")} <b>{remaining === null ? "—" : formatMinor(remaining)}</b>
                 </span>
               </div>
               <div className="track">
@@ -196,7 +198,7 @@ export default function Panel() {
               {over && (
                 <div className="over-msg" role="alert">
                   <TriangleExclamationPoint className="ic" aria-hidden="true" />
-                  Over budget by {formatMinor(-remaining!)}
+                  {t("funderPanel.overBudgetBy", { amount: formatMinor(-remaining!) })}
                 </div>
               )}
             </div>
@@ -206,7 +208,7 @@ export default function Panel() {
               </p>
             )}
             {over && isAdmin && (
-              <Field id="override-reason" label="Override reason" help="Recorded in the ledger with your name and the amount over.">
+              <Field id="override-reason" label={t("funderPanel.overrideReason")} help={t("funderPanel.recordedInTheLedger")}>
                 <input className="inp" id="override-reason" value={override} onChange={(e) => setOverride(e.target.value)} />
               </Field>
             )}
@@ -216,44 +218,44 @@ export default function Panel() {
                 <Check className="ic" aria-hidden="true" />
                 <div>
                   <div className="t">
-                    {result.committed} {result.committed === 1 ? "decision" : "decisions"} committed
+                    {t("funderPanel.decisionsCommitted", { count: result.committed })}
                   </div>
                   <div className="d">
                     {result.results
                       .filter((r) => r.awardId)
                       .map((r) => (
                         <Link key={r.decisionId} to={`${base}/awards/${r.awardId}/agreement`} style={{ marginRight: "12px" }}>
-                          Open award for {rows.find((x) => x.applicationId === r.applicationId)?.applicant ?? "the applicant"}
+                          {t("funderPanel.openAwardFor", { name: rows.find((x) => x.applicationId === r.applicationId)?.applicant ?? t("funderPanel.theApplicant") })}
                         </Link>
                       ))}
-                    {result.override && <span>Override recorded: {result.override.reason}</span>}
+                    {result.override && <span>{t("funderPanel.overrideRecorded", { reason: result.override.reason })}</span>}
                   </div>
                 </div>
               </div>
             )}
           </section>
 
-          {ranking.status === "loading" && <Loading label="Loading the ranking" />}
+          {ranking.status === "loading" && <Loading label={t("funderPanel.loadingTheRanking")} />}
           {ranking.status === "error" && <ErrorBanner error={ranking.error} onRetry={ranking.reload} />}
           {ranking.status === "ready" && rows.length === 0 && (
-            <EmptyState icon={Gavel} title="Nothing to rank at this stage">
-              Applications appear here once they reach this stage.
+            <EmptyState icon={Gavel} title={t("funderPanel.nothingToRankAt")}>
+              {t("funderPanel.applicationsAppearHereOnce")}
             </EmptyState>
           )}
           {rows.length > 0 && (
-            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Ranking and decisions, scrollable">
-              <table className="tbl" aria-label="Ranking and decisions">
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("funderPanel.rankingAndDecisionsScrollable")}>
+              <table className="tbl" aria-label={t("funderPanel.rankingAndDecisions")}>
                 <thead>
                   <tr>
                     <th style={{ width: "44px" }}>#</th>
-                    <th>Applicant</th>
-                    <th className="num">Requested</th>
-                    <th className="num">Mean</th>
-                    <th className="num">Median</th>
-                    <th className="num">Spread</th>
-                    <th className="num">n</th>
-                    <th className="num">Allocation</th>
-                    <th>Decision</th>
+                    <th>{t("funderPanel.applicant")}</th>
+                    <th className="num">{t("funderPanel.requested")}</th>
+                    <th className="num">{t("funderPanel.mean")}</th>
+                    <th className="num">{t("funderPanel.median")}</th>
+                    <th className="num">{t("funderPanel.spread")}</th>
+                    <th className="num">{t("funderPanel.n")}</th>
+                    <th className="num">{t("funderPanel.allocation")}</th>
+                    <th>{t("funderPanel.decision2")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -271,9 +273,9 @@ export default function Panel() {
                             </Link>
                             <span className="sub">
                               <span className="muted">{r.title}</span>
-                              {r.pending > 0 && <span className="pill-warn">{r.pending} review(s) pending</span>}
-                              <button type="button" className="btn btn-sm btn-ghost" aria-pressed={focused?.applicationId === r.applicationId} onClick={() => setFocus(r.applicationId)} aria-label={`Scores, notes and letter for ${name}`}>
-                                Scores &amp; notes
+                              {r.pending > 0 && <span className="pill-warn">{t("funderPanel.reviewSPending", { pending: r.pending })}</span>}
+                              <button type="button" className="btn btn-sm btn-ghost" aria-pressed={focused?.applicationId === r.applicationId} onClick={() => setFocus(r.applicationId)} aria-label={t("funderPanel.scoresNotesAndLetter", { name })}>
+                                {t("funderPanel.scoresNotes")}
                               </button>
                             </span>
                           </div>
@@ -285,7 +287,7 @@ export default function Panel() {
                           {r.spreadFlag ? (
                             <span className="row" style={{ gap: "4px", justifyContent: "flex-end", color: "#7A4A00", fontWeight: 700 }}>
                               <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
-                              {fmt(r.stdev)} <span className="sr">reviewers disagree</span>
+                              {fmt(r.stdev)} <span className="sr">{t("funderPanel.reviewersDisagree")}</span>
                             </span>
                           ) : (
                             fmt(r.stdev)
@@ -296,18 +298,18 @@ export default function Panel() {
                           {locked ? (
                             formatMinor(r.decision?.amountMinor ?? null)
                           ) : (
-                            <input className="inp alloc" inputMode="decimal" aria-label={`Allocation for ${name}`} value={d.amount} disabled={d.outcome !== "approve"} onChange={(e) => setDraft(r.applicationId, { amount: e.target.value }, r)} />
+                            <input className="inp alloc" inputMode="decimal" aria-label={t("funderPanel.allocationFor", { name })} value={d.amount} disabled={d.outcome !== "approve"} onChange={(e) => setDraft(r.applicationId, { amount: e.target.value }, r)} />
                           )}
                         </td>
                         <td>
                           {locked ? (
                             <span className="row" style={{ gap: "6px" }}>
                               <StatusBadge kind="application" status={r.status} />
-                              <span className="small muted">Committed</span>
+                              <span className="small muted">{t("funderPanel.committed2")}</span>
                             </span>
                           ) : (
-                            <div className="seg" role="radiogroup" aria-label={`Decision for ${name}`}>
-                              {OUTCOMES.map(([value, label]) => (
+                            <div className="seg" role="radiogroup" aria-label={t("funderPanel.decisionFor", { name })}>
+                              {OUTCOMES().map(([value, label]) => (
                                 <button key={value} type="button" role="radio" aria-checked={d.outcome === value} className={d.outcome === value ? "on" : undefined} onClick={() => setDraft(r.applicationId, { outcome: d.outcome === value ? "" : value }, r)}>
                                   {label}
                                 </button>
@@ -334,56 +336,56 @@ export default function Panel() {
               <DecisionSummary tally={tally} remainingMinor={remaining} />
             </div>
           )}
-          <p className="notice">Spread is the standard deviation of reviewers’ overall scores (0–100); a flag means they disagree by more than the rubric’s threshold.</p>
+          <p className="notice">{t("funderPanel.spreadIsTheStandard")}</p>
           {confirming && (
             <Dialog open onClose={() => setConfirming(false)} labelledBy="commit-title">
               <div className="hd">
                 <div>
                   <h2 id="commit-title" style={{ fontSize: "16px" }}>
-                    Commit {inputs.decisions.length} {inputs.decisions.length === 1 ? "decision" : "decisions"}?
+                    {t("funderPanel.commitCount", { count: inputs.decisions.length })}
                   </h2>
                   <p className="small muted" style={{ marginTop: "4px" }}>
-                    Decisions are final once committed. Each approval creates an award in Offered with its agreement draft, and every applicant gets a letter.
+                    {t("funderPanel.decisionsAreFinalOnce")}
                   </p>
                 </div>
               </div>
               <div className="bd" style={{ fontSize: "13px", gap: "8px" }}>
                 {(
                   [
-                    ["approve", "approved", "an award is created (Offered)"],
-                    ["waitlist", "waitlisted", "status only"],
-                    ["decline", "declined", "a decline letter is sent"],
+                    ["approve", (count: number) => t("funderPanel.effect.approve", { count })],
+                    ["waitlist", (count: number) => t("funderPanel.effect.waitlist", { count })],
+                    ["decline", (count: number) => t("funderPanel.effect.decline", { count })],
                   ] as const
-                ).map(([outcome, word, effect]) => {
+                ).map(([outcome, effect]) => {
                   const n = inputs.decisions.filter((d) => d.outcome === outcome).length;
                   return n ? (
                     <div key={outcome} className="row" style={{ gap: "8px" }}>
                       <Check className="ic" aria-hidden="true" style={{ color: "var(--s-ok-fg)" }} />
-                      {n} {word} · {effect}
+                      {effect(n)}
                     </div>
                   ) : null;
                 })}
                 {pendingMinor > 0 && (
                   <div className="row" style={{ gap: "8px" }}>
                     <Check className="ic" aria-hidden="true" style={{ color: "var(--s-ok-fg)" }} />
-                    {formatMinor(pendingMinor)} committed from the program budget
+                    {t("funderPanel.committedFromTheProgram", { amount: formatMinor(pendingMinor) })}
                   </div>
                 )}
                 {over && override.trim() && (
                   <div className="row" style={{ gap: "8px" }}>
                     <TriangleExclamationPoint className="ic" aria-hidden="true" style={{ color: "var(--s-warn-fg)" }} />
-                    Over budget · override recorded: {override.trim()}
+                    {t("funderPanel.overBudgetOverrideRecorded", { override: override.trim() })}
                   </div>
                 )}
                 <div className="row muted" style={{ gap: "8px" }}>
                   <Lock className="ic" aria-hidden="true" />
-                  Logged in the audit ledger. An agent can propose decisions but cannot commit them.
+                  {t("funderPanel.loggedInTheAudit")}
                 </div>
                 {commit.error !== null && <ErrorBanner error={commit.error} />}
               </div>
               <div className="ft">
                 <button type="button" className="btn btn-secondary" onClick={() => setConfirming(false)}>
-                  Cancel
+                  {t("funderPanel.cancel")}
                 </button>
                 <button
                   type="button"
@@ -400,7 +402,7 @@ export default function Panel() {
                   }}
                 >
                   <Gavel className="ic" aria-hidden="true" />
-                  Commit decisions
+                  {t("funderPanel.commitDecisions")}
                 </button>
               </div>
             </Dialog>

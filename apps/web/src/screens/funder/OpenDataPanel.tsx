@@ -6,7 +6,7 @@
 // The panel never shows a person's name: an award to an individual reads "An individual".
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { CircleCheck, CircleMinus, Copy, Download, ExternalLink, Globe, Lock, UserRound } from "lucide-react";
-import { createHttpOpenDataApi, type OpenDataApi, type OpenDataAwardRow, type OpenDataFormat, type OpenDataRange, type OpenDataSummary } from "../../api/openData.ts";
+import { createHttpOpenDataApi, type OpenDataApi, type OpenDataAwardRow, type OpenDataFormat, type OpenDataRange, type OpenDataReason, type OpenDataSummary } from "../../api/openData.ts";
 import { useServices, type Services } from "../../app/services.tsx";
 import { useCurrentWorkspace } from "../../app/workspace.tsx";
 import { ErrorBanner, Field, Loading, Notice } from "../../components/ui.tsx";
@@ -14,6 +14,7 @@ import { env } from "../../env.ts";
 import { copyText, downloadBlob } from "../../lib/browser.ts";
 import { formatDate, formatMoney } from "../../lib/format.ts";
 import { createMockOpenDataApi, seedOpenDataStore, type OpenDataStore } from "../../mocks/openData.ts";
+import { t } from "./i18n.ts";
 
 /** Roles that may read the export (the server checks the same). */
 const READERS = ["admin", "program_officer", "finance", "auditor"];
@@ -21,7 +22,19 @@ const READERS = ["admin", "program_officer", "finance", "auditor"];
 const STAFF = ["admin", "program_officer"];
 /** As the server checks it: `360G-` and the publisher's code. */
 const PREFIX = /^360G-[A-Za-z0-9](?:[A-Za-z0-9_-]{0,58}[A-Za-z0-9])?$/;
-const PREFIX_HELP = "A 360Giving prefix starts with 360G- followed by letters, numbers, hyphens or underscores, e.g. 360G-riverbend";
+const prefixHelp = () => t("openDataPanel.prefixHelp");
+/** How every 360Giving prefix starts: a code, the same in every language. */
+const PREFIX_START = "360G-";
+/** Why an award is left out, by its id; the server's own words for one this screen does not know. */
+const REASON: Record<OpenDataReason, () => string> = {
+  not_accepted: () => t("openDataPanel.reason.notAccepted"),
+  cancelled: () => t("openDataPanel.reason.cancelled"),
+  individual: () => t("openDataPanel.reason.individual"),
+  no_organization: () => t("openDataPanel.reason.noOrganization"),
+  confidential: () => t("openDataPanel.reason.confidential"),
+  unlisted: () => t("openDataPanel.reason.unlisted"),
+  no_amount: () => t("openDataPanel.reason.noAmount"),
+};
 
 const ports = new WeakMap<object, { api: OpenDataApi; ws: { id: string | null; handle: string | null } }>();
 const mockStores = new WeakMap<object, Map<string, OpenDataStore>>();
@@ -72,25 +85,26 @@ function OpenDataStatus({ row }: { row: OpenDataAwardRow }) {
     return (
       <span className="bdg bdg-ok">
         <CircleCheck className="ic" aria-hidden="true" />
-        Exported
+        {t("openDataPanel.exported")}
       </span>
     );
   if (row.exported)
     return (
       <span className="bdg bdg-info">
         <UserRound className="ic" aria-hidden="true" />
-        Exported, name only
+        {t("openDataPanel.exportedNameOnly")}
       </span>
     );
   const Icon = row.reason === "confidential" ? Lock : CircleMinus;
   return (
     <span className="bdg bdg-neutral">
       <Icon className="ic" aria-hidden="true" />
-      Left out: {row.reasonLabel ?? "not exported"}
+      {t("openDataPanel.leftOutReason", { reason: (row.reason && REASON[row.reason]?.()) ?? row.reasonLabel ?? t("openDataPanel.notExported") })}
     </span>
   );
 }
 
+// Format names are the same in every language.
 const FORMATS: { format: OpenDataFormat; label: string }[] = [
   { format: "360giving-json", label: "360Giving JSON" },
   { format: "360giving-csv", label: "360Giving CSV" },
@@ -167,18 +181,18 @@ export function OpenDataPanel() {
       <div className="card-h">
         <h3 id={`${uid}-h`} className="row">
           <Globe className="ic" aria-hidden="true" />
-          Open data
+          {t("openDataPanel.openData")}
         </h3>
-        <span className="small muted">360Giving Data Standard and CommonGrants</span>
+        <span className="small muted">{t("openDataPanel.n360givingDataStandardAnd")}</span>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         <p className="small muted" style={{ margin: 0 }}>
-          Share your grants as open data: 360Giving files can appear in GrantNav and reach Candid, and CommonGrants records can be read by any CommonGrants tool. Only accepted grants go out. Offers, cancelled grants, grants to individuals and grants you keep confidential never do, and a grantee that has not verified with Passport and shared its record with you is named only, with no address.
+          {t("openDataPanel.shareYourGrantsAs")}
         </p>
 
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-end" }}>
           <div style={{ minWidth: "200px" }}>
-            <Field id={`${uid}-period`} label="Period">
+            <Field id={`${uid}-period`} label={t("openDataPanel.period")}>
               <select
                 className="sel"
                 id={`${uid}-period`}
@@ -188,65 +202,65 @@ export function OpenDataPanel() {
                   setPeriod(v === "all" ? { kind: "all" } : v === "custom" ? { kind: "custom", from: `${thisYear}-01-01`, to: `${thisYear}-12-31` } : { kind: "year", year: Number(v) });
                 }}
               >
-                <option value="all">All years</option>
+                <option value="all">{t("openDataPanel.allYears")}</option>
                 {years.map((y) => (
                   <option key={y} value={String(y)}>
-                    Awards made in {y}
+                    {t("openDataPanel.awardsMadeIn", { y })}
                   </option>
                 ))}
-                <option value="custom">A date range</option>
+                <option value="custom">{t("openDataPanel.aDateRange")}</option>
               </select>
             </Field>
           </div>
           {period.kind === "custom" && (
             <>
-              <Field id={`${uid}-from`} label="From">
+              <Field id={`${uid}-from`} label={t("openDataPanel.from")}>
                 <input className="inp" type="date" id={`${uid}-from`} value={period.from} onChange={(e) => setPeriod({ ...period, from: e.target.value })} />
               </Field>
-              <Field id={`${uid}-to`} label="To">
+              <Field id={`${uid}-to`} label={t("openDataPanel.to")}>
                 <input className="inp" type="date" id={`${uid}-to`} value={period.to} onChange={(e) => setPeriod({ ...period, to: e.target.value })} />
               </Field>
             </>
           )}
         </div>
 
-        {state.status === "loading" && <Loading label="Counting awards" />}
-        {state.status === "error" && <ErrorBanner error={state.error} onRetry={reload} title="The open data summary did not load" />}
+        {state.status === "loading" && <Loading label={t("openDataPanel.countingAwards")} />}
+        {state.status === "error" && <ErrorBanner error={state.error} onRetry={reload} title={t("openDataPanel.theOpenDataSummary")} />}
         {note && <Notice tone="ok" title={note} />}
         {actionError !== null && <ErrorBanner error={actionError} />}
 
         {d && (
           <>
             {d.draft && (
-              <Notice tone="warn" title="These files are drafts">
-                Until you add your 360Giving publisher prefix, identifiers start with DRAFT and 360Giving will not accept the file.{" "}
+              <Notice tone="warn" title={t("openDataPanel.theseFilesAreDrafts")}>
+                {t("openDataPanel.untilYouAddYour")}{" "}
                 <a href={d.registerUrl} target="_blank" rel="noreferrer noopener">
-                  How to register as a 360Giving publisher
+                  {t("openDataPanel.howToRegisterAs")}
                   <ExternalLink className="ic ic-sm" aria-hidden="true" style={{ marginLeft: "4px" }} />
                 </a>
               </Notice>
             )}
 
-            <div role="group" aria-label="What the export holds" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
+            <div role="group" aria-label={t("openDataPanel.whatTheExportHolds")} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
               <div className="stat">
-                <span className="stat-l">Will be exported</span>
+                <span className="stat-l">{t("openDataPanel.willBeExported")}</span>
                 <span className="stat-v">{d.counts.exported}</span>
-                <span className="stat-d">of {d.counts.inRange} awards in the period</span>
+                <span className="stat-d">{t("openDataPanel.ofAwardsInThe", { inRange: d.counts.inRange })}</span>
               </div>
               <div className="stat">
-                <span className="stat-l">Left out</span>
+                <span className="stat-l">{t("openDataPanel.leftOut2")}</span>
                 <span className="stat-v">{d.counts.leftOut}</span>
               </div>
               <div className="stat">
-                <span className="stat-l">Named only</span>
+                <span className="stat-l">{t("openDataPanel.namedOnly")}</span>
                 <span className="stat-v">{d.counts.nameOnly}</span>
-                <span className="stat-d">not verified and shared</span>
+                <span className="stat-d">{t("openDataPanel.notVerifiedAndShared")}</span>
               </div>
               <div className="stat">
-                <span className="stat-l">CommonGrants records</span>
+                <span className="stat-l">{t("openDataPanel.commongrantsRecords")}</span>
                 <span className="stat-v">{d.commonGrants.opportunities + d.commonGrants.awards}</span>
                 <span className="stat-d">
-                  {d.commonGrants.opportunities} {d.commonGrants.opportunities === 1 ? "opportunity" : "opportunities"}, {d.commonGrants.awards} {d.commonGrants.awards === 1 ? "award" : "awards"}
+                  {t("openDataPanel.recordCounts", { opportunities: d.commonGrants.opportunities, awards: d.commonGrants.awards })}
                 </span>
               </div>
             </div>
@@ -254,7 +268,7 @@ export function OpenDataPanel() {
             {d.leftOut.length > 0 && (
               <div>
                 <h4 className="lbl" id={`${uid}-out`} style={{ marginBottom: "6px" }}>
-                  Left out, and why
+                  {t("openDataPanel.leftOutAndWhy")}
                 </h4>
                 <ul aria-labelledby={`${uid}-out`} style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexWrap: "wrap", gap: "8px" }}>
                   {d.leftOut.map((r) => (
@@ -285,27 +299,27 @@ export function OpenDataPanel() {
                   }
                 >
                   <Download className="ic" aria-hidden="true" />
-                  Download {label}
+                  {t("openDataPanel.download", { label })}
                 </button>
               ))}
-              {d.counts.exported === 0 && <span className="small muted">Nothing in this period can be exported.</span>}
+              {d.counts.exported === 0 && <span className="small muted">{t("openDataPanel.nothingInThisPeriod")}</span>}
             </div>
 
             {d.awards.length > 0 && (
               <details>
                 <summary className="b" style={{ cursor: "pointer" }}>
-                  Awards in this period ({d.counts.inRange})
+                  {t("openDataPanel.awardsInThisPeriod", { inRange: d.counts.inRange })}
                 </summary>
-                <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Awards in this period, scrollable" style={{ marginTop: "10px" }}>
-                  <table className="tbl" aria-label="Awards in this period">
+                <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("openDataPanel.awardsInThisPeriod2")} style={{ marginTop: "10px" }}>
+                  <table className="tbl" aria-label={t("openDataPanel.awardsInThisPeriod3")}>
                     <thead>
                       <tr>
-                        <th>Award</th>
-                        <th>Recipient</th>
-                        <th>Amount</th>
-                        <th>Award date</th>
-                        <th>Open data</th>
-                        {isStaff && <th>Confidential</th>}
+                        <th>{t("openDataPanel.award2")}</th>
+                        <th>{t("openDataPanel.recipient")}</th>
+                        <th>{t("openDataPanel.amount")}</th>
+                        <th>{t("openDataPanel.awardDate")}</th>
+                        <th>{t("openDataPanel.openData")}</th>
+                        {isStaff && <th>{t("openDataPanel.confidential")}</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -323,21 +337,21 @@ export function OpenDataPanel() {
                               {a.exported || a.reason === "confidential" ? (
                                 <input
                                   type="checkbox"
-                                  aria-label={`Keep ${a.title} confidential`}
+                                  aria-label={t("openDataPanel.keepConfidential", { title: a.title })}
                                   checked={a.confidential}
                                   disabled={busy !== null}
                                   onChange={(e) => {
                                     const on = e.target.checked;
                                     void act(`conf-${a.awardId}`, async () => {
                                       await api.setConfidential(a.awardId, on);
-                                      return on ? `${a.title} is kept confidential and will not be exported.` : `${a.title} can be exported again.`;
+                                      return on ? t("openDataPanel.done.confidential", { title: a.title }) : t("openDataPanel.done.exportable", { title: a.title });
                                     });
                                   }}
                                 />
                               ) : (
                                 <span className="muted">
                                   <span aria-hidden="true">—</span>
-                                  <span className="sr">Not exported anyway</span>
+                                  <span className="sr">{t("openDataPanel.notExportedAnyway")}</span>
                                 </span>
                               )}
                             </td>
@@ -347,7 +361,7 @@ export function OpenDataPanel() {
                     </tbody>
                   </table>
                 </div>
-                {d.awardsShown < d.counts.inRange && <p className="small muted">The first {d.awardsShown} awards are listed; the counts cover all {d.counts.inRange}.</p>}
+                {d.awardsShown < d.counts.inRange && <p className="small muted">{t("openDataPanel.theFirstAwardsAre", { awardsShown: d.awardsShown, inRange: d.counts.inRange })}</p>}
               </details>
             )}
 
@@ -360,34 +374,33 @@ export function OpenDataPanel() {
                     e.preventDefault();
                     const value = prefix.trim();
                     if (value && !PREFIX.test(value)) {
-                      setPrefixError(PREFIX_HELP);
+                      setPrefixError(prefixHelp());
                       return;
                     }
                     setPrefixError(null);
                     void act("prefix", async () => {
                       await api.saveSettings({ threeSixtyGivingPrefix: value || null });
-                      return value ? "360Giving prefix saved." : "360Giving prefix removed.";
+                      return value ? t("openDataPanel.done.prefixSaved") : t("openDataPanel.done.prefixRemoved");
                     });
                   }}
                 >
                   <div style={{ minWidth: "260px", flex: "1 1 260px", maxWidth: "380px" }}>
-                    <Field id={`${uid}-prefix`} label="360Giving publisher prefix" help="The prefix 360Giving gave you when you registered, such as 360G-riverbend." error={prefixError}>
-                      <input className="inp mono" id={`${uid}-prefix`} value={prefix} placeholder="360G-" onChange={(e) => setPrefix(e.target.value)} autoComplete="off" spellCheck={false} aria-invalid={prefixError ? true : undefined} />
+                    <Field id={`${uid}-prefix`} label={t("openDataPanel.n360givingPublisherPrefix")} help={t("openDataPanel.thePrefix360givingGave")} error={prefixError}>
+                      <input className="inp mono" id={`${uid}-prefix`} value={prefix} placeholder={PREFIX_START} onChange={(e) => setPrefix(e.target.value)} autoComplete="off" spellCheck={false} aria-invalid={prefixError ? true : undefined} />
                     </Field>
                   </div>
                   <button type="submit" className="btn btn-secondary btn-sm" style={{ marginTop: "26px" }} disabled={busy !== null || prefix.trim() === savedPrefix}>
-                    Save prefix
+                    {t("openDataPanel.savePrefix")}
                   </button>
                 </form>
 
                 <div className="row" style={{ gap: "12px", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
                     <div className="b" id={`${uid}-pub`}>
-                      Publish my awards as open data
+                      {t("openDataPanel.publishMyAwardsAs")}
                     </div>
                     <div className="small muted" id={`${uid}-pub-d`}>
-                      Off by default. When on, anyone can read your exported awards, all years, at a public address you can give to 360Giving, under the {d.license.name} licence.
-                      {!d.settings.threeSixtyGivingPrefix && " Save your 360Giving prefix first."}
+                      {t(d.settings.threeSixtyGivingPrefix ? "openDataPanel.offByDefaultWhen" : "openDataPanel.offByDefaultSavePrefix", { name: d.license.name })}
                     </div>
                   </div>
                   <button
@@ -402,7 +415,7 @@ export function OpenDataPanel() {
                       const on = !d.settings.publishFeed;
                       void act("publish", async () => {
                         await api.saveSettings({ publishFeed: on });
-                        return on ? "Your awards are published as open data." : "Your awards are no longer published as open data.";
+                        return on ? t("openDataPanel.done.published") : t("openDataPanel.done.unpublished");
                       });
                     }}
                   ></button>
@@ -411,7 +424,7 @@ export function OpenDataPanel() {
                 {d.feedUrl && (
                   <div className="row" style={{ alignItems: "flex-start", flexWrap: "wrap", gap: "10px" }}>
                     <div style={{ flex: "1 1 320px" }}>
-                      <Field id={`${uid}-feed`} label="Public feed address" help="360Giving JSON, updated as your awards change. Give this address to 360Giving when you submit your data.">
+                      <Field id={`${uid}-feed`} label={t("openDataPanel.publicFeedAddress")} help={t("openDataPanel.n360givingJsonUpdatedAs")}>
                         <input className="inp mono" id={`${uid}-feed`} value={d.feedUrl} readOnly />
                       </Field>
                     </div>
@@ -422,12 +435,12 @@ export function OpenDataPanel() {
                       onClick={() =>
                         act("copy", async () => {
                           const copied = await copyText(d.feedUrl!);
-                          return copied ? "Feed address copied." : "Select the address and copy it.";
+                          return copied ? t("openDataPanel.done.copied") : t("openDataPanel.done.copyByHand");
                         })
                       }
                     >
                       <Copy className="ic" aria-hidden="true" />
-                      Copy feed address
+                      {t("openDataPanel.copyFeedAddress")}
                     </button>
                   </div>
                 )}

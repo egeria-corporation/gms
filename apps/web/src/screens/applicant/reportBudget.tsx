@@ -4,6 +4,7 @@
 import { Link } from "react-router";
 import { useMoreQuery } from "../../api/applicantMoreHooks.ts";
 import { BudgetTable } from "./grant.tsx";
+import { t } from "./i18n.ts";
 
 export function ReportBudget({ awardId, base }: { awardId: string; base: string }) {
   const query = useMoreQuery((api) => api.budget(awardId), [awardId]);
@@ -13,14 +14,14 @@ export function ReportBudget({ awardId, base }: { awardId: string; base: string 
     <section className="card" aria-labelledby="report-budget-h">
       <div className="card-h">
         <div>
-          <h3 id="report-budget-h">Budget actuals</h3>
-          <p className="small muted">Approved amounts against what you have reported spending on this grant.</p>
+          <h3 id="report-budget-h">{t("reportBudget.budgetActuals")}</h3>
+          <p className="small muted">{t("reportBudget.approvedAmountsAgainstWhatYouHave")}</p>
         </div>
         <Link to={`${base}/grants/${awardId}#budget`} className="small b">
-          Report actuals
+          {t("reportBudget.reportActuals")}
         </Link>
       </div>
-      {book.approved ? <BudgetTable book={book} compact /> : <p className="card-b muted">The funder has not recorded an approved budget for this grant.</p>}
+      {book.approved ? <BudgetTable book={book} compact /> : <p className="card-b muted">{t("reportBudget.theFunderHasNotRecordedAn")}</p>}
     </section>
   );
 }

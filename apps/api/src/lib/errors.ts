@@ -3,12 +3,16 @@
 // `{ status, message, items, paginationInfo }`. Errors: `{ status, message, errors }`.
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { localizedBody } from "./error-locale.ts";
+import { requestLocale } from "./locale.ts";
 
 /** One entry in the CommonGrants `Error.errors` array. `code` is a stable machine-readable string. */
 export interface ErrorDetail {
   code: string;
   detail?: string;
   field?: string;
+  /** The message in the request's language, on GMS routes only (lib/error-locale.ts). */
+  detailLocalized?: string;
 }
 
 export interface ErrorBody {
@@ -18,6 +22,8 @@ export interface ErrorBody {
 }
 
 export class ApiError extends Error {
+  /** For `not_found`: what was not found ("Award"), so the message can be given in the person's language. */
+  resource?: string;
   constructor(
     public readonly status: ContentfulStatusCode,
     public readonly code: string,
@@ -35,13 +41,13 @@ export class ApiError extends Error {
 }
 
 export const badRequest = (message: string, details: ErrorDetail[] = []) => new ApiError(400, "bad_request", message, details);
-export const notFound = (what = "Resource") => new ApiError(404, "not_found", `${what} not found`);
+export const notFound = (what = "Resource") => Object.assign(new ApiError(404, "not_found", `${what} not found`), { resource: what });
 export const notImplemented = (what: string) => new ApiError(501, "not_implemented", `${what} is not implemented yet`);
 export const unavailable = (code: string, message: string) => new ApiError(503, code, message);
 
 export function errorResponse(c: Context, err: ApiError) {
   for (const [k, v] of Object.entries(err.headers)) c.header(k, v);
-  return c.json(err.toBody(), err.status);
+  return c.json(localizedBody(err, err.toBody(), new URL(c.req.url).pathname, requestLocale({ url: c.req.url, header: (n) => c.req.header(n) })), err.status);
 }
 
 export const ok = <T>(data: T, message = "Success") => ({ status: 200, message, data });

@@ -2,6 +2,8 @@
 // The API port the web app talks to. `createHttpApi` calls the GMS Worker with the typed client
 // generated from the TypeSpec document (`pnpm --filter @gms/web gen:api`); `createMockApi`
 // (mocks/api.ts) implements the same interface in the browser.
+import { isLocale, type Key, type Locale } from "@gms/i18n";
+import { translate } from "../i18n/current.ts";
 import createClient, { type Client } from "openapi-fetch";
 import type { components, paths } from "./schema.d.ts";
 import type {
@@ -67,6 +69,8 @@ export interface Me {
   displayName?: string | null;
   /** How this session was started. */
   signInMethod?: "passport" | "email";
+  /** The language the person chose (docs/i18n.md); null when they never chose. */
+  locale?: Locale | null;
   mfaVerified: boolean;
   workspaces: MeWorkspace[];
 }
@@ -89,6 +93,8 @@ export interface Workspace {
 
 export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi, DirectAwardsApi, FundsApi {
   me(): Promise<Me>;
+  /** Save the signed-in person's language; null clears it. */
+  savePreferences(input: { locale: Locale | null }): Promise<{ locale: Locale | null }>;
   /**
    * After a Passport sign-in: present the one-time token this session was redeemed from, so that
    * Passport's authenticator counts as this session's second step. `verified: false` is not an
@@ -167,14 +173,26 @@ export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi, Direct
   evaluateEligibility(input: EvaluateInput): Promise<Evaluation>;
 }
 
-/** An error answered by the API in the CommonGrants error shape (`{ status, message, errors }`). */
+/** The API's message in the page's language, when it gave one (`errors[0].detailLocalized`, docs/i18n.md). */
+const detailLocalizedOf = (errors: unknown[]): string | null => {
+  const first = errors[0] as { detailLocalized?: unknown } | null | undefined;
+  return first && typeof first.detailLocalized === "string" && first.detailLocalized.trim() ? first.detailLocalized : null;
+};
+
+/**
+ * An error answered by the API in the CommonGrants error shape (`{ status, message, errors }`).
+ * `message` is what the person reads: the API's `detailLocalized` when the request was in another
+ * language and the API has the message in it, else the English `message`; `detail` keeps the English.
+ */
 export class ApiError extends Error {
+  readonly detail: string;
   constructor(
     readonly status: number,
     message: string,
     readonly errors: unknown[] = [],
   ) {
-    super(message);
+    super(detailLocalizedOf(errors) ?? message);
+    this.detail = message;
     this.name = "ApiError";
   }
 }
@@ -211,19 +229,20 @@ export function initialsOf(name: string): string {
   return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "")).toUpperCase() || "?";
 }
 
-const ROLE_TITLES: Record<string, string> = {
-  admin: "Admin",
-  program_officer: "Program officer",
-  finance: "Finance",
-  reviewer: "Reviewer",
-  external_reviewer: "External reviewer",
-  observer: "Observer",
-  auditor: "Auditor",
-  editor: "Editor",
-  viewer: "Viewer",
-  consultant: "Consultant",
+/** How each role reads on screen, in the page's language (shared catalog, `role.*`). */
+const ROLE_TITLES: Record<string, Key<"shared">> = {
+  admin: "role.admin",
+  program_officer: "role.program_officer",
+  finance: "role.finance",
+  reviewer: "role.reviewer",
+  external_reviewer: "role.external_reviewer",
+  observer: "role.observer",
+  auditor: "role.auditor",
+  editor: "role.editor",
+  viewer: "role.viewer",
+  consultant: "role.consultant",
 };
-export const roleTitle = (role: string) => ROLE_TITLES[role] ?? role;
+export const roleTitle = (role: string) => (ROLE_TITLES[role] ? translate("shared", ROLE_TITLES[role]) : role);
 
 export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<paths> } {
   let workspaceId: string | null = null;
@@ -246,9 +265,15 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
       email: data.email ?? (await opts.identity()).email,
       displayName: data.displayName ?? null,
       ...(data.signInMethod ? { signInMethod: data.signInMethod } : {}),
+      locale: isLocale(data.locale) ? data.locale : null,
       mfaVerified: data.mfaVerified,
       workspaces: data.workspaces.map((w) => ({ id: w.id, handle: w.handle, name: w.name, kind: w.kind, role: w.role, requiresMfa: w.requiresMfa })),
     };
+  };
+
+  const savePreferences = async (input: { locale: Locale | null }): Promise<{ locale: Locale | null }> => {
+    const data: components["schemas"]["Models.Preferences"] = unwrap(await http.PUT("/gms/me/preferences", { body: { locale: input.locale } }));
+    return { locale: isLocale(data.locale) ? data.locale : null };
   };
 
   const claimPassportSecondStep = async (tokenHash: string): Promise<{ verified: boolean }> => {
@@ -300,6 +325,7 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     ...createHttpDirectAwardsApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     ...createHttpFundsApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     me,
+    savePreferences,
     claimPassportSecondStep,
     publicFunder: (handle) => get(`/gms/public/funders/${e(handle)}`),
     publicOpportunity: (handle, slug) => get(`/gms/public/funders/${e(handle)}/opportunities/${e(slug)}`),

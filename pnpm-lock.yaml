@@ -74,6 +74,9 @@ importers:
       '@gms/forms':
         specifier: workspace:*
         version: link:../../packages/forms
+      '@gms/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@gms/importers':
         specifier: workspace:*
         version: link:../../packages/importers
@@ -175,6 +178,9 @@ importers:
       '@gms/forms':
         specifier: workspace:*
         version: link:../../packages/forms
+      '@gms/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@gms/importers':
         specifier: workspace:*
         version: link:../../packages/importers
@@ -281,6 +287,19 @@ importers:
         specifier: 3.0.1
         version: 3.0.1(ajv@8.20.0)
 
+  packages/i18n:
+    dependencies:
+      '@formatjs/icu-messageformat-parser':
+        specifier: 3.5.22
+        version: 3.5.22
+      intl-messageformat:
+        specifier: 12.1.4
+        version: 12.1.4
+    devDependencies:
+      rolldown:
+        specifier: 1.2.16
+        version: 1.2.16
+
   packages/importers:
     dependencies:
       '@gms/workflow':
@@ -301,7 +320,11 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
-  packages/notify: {}
+  packages/notify:
+    dependencies:
+      '@gms/i18n':
+        specifier: workspace:*
+        version: link:../i18n
 
   packages/passport-client: {}
 
@@ -707,6 +730,15 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
+
+  '@formatjs/fast-memoize@3.1.7':
+    resolution: {integrity: sha512-zXfhLpvA6T7+efdt9JLbBwZ00tT7NsBMDVnDu8rpHeNNv8KfRZAMo2gkG0k9lK/Nzc//3kJ9pImsfuJxk3KhUA==}
+
+  '@formatjs/icu-messageformat-parser@3.5.22':
+    resolution: {integrity: sha512-YuwN+dDKgssfuYwtOyGQD0CSn7K46g9cv1Fp0VgKpjZDDFvv8b8crzP990IcJhRPWHhKzCGsbUSJVIguyyFA5A==}
+
+  '@formatjs/icu-skeleton-parser@2.1.12':
+    resolution: {integrity: sha512-ca7tZMLpfHX3sUD7hP6gE/qr6Iq89EDd3ZLeRhbsB7r0UD55DGJq+tmFLzrGrnx5StahUevQmQQVtbDRHsfDHA==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -2023,6 +2055,9 @@ packages:
     resolution: {integrity: sha512-pFGGdaHrmRKMh4WoDDSowddgjT1Vkl90atobmTeSmcPGdYiwikch/m/Ef5wRaiamHejtw0cUUMMerzDUXCci2w==}
     engines: {node: '>=18'}
 
+  intl-messageformat@12.1.4:
+    resolution: {integrity: sha512-JUkmv3cAEyijN3oiRiV3ctel7yVMuUCgfh7Pu8pj1/z6L1DSEPRyhuMaLjVw3pGmGJ5RDH54WVFxfMHZWTwyHw==}
+
   ipaddr.js@1.9.1:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
     engines: {node: '>= 0.10'}
@@ -3338,6 +3373,14 @@ snapshots:
 
   '@exodus/bytes@1.16.0': {}
 
+  '@formatjs/fast-memoize@3.1.7': {}
+
+  '@formatjs/icu-messageformat-parser@3.5.22':
+    dependencies:
+      '@formatjs/icu-skeleton-parser': 2.1.12
+
+  '@formatjs/icu-skeleton-parser@2.1.12': {}
+
   '@humanfs/core@0.19.2':
     dependencies:
       '@humanfs/types': 0.15.0
@@ -4588,6 +4631,11 @@ snapshots:
       yoctocolors-cjs: 2.1.3
     transitivePeerDependencies:
       - '@types/node'
+
+  intl-messageformat@12.1.4:
+    dependencies:
+      '@formatjs/fast-memoize': 3.1.7
+      '@formatjs/icu-messageformat-parser': 3.5.22
 
   ipaddr.js@1.9.1: {}
 

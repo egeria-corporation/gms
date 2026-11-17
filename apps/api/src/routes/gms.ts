@@ -11,6 +11,7 @@ import { ApiError, notImplemented, ok, pageInfo, paginated, parsePagination } fr
 import { bareUuid } from "../lib/ids.ts";
 import { confirmPassportLink } from "../services/passport-signin.ts";
 import * as sessions from "../services/sessions.ts";
+import { myLocale, setMyPreferences } from "../services/preferences.ts";
 import { fundScopeOf } from "../services/context.ts";
 import { listMyWorkspaces } from "../services/workspaces.ts";
 import { applicationRoutes } from "./gms/applications.ts";
@@ -89,12 +90,15 @@ gms.get("/me", requireUser(), async (c) => {
   // A session that has passed this account's own second step may have a first Passport sign-in
   // waiting on it: the link is recorded here, once. Never for a session verified by Passport.
   if (user.aal === "aal2") await confirmPassportLink(userSvc(c), user.sessionId ?? null, user.email).catch(() => false);
-  const mine = await listMyWorkspaces(userSvc(c));
+  const svc = userSvc(c);
+  const [mine, locale] = await Promise.all([listMyWorkspaces(svc), myLocale(svc).catch(() => null)]);
   return c.json(
     ok({
       userId: user.userId,
       email: user.email,
       displayName: displayNameOf(user.name, user.email),
+      // The language the person chose (docs/i18n.md); null when they never did.
+      locale,
       // A session that holds Passport's second step was started at Passport; any other by emailed code.
       signInMethod: user.passportStep ? "passport" : "email",
       mfaVerified,
@@ -103,6 +107,9 @@ gms.get("/me", requireUser(), async (c) => {
     }),
   );
 });
+
+/** The signed-in person's own preferences (their language). A person only, never an agent or API client. */
+gms.put("/me/preferences", requireUser(), async (c) => c.json(ok(await setMyPreferences(userSvc(c), await c.req.json().catch(() => null)))));
 
 /** The signed-in person's own sessions. No workspace: a session belongs to the person. */
 gms.get("/me/sessions", requireUser(), async (c) => c.json(ok(await sessions.listMySessions(userSvc(c), c.get("user").sessionId ?? null))));

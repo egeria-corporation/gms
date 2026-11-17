@@ -4,6 +4,8 @@
 // Elements with the class `userback-block` are left out of screenshots and replays, and typing in
 // elements with `userback-ignore` is not recorded (see the privacy markers on secrets, sign-in
 // codes and payout facts).
+import { translate } from "../i18n/current.ts";
+
 
 export const USERBACK_SCRIPT = "https://static.userback.io/widget/v1.js";
 export const USERBACK_SCRIPT_ID = "userback-widget";
@@ -20,6 +22,7 @@ export interface FeedbackUser {
 
 interface UserbackApi {
   access_token: string;
+  widget_settings?: { main_button_background_colour: string; main_button_text_colour: string };
   user_data?: { id: string; info: { name: string; email: string } };
   identify?: (id: string, info: { name: string; email: string }) => void;
   destroy?: () => void;
@@ -29,11 +32,22 @@ type UserbackWindow = { Userback?: UserbackApi };
 /** The widget loads only with a token and outside mock mode. */
 export const userbackActive = (cfg: { token: string; useMocks: boolean }): boolean => cfg.token.trim() !== "" && !cfg.useMocks;
 
-/** The landing page answer, with the disclosure appended only when the widget is active. */
-export const whoCanSeeAnswer = (active: boolean): string =>
-  `Only funders you apply to or accept an award from.${active ? ` ${USERBACK_DISCLOSURE}` : ""}`;
+/** The landing page answer, in the page's language, with the disclosure only when the widget is active. */
+export const whoCanSeeAnswer = (active: boolean): string => translate("public", active ? "landing.whoCanSee.withFeedback" : "landing.whoCanSee.plain");
 
 const userData = (u: FeedbackUser) => ({ id: u.id, info: { name: u.name, email: u.email } });
+
+/**
+ * The Feedback button in the theme's colours: white on dark teal is 8.7:1. Userback's default, white
+ * on light blue, is 2.54:1 and fails WCAG 1.4.3 on every page. Read from the theme tokens at load, so
+ * the colours stay the design system's; without them (no stylesheet) Userback keeps its default.
+ */
+function widgetSettings(doc: Document): UserbackApi["widget_settings"] {
+  const css = doc.defaultView?.getComputedStyle(doc.documentElement);
+  const background = css?.getPropertyValue("--og-teal-dark").trim();
+  const text = css?.getPropertyValue("--og-white").trim();
+  return background && text ? { main_button_background_colour: background, main_button_text_colour: text } : undefined;
+}
 
 /**
  * Starts the widget once and keeps it in step with who is signed in. `sync(user)` is called with
@@ -50,7 +64,8 @@ export function createUserback(
   let currentId: string | null = null;
 
   const load = (user: FeedbackUser | null) => {
-    win.Userback = { access_token: token, ...(user ? { user_data: userData(user) } : {}) };
+    const settings = widgetSettings(doc);
+    win.Userback = { access_token: token, ...(settings ? { widget_settings: settings } : {}), ...(user ? { user_data: userData(user) } : {}) };
     doc.getElementById(USERBACK_SCRIPT_ID)?.remove();
     const s = doc.createElement("script");
     s.id = USERBACK_SCRIPT_ID;

@@ -8,18 +8,21 @@ import { mondayLabel, type DigestChoice, type DigestPreview, type DigestSettings
 import { useDigestsApi, useDigestsQuery } from "../../api/digestsHooks.ts";
 import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
 function Preview({ preview }: { preview: DigestPreview }) {
   if (!preview.willSend || !preview.text) {
     return (
       <p className="small muted" role="status">
-        Nothing new to send yet. If that is still true on {mondayLabel(preview.sendsOn)}, no email goes out.
+        {t("whatWeEmailYou.nothingNewToSendYet", { sendsOn: mondayLabel(preview.sendsOn) })}
       </p>
     );
   }
   return (
-    <div role="region" aria-label={`Preview of ${preview.label} email`} style={{ border: "1px solid var(--og-gray-200)", borderRadius: "8px", background: "var(--og-gray-50)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+    <div role="region" aria-label={t("whatWeEmailYou.previewOfEmail", { label: preview.label })} style={{ border: "1px solid var(--og-gray-200)", borderRadius: "8px", background: "var(--og-gray-50)", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
       <div className="small">
-        <span className="muted">Subject: </span>
+        <span className="muted">{t("whatWeEmailYou.subject")} </span>
         <strong>{preview.subject}</strong>
       </div>
       <div className="mono" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: "320px", overflowY: "auto" }} tabIndex={0}>
@@ -73,7 +76,7 @@ function Choice({ workspaceId, choice, nextSendOn, onChange }: { workspaceId: st
             {choice.description}
           </span>
           <span className="small" role="status">
-            {choice.on ? <Mail className="ic ic-sm" aria-hidden="true" /> : <MailX className="ic ic-sm" aria-hidden="true" />} {choice.on ? `On: next email ${mondayLabel(nextSendOn)}, if there is something new` : "Off"}
+            {choice.on ? <Mail className="ic ic-sm" aria-hidden="true" /> : <MailX className="ic ic-sm" aria-hidden="true" />} {choice.on ? t("whatWeEmailYou.onNextEmailIfThere", { nextSendOn: mondayLabel(nextSendOn) }) : t("whatWeEmailYou.off")}
           </span>
         </div>
         <button type="button" className={`tog${choice.on ? " on" : ""}`} role="switch" aria-checked={choice.on} aria-labelledby={id} aria-describedby={`${id}-d`} disabled={state === "saving"} onClick={() => void toggle()}></button>
@@ -82,13 +85,13 @@ function Choice({ workspaceId, choice, nextSendOn, onChange }: { workspaceId: st
         <div className="row" style={{ gap: "8px" }}>
           <button type="button" className="btn btn-sm btn-ghost" aria-expanded={showing} disabled={loading} onClick={() => void showPreview()}>
             {showing ? <EyeOff className="ic" aria-hidden="true" /> : <Eye className="ic" aria-hidden="true" />}
-            {showing ? "Hide the preview" : "Preview next Monday's email"}
+            {showing ? t("whatWeEmailYou.hideThePreview") : t("whatWeEmailYou.previewNextMondaySEmail")}
           </button>
           <SaveNote state={state} />
         </div>
       ) : null}
       {showing && preview ? <Preview preview={preview} /> : null}
-      {error ? <ErrorBanner error={error} title="That did not work" /> : null}
+      {error ? <ErrorBanner error={error} title={t("whatWeEmailYou.thatDidNotWork")} /> : null}
     </div>
   );
 }
@@ -96,8 +99,8 @@ function Choice({ workspaceId, choice, nextSendOn, onChange }: { workspaceId: st
 /** The section itself, for one workspace. Renders nothing when the person is offered no digest there. */
 export function WhatWeEmailYou({ workspaceId, heading = "h3" }: { workspaceId: string; heading?: "h2" | "h3" }) {
   const query = useDigestsQuery((api) => api.settings(workspaceId), [workspaceId]);
-  if (query.status === "loading") return <p className="small muted">Loading what we email you…</p>;
-  if (query.status === "error") return <ErrorBanner error={query.error} onRetry={query.reload} title="What we email you could not be loaded" />;
+  if (query.status === "loading") return <p className="small muted">{t("whatWeEmailYou.loadingWhatWeEmailYou")}</p>;
+  if (query.status === "error") return <ErrorBanner error={query.error} onRetry={query.reload} title={t("whatWeEmailYou.whatWeEmailYouCould")} />;
   const settings = query.data;
   if (!settings.digests.length) return null;
   const H = heading;
@@ -105,11 +108,11 @@ export function WhatWeEmailYou({ workspaceId, heading = "h3" }: { workspaceId: s
     <section aria-labelledby={`wwe-${workspaceId}`} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <div>
         <H id={`wwe-${workspaceId}`} style={{ fontSize: "15px" }}>
-          What we email you
+          {t("whatWeEmailYou.whatWeEmailYou")}
         </H>
-        <p className="small muted">Weekly emails you choose, on Mondays. Each is off until you turn it on, and every email has a link to stop it.</p>
+        <p className="small muted">{t("whatWeEmailYou.weeklyEmailsYouChooseOn")}</p>
       </div>
-      {!settings.emailAvailable ? <p className="small muted">Email is not set up on this installation yet, so nothing is sent until it is.</p> : null}
+      {!settings.emailAvailable ? <p className="small muted">{t("whatWeEmailYou.emailIsNotSetUp")}</p> : null}
       {settings.digests.map((c) => (
         <Choice key={c.key} workspaceId={workspaceId} choice={c} nextSendOn={settings.nextSendOn} onChange={query.set} />
       ))}

@@ -3,6 +3,88 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.11.0 — 2026-11-16
+
+### Added
+
+- **Español (beta).** The whole app can be used in Spanish: the public pages, sign-in, the applicant
+  and funder screens, the reviewer portal, the form, report and email builders, emails, the fixed
+  text of generated documents, share cards, and error messages. The language switcher in every
+  public page's footer, the sign-in page, the account menu and the phone menu offers "English" and
+  "Español (beta)". The Spanish is neutral Latin American Spanish with "usted", written against one
+  glossary (`docs/i18n.md`).
+  **A native speaker's review is welcome:** `docs/i18n.md` says how to find a message and propose a
+  better wording.
+- A signed-in person's language is saved with their account (`PUT /gms/me/preferences`, migration
+  0043). Without an account, the page follows `?lang=`, then the `gms_lang` cookie, then the
+  browser's language. `<html lang>` follows the language, and public pages carry `hreflang`
+  alternates and Spanish page meta for `?lang=es`.
+- Emails go in each recipient's language, the daily and weekly digests included; a funder's own
+  edited templates are sent exactly as written. The board docket and the send-to-funder package
+  print their fixed labels in the requester's language.
+- Things the API words in English are shown in the reader's language: eligibility explanations
+  (a rule result's new `because` field says why it reads as it does), readiness checks, fiscal
+  years, notification titles (`titleLocalized` beside `title`), report CSV header rows (the
+  server writes them in the requester's language, scheduled files included), and the names an
+  anonymized reviewer sees (`[solicitante]`, `Solicitante A-1042`).
+- Errors on `/gms/` routes carry `detailLocalized` in Spanish for every code a person can meet (279
+  codes and 70 kinds of missing record); `code` and the English `message` never change, and the
+  CommonGrants routes, OAuth and MCP stay English.
+- Dates read "15 de noviembre de 2026" in Spanish; money and numbers use the page's language.
+
+### Changed
+
+- Each area's messages (`public`, `shared`, `applicant`, `funder`) are a download of their own,
+  loaded only with that area's screens. Against v1.10.0 the first page grows by 22.6 KB gzipped and
+  everything an English visitor can download by 47.3 KB, most of it the text that moved out of the
+  screens into the catalogs. Nothing Spanish is downloaded in English.
+- The API and jobs Workers carry only the email and error messages (5,900 KiB and 3,106 KiB before
+  compression; 1,264 KiB and 667 KiB gzipped), and the front Worker only the messages its pages' meta
+  and share cards use (8,437 KiB; 3,013 KiB gzipped, with the web app it serves).
+- Small English wording fixes: "Program officer" capitalised in role lists; "In flight" (was
+  "InFlight"); counts that can be one are proper plurals ("1 record change", "in 1 day", "Over the
+  limit by 1 character"); a readiness check spells out when the Passport record was last read
+  ("Nov 14, 2026").
+
+### Fixed
+
+- A reviewer could lose a score they had just typed on the scoring screen: the saved review was
+  copied over the whole form whenever the assignment arrived, including just after their first
+  keystroke. The saved review now fills only what the reviewer has not changed.
+
+- The Feedback button on the hosted site (Userback's widget) failed colour contrast on every page: white
+  on light blue, 2.54:1. It now uses the theme's dark teal with white text (8.7:1). Found by running
+  axe against the live site after the v1.10.0 deploy; the mock-mode checks don't load the widget.
+
+- A screen that mounted while its messages were still loading could trip React's hook check when
+  it was replayed (React error 467, recovered by re-rendering the whole page). It showed as a rare
+  page error on dialogs such as "Sign the grant agreement" and the gallery share dialog.
+- End-to-end flows looked up a banner's words across the whole page, which raced the screen
+  reader's copy of the same words; they now look only at the page's own text. The end-to-end
+  server's port comes from `E2E_PORT`, and a run stops if that port serves another build.
+
+### Known English text
+
+- Content people write stays in the language it was written in: a funder's opportunities, forms,
+  rules and emails; an applicant's answers; demo data in mock mode.
+- The sentence the eligibility editor writes as a new rule's label (`lib/rules.ts`) is English, and
+  is stored with the rule as the funder's own words.
+- Agreements and award letters stay English: their bytes are re-rendered to check stored hashes.
+- Server-written report preview warnings, the open-data feed's reasons, and in-app notification
+  titles for an event the catalog does not name are English. MCP tool descriptions and the
+  CommonGrants and REST field names are English by design.
+- Eight error codes only an API client can meet (token checks, the OAuth authorize endpoint, the
+  OpenAPI document, the social-posting `Idempotency-Key` header, two payload checks) keep their
+  English message.
+
+### Upgrade notes
+
+- **Run migration `0043_user_preferences.sql` before deploying the API.** It adds one table
+  (`user_preferences`) and changes no existing row; a person without a row keeps today's behaviour.
+- No new settings or secrets.
+- Deploy the API and jobs Workers, then rebuild and deploy the web app, then the front Worker with
+  `--redirect-from`, as in `docs/staging.md`.
+
 ## v1.10.0 — 2026-11-16
 
 ### Added

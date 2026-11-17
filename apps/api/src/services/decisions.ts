@@ -196,10 +196,10 @@ export async function commitDecisions(ctx: ServiceContext, competitionId: string
         award = await createOfferedAward(ctx, { workspaceId: ws.id, recipientWorkspaceId: app.applicant_workspace_id, applicationId: app.id, opportunityId: app.opportunity_id, programId: program?.id ?? null, title: app.title, awardedMinor: d.amount_minor!, requestedMinor: app.requested_amount_minor, currency: d.currency, conditions: d.conditions }, defaults);
         const draft = defaults.noAgreementRequired ? null : await draftAgreement(ctx, award, null);
         agreementId = draft ? apiId("agreement", draft.id) : undefined;
-        letter = await sendLetter(ctx, "award_agreement", email, (await awardFields(ctx, award)).fields, { type: "award", id: award.id, workspaceId: ws.id });
+        letter = await sendLetter(ctx, "award_agreement", email, (await awardFields(ctx, award)).fields, { type: "award", id: award.id, workspaceId: ws.id }, { recipientWorkspaceId: applicant.id });
       } else if (d.outcome === "decline") {
         app = await transitionApp(ctx, app, "decline", "funder", { decisionId: d.id }, { rationale: d.rationale });
-        letter = await sendLetter(ctx, "decline", email, { ...letterBase, decision: { message: d.rationale ?? "" } }, { type: "application", id: app.id, workspaceId: ws.id });
+        letter = await sendLetter(ctx, "decline", email, { ...letterBase, decision: { message: d.rationale ?? "" } }, { type: "application", id: app.id, workspaceId: ws.id }, { recipientWorkspaceId: applicant.id });
       } else if (d.outcome === "waitlist") {
         app = await recommend(ctx, app);
         app = await transitionApp(ctx, app, "waitlist", "funder", { decisionId: d.id });

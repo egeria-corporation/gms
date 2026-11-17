@@ -10,6 +10,7 @@ import type { AdaptedDraft } from "../../api/applicantFull.ts";
 import { useFullMutation, useFullQuery } from "../../api/applicantFullHooks.ts";
 import { CopyButton } from "../../components/CopyButton.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
+import { t } from "./i18n.ts";
 
 export function EditorAssistant({ answers, fields }: { answers: Answer[]; fields: { key: string; label: string }[] }) {
   const status = useFullQuery((api) => api.assistStatus(), []);
@@ -32,19 +33,19 @@ export function EditorAssistant({ answers, fields }: { answers: Answer[]; fields
     <section className="assist" aria-labelledby="ed-assist-h">
       <div className="hd">
         <Sparkles className="ic" aria-hidden="true" style={{ color: "var(--s-agent-fg)" }} />
-        <h3 id="ed-assist-h">Assistant</h3>
-        <span className="draft-mark">Draft — review before use</span>
+        <h3 id="ed-assist-h">{t("editorAssist.assistant")}</h3>
+        <span className="draft-mark">{t("editorAssist.draftReviewBeforeUse")}</span>
         {quota && quota.limit !== undefined ? (
           <span className="quota">
-            {quota.used ?? 0} of {quota.limit} this month
+            {t("editorAssist.quota", { used: quota.used ?? 0, limit: quota.limit })}
           </span>
         ) : null}
       </div>
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", fontSize: "14px" }}>
-        <p>Adapt a library answer to a question on this form. Output appears here first; nothing is written into the form until you insert it.</p>
+        <p>{t("editorAssist.adaptALibraryAnswerToA")}</p>
         <div className="fld">
           <label className="lbl" htmlFor="ed-assist-answer">
-            Library answer
+            {t("editorAssist.libraryAnswer")}
           </label>
           <select className="sel" id="ed-assist-answer" value={answerId} onChange={(e) => setAnswerId(e.target.value)}>
             {answers.map((a) => (
@@ -56,7 +57,7 @@ export function EditorAssistant({ answers, fields }: { answers: Answer[]; fields
         </div>
         <div className="fld">
           <label className="lbl" htmlFor="ed-assist-field">
-            Question
+            {t("editorAssist.question")}
           </label>
           <select className="sel" id="ed-assist-field" value={field} onChange={(e) => setField(e.target.value)}>
             {fields.map((f) => (
@@ -67,17 +68,17 @@ export function EditorAssistant({ answers, fields }: { answers: Answer[]; fields
           </select>
         </div>
         <button type="button" className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }} disabled={spent || adapt.state === "saving"} onClick={() => void run()}>
-          {adapt.state === "saving" ? "Adapting…" : "Adapt to this question"}
+          {adapt.state === "saving" ? t("editorAssist.adapting") : t("editorAssist.adaptToThisQuestion")}
         </button>
         {spent ? <QuotaSpentNote resetsAt={quota?.resetsAt} /> : null}
-        {adapt.error ? <ErrorBanner error={adapt.error} title="The assistant could not draft this" /> : null}
+        {adapt.error ? <ErrorBanner error={adapt.error} title={t("editorAssist.theAssistantCouldNotDraftThis")} /> : null}
         {draft ? (
           <div role="status" style={{ border: "1px dashed var(--s-agent-fg)", borderRadius: "8px", padding: "10px 12px", background: "var(--s-agent-bg)", display: "flex", flexDirection: "column", gap: "8px" }}>
             <p style={{ whiteSpace: "pre-wrap" }}>{draft.text}</p>
             <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
-              <CopyButton value={draft.text} what="the draft" label="Copy draft" className="btn btn-sm btn-primary" />
+              <CopyButton value={draft.text} what={t("editorAssist.theDraft")} label={t("editorAssist.copyDraft")} className="btn btn-sm btn-primary" />
               <button type="button" className="btn btn-sm btn-secondary" onClick={() => setDraft(null)}>
-                Discard
+                {t("editorAssist.discard")}
               </button>
             </div>
           </div>

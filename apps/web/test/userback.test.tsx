@@ -88,6 +88,22 @@ describe("loader", () => {
     expect((window as unknown as { Userback: unknown }).Userback).toEqual({ access_token: TOKEN });
   });
 
+  it("colours the Feedback button from the theme tokens, so it meets 4.5:1", () => {
+    const root = document.documentElement;
+    root.style.setProperty("--og-teal-dark", "#145450");
+    root.style.setProperty("--og-white", "#FFFFFF");
+    try {
+      createUserback({ token: TOKEN, useMocks: false })!.sync(null);
+      expect((window as unknown as { Userback: unknown }).Userback).toEqual({
+        access_token: TOKEN,
+        widget_settings: { main_button_background_colour: "#145450", main_button_text_colour: "#FFFFFF" },
+      });
+    } finally {
+      root.style.removeProperty("--og-teal-dark");
+      root.style.removeProperty("--og-white");
+    }
+  });
+
   it("sets user_data to the id, name and email only, before the script loads", () => {
     const ub = createUserback({ token: TOKEN, useMocks: false })!;
     ub.sync({ id: "u-1", name: "Dana Ortiz", email: "dana@example.org" });

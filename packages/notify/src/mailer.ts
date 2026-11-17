@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Mail port. Production uses Resend's HTTP API; tests and local development use the in-memory fake.
+import type { Locale } from "@gms/i18n";
 
 /** A file sent with an email: `content` is the file's bytes in base64, as Resend's `attachments` take them. */
 export interface MailAttachment {
@@ -33,6 +34,11 @@ export interface OutboundEmail {
   tags?: { name: string; value: string }[];
   /** Files sent with the email; only a mailer with `sendsAttachments = true` passes them on. */
   attachments?: MailAttachment[];
+  /**
+   * The language the subject and body are written in (docs/i18n.md): the HTML document's `lang`.
+   * English when absent. Set it only when the content really is in that language.
+   */
+  locale?: Locale;
 }
 
 export interface Mailer {
@@ -56,7 +62,7 @@ export class MailerError extends Error {
  * (paragraphs, headings, lists, links; no images, nothing told by color alone), and every email
  * carries a plain-text part beside this one. A part that is already a document is left alone.
  */
-export function emailDocument(html: string, subject: string, lang = "en"): string {
+export function emailDocument(html: string, subject: string, lang: Locale = "en"): string {
   if (/^\s*(<!doctype html|<html[\s>])/i.test(html)) return html;
   const title = subject.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   return `<!doctype html>\n<html lang="${lang}" dir="ltr">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${title}</title>\n</head>\n<body>\n${html}\n</body>\n</html>`;
@@ -88,7 +94,7 @@ export class ResendMailer implements Mailer {
         from: email.from,
         to: email.to,
         subject: email.subject,
-        html: emailDocument(email.html, email.subject),
+        html: emailDocument(email.html, email.subject, email.locale ?? "en"),
         text: email.text,
         ...(email.replyTo ? { reply_to: email.replyTo } : {}),
         ...(email.headers ? { headers: email.headers } : {}),

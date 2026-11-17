@@ -16,9 +16,9 @@ export function applicantCode(sequence: number): string {
 export const anonymousName = (code: string): string => `Applicant ${code}`;
 
 /** The neutral name an attachment shows under; the file itself stays. The extension says nothing about who applied. */
-export function neutralFileName(index: number, original?: unknown): string {
+export function neutralFileName(index: number, original?: unknown, word = "Attachment"): string {
   const ext = typeof original === "string" ? /\.([A-Za-z0-9]{1,8})$/.exec(original.trim())?.[1] : undefined;
-  return `Attachment ${index}${ext ? `.${ext.toLowerCase()}` : ""}`;
+  return `${word} ${index}${ext ? `.${ext.toLowerCase()}` : ""}`;
 }
 
 export interface IdentityTerms {
@@ -28,6 +28,11 @@ export interface IdentityTerms {
   domains: string[];
   /** Identifying numbers such as the EIN, digits only. */
   numbers: string[];
+  /**
+   * How the replacements read, in the reviewer's language: what a name becomes ("[applicant]") and
+   * the word an attachment is renamed with ("Attachment"). English when not given.
+   */
+  words?: { placeholder: string; attachment: string };
 }
 
 /** Shortest name (in characters, after trimming) that is redacted from free text. Shorter ones would erase ordinary words. */
@@ -120,7 +125,7 @@ const patternFor = (terms: IdentityTerms) => {
 /** Free text with every name, website, email address and EIN of the organization replaced by "[applicant]". */
 export function redactText(text: string, terms: IdentityTerms): string {
   const re = patternFor(terms);
-  return re ? text.replace(re, APPLICANT_PLACEHOLDER) : text;
+  return re ? text.replace(re, terms.words?.placeholder ?? APPLICANT_PLACEHOLDER) : text;
 }
 
 /** True when the text names the organization in a way `redactText` would hide. */
@@ -149,7 +154,7 @@ export function redactValue(value: unknown, terms: IdentityTerms, files: { count
     const out: Record<string, unknown> = {};
     const index = fileRef ? ++files.count : 0;
     for (const [k, v] of Object.entries(obj)) {
-      if (fileRef && FILE_NAME_KEYS.includes(k)) out[k] = neutralFileName(index, v);
+      if (fileRef && FILE_NAME_KEYS.includes(k)) out[k] = neutralFileName(index, v, terms.words?.attachment);
       else if (fileRef && (k === "documentId" || k === "passportDocumentId")) out[k] = v;
       else out[k] = redactValue(v, terms, files);
     }

@@ -9,6 +9,8 @@ import { apiId } from "../lib/ids.ts";
 import { authorize, fundScopeOf, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { scopeToFunds } from "./fund-scope.ts";
 import type { Row } from "./repos/types.ts";
+import { DEFAULT_LOCALE, type Locale } from "@gms/i18n";
+import { notificationTitle } from "./notification-titles.ts";
 
 const WINDOW = 200;
 const MAX_READ_IDS = 500;
@@ -33,6 +35,8 @@ export interface Notification {
   type: string;
   category: Category;
   title: string;
+  /** The title in the reader's language, when that is not English (the request's, or a digest recipient's). */
+  titleLocalized?: string;
   subjectType: string | null;
   subjectId: string | null;
   message: string | null;
@@ -40,10 +44,6 @@ export interface Notification {
   read: boolean;
 }
 
-const sentence = (type: string) => {
-  const s = type.replace(/[._]/g, " ");
-  return s.charAt(0).toUpperCase() + s.slice(1);
-};
 const subjectRef = (type: string | null, id: string | null) => (type && id && SUBJECT_PREFIX[type] && /^[0-9a-f-]{36}$/.test(id) ? apiId(SUBJECT_PREFIX[type], id) : id);
 
 async function member(ctx: ServiceContext): Promise<{ ws: ServiceWorkspace; row: Row<"workspace_members"> }> {
@@ -78,15 +78,17 @@ export async function putPreferences(ctx: ServiceContext, input: Preferences) {
   return prefsOf(saved ?? row);
 }
 
-async function derive(ctx: ServiceContext, ws: ServiceWorkspace): Promise<Omit<Notification, "read">[]> {
+async function derive(ctx: ServiceContext, ws: ServiceWorkspace, locale: Locale = ctx.locale ?? DEFAULT_LOCALE): Promise<Omit<Notification, "read">[]> {
   const mine = `user:${ctx.actor.userId}`;
+  // The English title, and the same title in the reader's language when that is another.
+  const titles = (type: string, subject?: string | null) => ({ title: notificationTitle(DEFAULT_LOCALE, type, subject), ...(locale !== DEFAULT_LOCALE ? { titleLocalized: notificationTitle(locale, type, subject) } : {}) });
   const own = (actor: string) => actor === mine || actor.startsWith(`${mine}/`);
   const out: Omit<Notification, "read">[] = [];
   for (const e of await ctx.ledger.list({ workspaceId: ws.id, limit: WINDOW })) {
     const category = CATEGORY_OF[e.eventType.split(".")[0]!];
     // What the member did themselves is not news to them (an agent acting for them is).
     if (!category || e.actor === mine) continue;
-    out.push({ id: e.id, type: e.eventType, category, title: sentence(e.eventType), subjectType: e.subjectType ?? null, subjectId: subjectRef(e.subjectType ?? null, e.subjectId ?? null), message: null, at: e.occurredAt });
+    out.push({ id: e.id, type: e.eventType, category, ...titles(e.eventType), subjectType: e.subjectType ?? null, subjectId: subjectRef(e.subjectType ?? null, e.subjectId ?? null), message: null, at: e.occurredAt });
   }
   if (ws.kind === "funder" && ctx.actor.userId) {
     // Scheduled reports sent to this person (and only to them: the files are the recipients').
@@ -95,7 +97,7 @@ async function derive(ctx: ServiceContext, ws: ServiceWorkspace): Promise<Omit<N
     const views = files.length ? await ctx.repos.table("report_views").find({ id: [...new Set(files.map((f) => f.view_id))], workspace_id: ws.id }) : [];
     for (const f of files) {
       const name = views.find((v) => v.id === f.view_id)?.name;
-      out.push({ id: f.id, type: "report.ready", category: "report", title: `Scheduled report ready${name ? `: ${name}` : ""}`, subjectType: "report_file", subjectId: f.id, message: null, at: f.sent_at! });
+      out.push({ id: f.id, type: "report.ready", category: "report", ...titles("report.ready", name), subjectType: "report_file", subjectId: f.id, message: null, at: f.sent_at! });
     }
   }
   if (ws.kind === "applicant") {
@@ -106,7 +108,7 @@ async function derive(ctx: ServiceContext, ws: ServiceWorkspace): Promise<Omit<N
       if (own(e.actor ?? "") || e.type === "started") continue;
       const app = apps.find((a) => a.id === e.application_id);
       const type = `application.${e.type}`;
-      out.push({ id: e.id, type, category: "application", title: `${sentence(type)}${app?.title ? `: ${app.title}` : ""}`, subjectType: "application", subjectId: apiId("application", e.application_id), message: e.type === "request_revision" ? ((e.payload as { message?: string }).message ?? null) : null, at: e.created_at });
+      out.push({ id: e.id, type, category: "application", ...titles(type, app?.title), subjectType: "application", subjectId: apiId("application", e.application_id), message: e.type === "request_revision" ? ((e.payload as { message?: string }).message ?? null) : null, at: e.created_at });
     }
   }
   return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, WINDOW);
@@ -116,7 +118,7 @@ async function derive(ctx: ServiceContext, ws: ServiceWorkspace): Promise<Omit<N
  * A member's notifications without a request: the digest job reads them as that member would see
  * them (same derivation, same consultant scoping), newest first.
  */
-export async function deriveFor(base: Pick<ServiceContext, "repos" | "ledger" | "webhooks" | "now" | "config" | "ports">, m: Row<"workspace_members">, ws: Row<"workspaces">) {
+export async function deriveFor(base: Pick<ServiceContext, "repos" | "ledger" | "webhooks" | "now" | "config" | "ports">, m: Row<"workspace_members">, ws: Row<"workspaces">, locale: Locale = DEFAULT_LOCALE) {
   const actor = { kind: "user" as const, userId: m.user_id, clientId: null, ledger: { kind: "user" as const, userId: m.user_id }, id: `user:${m.user_id}` };
   const workspace: ServiceWorkspace = { id: ws.id, kind: ws.kind as ServiceWorkspace["kind"], role: m.role, memberScope: (m.scope as Record<string, unknown> | null) ?? null };
   const ctx = { ...base, actor, workspace, scopes: [] } as ServiceContext;
@@ -124,7 +126,7 @@ export async function deriveFor(base: Pick<ServiceContext, "repos" | "ledger" | 
   // done here, so their digest names only events about their funds' records.
   const funds = fundScopeOf(workspace);
   if (funds) scopeToFunds(ctx, ws.id, funds);
-  return derive(ctx, workspace);
+  return derive(ctx, workspace, locale);
 }
 
 export async function listNotifications(ctx: ServiceContext, opts: { unread?: boolean } = {}) {

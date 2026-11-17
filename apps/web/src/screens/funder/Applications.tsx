@@ -15,6 +15,8 @@ import { EmptyState, ErrorBanner, Field, Loading, PageHeader } from "../../compo
 import { formatMinor } from "../../lib/format.ts";
 import ApplicationsEmpty from "./ApplicationsEmpty.tsx";
 import { approvalTargets, Avatar, EligibilityMark, usePeople } from "./shared.tsx";
+import { intlLocale } from "../../i18n/index.tsx";
+import { t, useFunderMessages } from "./i18n.ts";
 
 const PAGE_SIZE = 25;
 const FILTER_KEYS = ["stage", "status", "eligibility", "level", "tag", "assignee"] as const;
@@ -22,20 +24,20 @@ type FilterKey = (typeof FILTER_KEYS)[number];
 
 interface View {
   key: string;
-  label: string;
+  readonly label: string;
   filter: Partial<Record<FilterKey, string>>;
 }
 const VIEWS: View[] = [
-  { key: "all", label: "All", filter: {} },
-  { key: "needs-screening", label: "Needs screening", filter: { status: "submitted" } },
-  { key: "under-review", label: "Under review", filter: { status: "under_review" } },
-  { key: "review-complete", label: "Review complete", filter: { status: "recommended" } },
-  { key: "flagged", label: "Flagged", filter: { tag: "flagged" } },
-  { key: "eligibility-fail", label: "Eligibility fail", filter: { eligibility: "false" } },
-  { key: "unassigned", label: "Unassigned", filter: { assignee: "unassigned" } },
+  { key: "all", get label() { return t("funderApplications.view.all"); }, filter: {} },
+  { key: "needs-screening", get label() { return t("funderApplications.view.needsScreening"); }, filter: { status: "submitted" } },
+  { key: "under-review", get label() { return t("funderApplications.view.underReview"); }, filter: { status: "under_review" } },
+  { key: "review-complete", get label() { return t("funderApplications.view.reviewComplete"); }, filter: { status: "recommended" } },
+  { key: "flagged", get label() { return t("funderApplications.view.flagged"); }, filter: { tag: "flagged" } },
+  { key: "eligibility-fail", get label() { return t("funderApplications.view.eligibilityFail"); }, filter: { eligibility: "false" } },
+  { key: "unassigned", get label() { return t("funderApplications.view.unassigned"); }, filter: { assignee: "unassigned" } },
 ];
 
-const SORTABLE: Record<string, string> = { Title: "title", Status: "status", Requested: "requestedAmount", Submitted: "submittedAt" };
+const SORTABLE = { title: "title", status: "status", requested: "requestedAmount", submitted: "submittedAt" } as const;
 
 function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample: InboxApplication | undefined; onClose: () => void; onDone: (message: string) => void }) {
   const templates = useApiQuery((api) => api.listTemplates("email"), []);
@@ -44,23 +46,23 @@ function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample
   const [preview, setPreview] = useState<Rendered | null>(null);
   const all = [...(templates.data?.items ?? []), ...(templates.data?.builtIn ?? [])];
   const chosen = templateId || all[0]?.id || "";
-  const render = useApiMutation((api) => api.renderTemplate(chosen, { ...(sample ? { applicationId: sample.id } : {}), fields: { decision: { message: rationale.trim() || "After review, this application will not move forward." } } }));
+  const render = useApiMutation((api) => api.renderTemplate(chosen, { ...(sample ? { applicationId: sample.id } : {}), fields: { decision: { message: rationale.trim() || t("funderApplications.afterReviewThisApplication") } } }));
   const decline = useApiMutation((api) => api.bulkApplications({ applicationIds: ids, action: "decline", params: { letterTemplateId: chosen, sendLetter: true, ...(rationale.trim() ? { rationale: rationale.trim() } : {}) } }));
 
   return (
     <Dialog open onClose={onClose} labelledBy="decline-title" size="lg">
       <div className="hd">
         <div>
-          <h2 id="decline-title">Decline {ids.length === 1 ? "1 application" : `${ids.length} applications`}</h2>
-          <p className="small muted">Each applicant receives the letter below. Review it before anything is sent.</p>
+          <h2 id="decline-title">{t("funderApplications.declineCount", { count: ids.length })}</h2>
+          <p className="small muted">{t("funderApplications.eachApplicantReceivesThe")}</p>
         </div>
       </div>
       <div className="bd">
-        {templates.status === "loading" && <Loading label="Loading templates" />}
+        {templates.status === "loading" && <Loading label={t("funderApplications.loadingTemplates")} />}
         {templates.status === "error" && <ErrorBanner error={templates.error} onRetry={templates.reload} />}
         {(render.error !== null || decline.error !== null) && <ErrorBanner error={render.error ?? decline.error} />}
         <div className="fld-row">
-          <Field id="decline-template" label="Letter template">
+          <Field id="decline-template" label={t("funderApplications.letterTemplate")}>
             <select
               className="sel"
               id="decline-template"
@@ -70,15 +72,15 @@ function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample
                 setPreview(null);
               }}
             >
-              {all.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                  {t.builtIn ? " (built in)" : ` v${t.version}`}
+              {all.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>
+                  {tpl.name}
+                  {tpl.builtIn ? t("funderApplications.builtIn") : t("funderApplications.v", { version: tpl.version })}
                 </option>
               ))}
             </select>
           </Field>
-          <Field id="decline-reason" label="Reason shown in the letter" help="Fills the decision.message merge field.">
+          <Field id="decline-reason" label={t("funderApplications.reasonShownInThe")} help={t("funderApplications.fillsTheDecisionMessage")}>
             <input
               className="inp"
               id="decline-reason"
@@ -91,8 +93,8 @@ function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample
           </Field>
         </div>
         {preview && (
-          <section aria-label="Letter preview" className="letter">
-            <div className="small muted">Preview for {sample?.applicant.name ?? "the first applicant"}</div>
+          <section aria-label={t("funderApplications.letterPreview")} className="letter">
+            <div className="small muted">{t("funderApplications.previewFor", { name: sample?.applicant.name ?? t("funderApplications.theFirstApplicant") })}</div>
             {preview.subject && <div className="b">{preview.subject}</div>}
             <div style={{ whiteSpace: "pre-wrap" }}>{preview.text}</div>
           </section>
@@ -100,11 +102,11 @@ function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample
       </div>
       <div className="ft">
         <button type="button" className="btn btn-secondary" onClick={onClose}>
-          Cancel
+          {t("funderApplications.cancel")}
         </button>
         {!preview ? (
           <button type="button" className="btn btn-primary" disabled={!chosen || render.state === "saving"} onClick={async () => setPreview((await render.run()) ?? null)}>
-            Preview letter
+            {t("funderApplications.previewLetter")}
           </button>
         ) : (
           <button
@@ -113,10 +115,10 @@ function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample
             disabled={decline.state === "saving"}
             onClick={async () => {
               const r = await decline.run();
-              if (r) onDone(`${r.succeeded.length} declined · ${r.lettersSent} ${r.lettersSent === 1 ? "letter" : "letters"} sent${r.failed.length ? ` · ${r.failed.length} could not be declined` : ""}`);
+              if (r) onDone(r.failed.length ? t("funderApplications.declinedSomeFailed", { declined: r.succeeded.length, letters: r.lettersSent, failed: r.failed.length }) : t("funderApplications.declinedSent", { declined: r.succeeded.length, letters: r.lettersSent }));
             }}
           >
-            Decline and send {ids.length === 1 ? "letter" : `${ids.length} letters`}
+            {t("funderApplications.declineAndSendLetters", { count: ids.length })}
           </button>
         )}
       </div>
@@ -125,6 +127,7 @@ function DeclineDialog({ ids, sample, onClose, onDone }: { ids: string[]; sample
 }
 
 export default function Applications() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [params, setParams] = useSearchParams();
@@ -196,7 +199,7 @@ export default function Applications() {
     <label className={params.get(k) ? "fchip on" : "fchip"}>
       {label}:
       <select aria-label={label} value={params.get(k) ?? ""} onChange={(e) => set({ [k]: e.target.value || null })} style={{ border: 0, background: "transparent", font: "inherit", color: "inherit", fontWeight: 700 }}>
-        <option value="">Any</option>
+        <option value="">{t("funderApplications.any")}</option>
         {options.map(([v, l]) => (
           <option key={v} value={v}>
             {l}
@@ -205,8 +208,8 @@ export default function Applications() {
       </select>
     </label>
   );
-  const sortHeader = (label: string, numeric = false) => {
-    const k = SORTABLE[label]!;
+  const sortHeader = (id: keyof typeof SORTABLE, label: string, numeric = false) => {
+    const k = SORTABLE[id];
     const on = sortBy === k;
     return (
       <th className={numeric ? "num" : undefined} aria-sort={on ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}>
@@ -220,32 +223,32 @@ export default function Applications() {
 
   return (
     <>
-      <title>{`Applications — ${ws.name}`}</title>
+      <title>{t("funderApplications.applications2", { name: ws.name })}</title>
       <FunderShell active="Applications">
         <main className="main">
           <PageHeader
-            crumbs={[{ label: ws.name, to: base }, { label: "Applications" }]}
-            title="Applications"
+            crumbs={[{ label: ws.name, to: base }, { label: t("funderApplications.applications3") }]}
+            title={t("funderApplications.applications3")}
             meta={
               <>
-                <span>{competitions.data?.map((c) => c.title).join(", ") || "No competitions yet"}</span>
+                <span>{competitions.data?.map((c) => c.title).join(", ") || t("funderApplications.noCompetitionsYet")}</span>
                 <span>·</span>
-                <span>{totalAll} received</span>
+                <span>{t("funderApplications.received", { totalAll })}</span>
               </>
             }
             actions={
-              <div className="seg" role="group" aria-label="Row density">
+              <div className="seg" role="group" aria-label={t("funderApplications.rowDensity")}>
                 <button type="button" className={compact ? "" : "on"} aria-pressed={!compact} onClick={() => setCompact(false)}>
-                  Comfortable
+                  {t("funderApplications.comfortable")}
                 </button>
                 <button type="button" className={compact ? "on" : ""} aria-pressed={compact} onClick={() => setCompact(true)}>
-                  Compact
+                  {t("funderApplications.compact")}
                 </button>
               </div>
             }
           />
 
-          <div className="tabs" role="tablist" aria-label="Saved views">
+          <div className="tabs" role="tablist" aria-label={t("funderApplications.savedViews")}>
             {VIEWS.map((v) => (
               <button key={v.key} type="button" role="tab" aria-selected={viewKey === v.key} className={viewKey === v.key ? "tab on" : "tab"} onClick={() => setParams(v.key === "all" ? {} : { view: v.key })}>
                 {v.label}
@@ -254,20 +257,20 @@ export default function Applications() {
             ))}
             <button type="button" role="tab" aria-selected={viewKey === "agent"} className={viewKey === "agent" ? "tab on" : "tab"} onClick={() => setParams({ view: "agent" })}>
               <Bot className="ic" aria-hidden="true" />
-              Agent proposals<span className="n">{proposals.size}</span>
+              {t.rich("funderApplications.agentProposals", { size: proposals.size, span: (chunks) => <span className="n">{chunks}</span> })}
             </button>
           </div>
 
           <div className="filterbar">
-            {select("stage", "Stage", [...new Map(stages.map((s) => [s.key, s.label])).entries()])}
-            {select("status", "Status", Object.entries(STATUS.application).filter(([k]) => k !== "draft").map(([k, v]) => [k, v.label]))}
-            {select("eligibility", "Eligibility", [["true", "Pass"], ["false", "Fail"], ["unknown", "Unknown"]])}
-            {select("level", "Passport level", [["L3", "L3"], ["L2", "L2"], ["L1", "L1"], ["L0", "L0"]])}
-            {select("tag", "Tag", [...new Set([...tags, ...(params.get("tag") ? [params.get("tag")!] : [])])].map((t) => [t, t]))}
-            {select("assignee", "Assignee", [["unassigned", "Unassigned"], ...people.map((p): [string, string] => [p.userId, p.name])])}
+            {select("stage", t("funderApplications.filter.stage"), [...new Map(stages.map((s) => [s.key, s.label])).entries()])}
+            {select("status", t("funderApplications.filter.status"), Object.entries(STATUS.application).filter(([k]) => k !== "draft").map(([k, v]) => [k, v.label]))}
+            {select("eligibility", t("funderApplications.filter.eligibility"), [["true", t("funderApplications.filter.pass")], ["false", t("funderApplications.filter.fail")], ["unknown", t("funderApplications.filter.unknown")]])}
+            {select("level", t("funderApplications.filter.passportLevel"), [["L3", "L3"], ["L2", "L2"], ["L1", "L1"], ["L0", "L0"]])}
+            {select("tag", t("funderApplications.filter.tag"), [...new Set([...tags, ...(params.get("tag") ? [params.get("tag")!] : [])])].map((item) => [item, item]))}
+            {select("assignee", t("funderApplications.filter.assignee"), [["unassigned", t("funderApplications.filter.unassigned")], ...people.map((p): [string, string] => [p.userId, p.name])])}
             {filtered && (
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => setParams({})}>
-                Clear filters
+                {t("funderApplications.clearFilters")}
               </button>
             )}
           </div>
@@ -281,40 +284,40 @@ export default function Applications() {
 
           {selected.length > 0 && (
             <div className="bulkbar" role="status">
-              <span>{selected.length} selected</span>
+              <span>{t("funderApplications.selected", { count: selected.length })}</span>
               <span aria-hidden="true" style={{ opacity: ".4" }}>|</span>
               <button type="button" className="btn" onClick={() => setDeclining(true)}>
-                Decline
+                {t("funderApplications.decline")}
               </button>
               <Link to={`${base}/reviews/assign`} className="btn">
-                Assign reviewers
+                {t("funderApplications.assignReviewers")}
               </Link>
-              <button type="button" className="iconbtn" style={{ marginLeft: "auto", color: "#fff" }} aria-label="Clear selection" onClick={() => setSelected([])}>
+              <button type="button" className="iconbtn" style={{ marginLeft: "auto", color: "#fff" }} aria-label={t("funderApplications.clearSelection")} onClick={() => setSelected([])}>
                 <X className="ic" aria-hidden="true" />
               </button>
             </div>
           )}
 
-          {list.status === "loading" && <Loading label="Loading applications" />}
+          {list.status === "loading" && <Loading label={t("funderApplications.loadingApplications")} />}
           {list.status === "error" && <ErrorBanner error={list.error} onRetry={list.reload} />}
           {list.status === "ready" && (
-            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Applications, scrollable">
-              <table className={compact ? "tbl tbl-compact" : "tbl"} aria-label="Applications">
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("funderApplications.applicationsScrollable")}>
+              <table className={compact ? "tbl tbl-compact" : "tbl"} aria-label={t("funderApplications.applications3")}>
                 <thead>
                   <tr>
                     <th style={{ width: "36px" }}>
-                      <input type="checkbox" aria-label="Select all on this page" checked={allSelected} onChange={() => setSelected(allSelected ? [] : rows.map((r) => r.id))} />
+                      <input type="checkbox" aria-label={t("funderApplications.selectAllOnThis")} checked={allSelected} onChange={() => setSelected(allSelected ? [] : rows.map((r) => r.id))} />
                     </th>
-                    <th>Applicant</th>
-                    {sortHeader("Title")}
-                    <th>Stage</th>
-                    {sortHeader("Status")}
-                    <th>Eligibility</th>
-                    {sortHeader("Requested", true)}
-                    <th className="num">Score</th>
-                    {sortHeader("Submitted")}
-                    <th className="num">Days in stage</th>
-                    <th>Assignee</th>
+                    <th>{t("funderApplications.applicant")}</th>
+                    {sortHeader("title", t("funderApplications.column.title"))}
+                    <th>{t("funderApplications.stage")}</th>
+                    {sortHeader("status", t("funderApplications.column.status"))}
+                    <th>{t("funderApplications.eligibility")}</th>
+                    {sortHeader("requested", t("funderApplications.column.requested"), true)}
+                    <th className="num">{t("funderApplications.score")}</th>
+                    {sortHeader("submitted", t("funderApplications.column.submitted"))}
+                    <th className="num">{t("funderApplications.daysInStage")}</th>
+                    <th>{t("funderApplications.assignee")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -326,19 +329,19 @@ export default function Applications() {
                       return (
                         <tr key={r.id} className={proposal ? "agent" : selected.includes(r.id) ? "sel" : undefined}>
                           <td>
-                            <input type="checkbox" aria-label={`Select ${r.applicant.name ?? r.title}`} checked={selected.includes(r.id)} onChange={() => toggle(r.id)} />
+                            <input type="checkbox" aria-label={t("funderApplications.select", { name: r.applicant.name ?? r.title })} checked={selected.includes(r.id)} onChange={() => toggle(r.id)} />
                           </td>
                           <td style={{ padding: "6px 12px" }}>
                             <div className="ent">
                               <Link to={to} className="nm">
-                                {r.applicant.name ?? "Applicant"}
+                                {r.applicant.name ?? t("funderApplications.applicant")}
                               </Link>
                               <div className="sub">
                                 <VerificationBadge verification={r.applicant.verification} level={r.applicant.level ?? r.verificationLevelAtSubmit} />
                                 <WorkspaceName name={r.applicant.workspaceName} />
-                                {r.tags.map((t) => (
-                                  <span key={t} className="tag">
-                                    {t}
+                                {r.tags.map((item) => (
+                                  <span key={item} className="tag">
+                                    {item}
                                   </span>
                                 ))}
                               </div>
@@ -351,15 +354,15 @@ export default function Applications() {
                             {proposal && (
                               <div className="attrib" style={{ marginTop: "4px" }}>
                                 <Bot className="ic" aria-hidden="true" />
-                                <span className="ag">{proposal.requestedBy.clientId ?? "An agent"}</span> proposed a decline · awaiting approval
+                                {t.rich("funderApplications.agentProposedDecline", { agent: proposal.requestedBy.clientId ?? t("funderApplications.anAgent"), ag: (chunks) => <span className="ag">{chunks}</span> })}
                                 <button type="button" className="btn btn-sm btn-primary" disabled={decide.state === "saving"} onClick={async () => (await decide.run(proposal, true)) && (approvals.reload(), list.reload(), totals.reload())}>
-                                  Approve
+                                  {t("funderApplications.approve")}
                                 </button>
                                 <button type="button" className="btn btn-sm btn-danger" disabled={decide.state === "saving"} onClick={async () => (await decide.run(proposal, false)) && approvals.reload()}>
-                                  Reject
+                                  {t("funderApplications.reject")}
                                 </button>
-                                <Link to={`${base}/approvals`} className="small b" aria-label="Open the approval request">
-                                  Open
+                                <Link to={`${base}/approvals`} className="small b" aria-label={t("funderApplications.openTheApprovalRequest")}>
+                                  {t("funderApplications.open")}
                                 </Link>
                               </div>
                             )}
@@ -369,7 +372,7 @@ export default function Applications() {
                             {proposal ? (
                               <span className="bdg bdg-agent">
                                 <Bot className="ic" aria-hidden="true" />
-                                Decline proposed
+                                {t("funderApplications.declineProposed")}
                               </span>
                             ) : (
                               <StatusBadge kind="application" status={r.status} />
@@ -379,8 +382,8 @@ export default function Applications() {
                             <EligibilityMark value={r.eligibility} />
                           </td>
                           <td className="num">{formatMinor(r.requestedAmountMinor, r.currency)}</td>
-                          <td className="num">{scores.data?.has(r.id) ? <span title={`Mean of ${scores.data.get(r.id)!.n} submitted reviews`}>{scores.data.get(r.id)!.mean.toFixed(1)}</span> : <span className="muted">—</span>}</td>
-                          <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : "—"}</td>
+                          <td className="num">{scores.data?.has(r.id) ? <span title={t("funderApplications.meanOfSubmittedReviews", { n: scores.data.get(r.id)!.n })}>{scores.data.get(r.id)!.mean.toFixed(1)}</span> : <span className="muted">—</span>}</td>
+                          <td>{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString(intlLocale(), { month: "short", day: "numeric", timeZone: "UTC" }) : "—"}</td>
                           <td className="num">{["draft", "accepted", "declined", "withdrawn"].includes(r.status) ? <span className="muted">—</span> : (daysInStage(r) ?? "—")}</td>
                           <td>
                             <Avatar person={person(r.assignedToUserId)} />
@@ -392,12 +395,12 @@ export default function Applications() {
               </table>
               {rows.length === 0 && (
                 filtered ? (
-                  <EmptyState icon={Inbox} title="No applications match">
-                    Change or clear the filters to see more.
+                  <EmptyState icon={Inbox} title={t("funderApplications.noApplicationsMatch")}>
+                    {t("funderApplications.changeOrClearThe")}
                   </EmptyState>
                 ) : (
-                  <EmptyState icon={Inbox} title="No applications yet" actions={<Link to={`/w/${ws.handle}/opportunities`}>Go to opportunities</Link>}>
-                    Applications arrive here once an opportunity is open and someone applies.
+                  <EmptyState icon={Inbox} title={t("funderApplications.noApplicationsYet")} actions={<Link to={`/w/${ws.handle}/opportunities`}>{t("funderApplications.goToOpportunities")}</Link>}>
+                    {t("funderApplications.applicationsArriveHereOnce")}
                   </EmptyState>
                 )
               )}
@@ -405,15 +408,15 @@ export default function Applications() {
           )}
 
           {pages > 1 && (
-            <nav className="row" aria-label="Pages" style={{ justifyContent: "flex-end" }}>
+            <nav className="row" aria-label={t("funderApplications.pages")} style={{ justifyContent: "flex-end" }}>
               <button type="button" className="btn btn-sm btn-secondary" disabled={page <= 1} onClick={() => set({ page: String(page - 1) })}>
-                Previous
+                {t("funderApplications.previous")}
               </button>
               <span className="small muted">
-                Page {page} of {pages}
+                {t("funderApplications.pageOf", { page, pages })}
               </span>
               <button type="button" className="btn btn-sm btn-secondary" disabled={page >= pages} onClick={() => set({ page: String(page + 1) })}>
-                Next
+                {t("funderApplications.next")}
               </button>
             </nav>
           )}

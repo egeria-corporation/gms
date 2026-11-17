@@ -4,7 +4,7 @@
 import { mockApplicantStore } from "../api/applicantHooks.ts";
 import { mockLaunchStore } from "../api/launchHooks.ts";
 import type { AwardDetail } from "../api/funder.ts";
-import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ComponentType, type ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router";
 import { RequireAuth } from "../auth/RequireAuth.tsx";
 import { createServices, ServicesProvider, useServices, type Services } from "./services.tsx";
@@ -13,35 +13,51 @@ import { useIsPhone } from "./usePhone.ts";
 import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./workspace.tsx";
 import { NotFound } from "../components/NotFound.tsx";
 import { pageChanged, watchActions } from "../lib/announce.ts";
+import { usePublicMessages, useLocale, useT } from "../i18n/index.tsx";
+import { LocaleFromPreference } from "../components/LanguageSwitcher.tsx";
 
-const Landing = lazy(() => import("../screens/public/Landing.tsx"));
-const Agents = lazy(() => import("../screens/public/Agents.tsx"));
+/**
+ * A public screen, with its messages: the `public` catalog is a chunk of its own, loaded with the
+ * public screens only. The screen's code and the catalog are fetched side by side, and the screen
+ * renders once both are here (in the current language, after a language change too).
+ */
+function publicScreen(load: () => Promise<{ default: ComponentType }>): ComponentType {
+  const Screen = lazy(load);
+  return function PublicScreen() {
+    void load().catch(() => undefined);
+    usePublicMessages();
+    return <Screen />;
+  };
+}
+
+const Landing = publicScreen(() => import("../screens/public/Landing.tsx"));
+const Agents = publicScreen(() => import("../screens/public/Agents.tsx"));
 // The switch pages and their free migration request.
-const Switch = lazy(() => import("../screens/public/Switch.tsx"));
-const SwitchSystem = lazy(() => import("../screens/public/SwitchSystem.tsx"));
-const FunderPage = lazy(() => import("../screens/public/FunderPage.tsx"));
-const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
+const Switch = publicScreen(() => import("../screens/public/Switch.tsx"));
+const SwitchSystem = publicScreen(() => import("../screens/public/SwitchSystem.tsx"));
+const FunderPage = publicScreen(() => import("../screens/public/FunderPage.tsx"));
+const OpportunityPage = publicScreen(() => import("../screens/public/OpportunityPage.tsx"));
 // Award sharing (v1.9.0): the grants a funder has awarded, and one award's page.
-const FunderAwards = lazy(() => import("../screens/public/FunderAwards.tsx"));
-const AwardPublic = lazy(() => import("../screens/public/AwardPublic.tsx"));
-const EmbedWidget = lazy(() => import("../screens/public/EmbedWidget.tsx"));
-const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
-const PassportReturn = lazy(() => import("../screens/public/PassportReturn.tsx"));
-const InvitationAccept = lazy(() => import("../screens/public/InvitationAccept.tsx"));
+const FunderAwards = publicScreen(() => import("../screens/public/FunderAwards.tsx"));
+const AwardPublic = publicScreen(() => import("../screens/public/AwardPublic.tsx"));
+const EmbedWidget = publicScreen(() => import("../screens/public/EmbedWidget.tsx"));
+const SignIn = publicScreen(() => import("../screens/public/SignIn.tsx"));
+const PassportReturn = publicScreen(() => import("../screens/public/PassportReturn.tsx"));
+const InvitationAccept = publicScreen(() => import("../screens/public/InvitationAccept.tsx"));
 const JoinDraft = lazy(() => import("../screens/applicant/JoinDraft.tsx"));
-const ClaimAward = lazy(() => import("../screens/public/ClaimAward.tsx"));
+const ClaimAward = publicScreen(() => import("../screens/public/ClaimAward.tsx"));
 // Opt-in digests (v1.9.0): the one-click unsubscribe page, no sign-in.
-const DigestUnsubscribe = lazy(() => import("../screens/public/DigestUnsubscribe.tsx"));
-const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
-const FunderOnboarding = lazy(() => import("../screens/public/FunderOnboarding.tsx"));
-const ApplicantOnboarding = lazy(() => import("../screens/public/ApplicantOnboarding.tsx"));
-const ApplyEntry = lazy(() => import("../screens/public/ApplyEntry.tsx"));
-const Notifications = lazy(() => import("../screens/public/Notifications.tsx"));
-const AccountSettings = lazy(() => import("../screens/public/AccountSettings.tsx"));
+const DigestUnsubscribe = publicScreen(() => import("../screens/public/DigestUnsubscribe.tsx"));
+const WorkspaceSwitcher = publicScreen(() => import("../screens/public/WorkspaceSwitcher.tsx"));
+const FunderOnboarding = publicScreen(() => import("../screens/public/FunderOnboarding.tsx"));
+const ApplicantOnboarding = publicScreen(() => import("../screens/public/ApplicantOnboarding.tsx"));
+const ApplyEntry = publicScreen(() => import("../screens/public/ApplyEntry.tsx"));
+const Notifications = publicScreen(() => import("../screens/public/Notifications.tsx"));
+const AccountSettings = publicScreen(() => import("../screens/public/AccountSettings.tsx"));
 // The template gallery: public pages, and the moderators' queue.
-const Gallery = lazy(() => import("../screens/public/Gallery.tsx"));
-const GalleryItem = lazy(() => import("../screens/public/GalleryItem.tsx"));
-const GalleryModeration = lazy(() => import("../screens/public/GalleryModeration.tsx"));
+const Gallery = publicScreen(() => import("../screens/public/Gallery.tsx"));
+const GalleryItem = publicScreen(() => import("../screens/public/GalleryItem.tsx"));
+const GalleryModeration = publicScreen(() => import("../screens/public/GalleryModeration.tsx"));
 const FDashboard = lazy(() => import("../screens/funder/Dashboard.tsx"));
 const FPrograms = lazy(() => import("../screens/funder/Programs.tsx"));
 const FOpportunityBuilder = lazy(() => import("../screens/funder/OpportunityBuilder.tsx"));
@@ -75,7 +91,7 @@ const FSettingsPublicPage = lazy(() => import("../screens/funder/SettingsPublicP
 const FSettingsSecurity = lazy(() => import("../screens/funder/SettingsSecurity.tsx"));
 const SettingsSocial = lazy(() => import("../screens/shared/SettingsSocial.tsx"));
 const FFundSettings = lazy(() => import("../screens/funder/FundSettings.tsx"));
-const FundPage = lazy(() => import("../screens/public/FundPage.tsx"));
+const FundPage = publicScreen(() => import("../screens/public/FundPage.tsx"));
 const FApprovals = lazy(() => import("../screens/funder/Approvals.tsx"));
 const ADashboard = lazy(() => import("../screens/applicant/Dashboard.tsx"));
 const AOrganization = lazy(() => import("../screens/applicant/Organization.tsx"));
@@ -194,9 +210,19 @@ export function App({ services }: { services?: Services }) {
   }, [resolved]);
   return (
     <ServicesProvider services={resolved}>
-      <AppRoutes />
+      <LocaleFromPreference />
+      <LocalizedRoutes />
     </ServicesProvider>
   );
+}
+
+/**
+ * The screens, rebuilt when the language changes: every label, date and amount is drawn again in
+ * the new language, including values a screen computed once. The session and the address are kept.
+ */
+function LocalizedRoutes() {
+  const locale = useLocale();
+  return <AppRoutes key={locale} />;
 }
 
 /**
@@ -204,6 +230,7 @@ export function App({ services }: { services?: Services }) {
  * top bar and the rail (WCAG 2.4.1). Screens render their own <main>, so the link finds it on use.
  */
 function SkipLink() {
+  const t = useT("shared");
   return (
     <a
       href="#main"
@@ -216,7 +243,7 @@ function SkipLink() {
         main.focus();
       }}
     >
-      Skip to main content
+      {t("app.skipLink")}
     </a>
   );
 }

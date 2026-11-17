@@ -14,9 +14,11 @@ import { StatusBadge } from "../../../components/status.tsx";
 import { ErrorBanner, Field, SaveNote } from "../../../components/ui.tsx";
 import { openBlob } from "../../../lib/browser.ts";
 import { formatDate } from "../../../lib/format.ts";
-import { DOC_TYPE_LABELS, docTypeForLabel, MILESTONES, milestonesFor, type RequiredDocument } from "../../../lib/writeKeep.ts";
+import { docTypeForLabel, MILESTONES, milestonesFor, type RequiredDocument } from "../../../lib/writeKeep.ts";
+import { docTypeLabel, milestoneTitle } from "../labels.ts";
 import { ExpiryBadge } from "./keep.tsx";
 import { DEADLINE_LABELS, DeadlineText, fileKind, MAX_UPLOAD_BYTES, sizeText, toBase64 } from "./shared.tsx";
+import { t } from "../i18n.ts";
 
 function Deadlines({ detail, readOnly, onChanged }: { detail: OutsideDetail; readOnly: boolean; onChanged: () => void }) {
   const [form, setForm] = useState({ internalDue: detail.internalDue ?? "", loiDue: detail.loiDue ?? "", fullDue: detail.fullDue ?? "", rolling: detail.rolling });
@@ -31,30 +33,30 @@ function Deadlines({ detail, readOnly, onChanged }: { detail: OutsideDetail; rea
       <div className="card-h">
         <div>
           <h2 id="ock-dates" style={{ fontSize: "18px" }}>
-            Deadlines
+            {t("outsideChecklistTab.deadlines")}
           </h2>
-          <p className="small muted">Reminders go to the owner and to whoever is writing an open question, 14, 7 and 2 days before and on the day.</p>
+          <p className="small muted">{t("outsideChecklistTab.remindersGoToTheOwnerAnd")}</p>
         </div>
         <SaveNote state={save.state === "saved" && !dirty ? "saved" : "idle"} />
       </div>
       <form className="card-b" onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "12px" }}>
           {(Object.keys(DEADLINE_LABELS) as (keyof typeof DEADLINE_LABELS)[]).map((k) => (
-            <Field key={k} id={`ock-${k}`} label={DEADLINE_LABELS[k]} help={detail[k] ? <DeadlineText date={detail[k]} /> : "Not set"}>
+            <Field key={k} id={`ock-${k}`} label={DEADLINE_LABELS[k]} help={detail[k] ? <DeadlineText date={detail[k]} /> : t("outsideChecklistTab.notSet")}>
               <input id={`ock-${k}`} type="date" className="inp" readOnly={readOnly} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
             </Field>
           ))}
         </div>
         <label className="row" style={{ gap: "8px", fontSize: "14px" }}>
           <input type="checkbox" disabled={readOnly} checked={form.rolling} onChange={(e) => setForm({ ...form, rolling: e.target.checked })} />
-          The funder takes applications on a rolling basis
+          {t("outsideChecklistTab.theFunderTakesApplicationsOnA")}
         </label>
         {!readOnly && (
           <button type="submit" className="btn btn-secondary" style={{ alignSelf: "flex-start" }} disabled={!dirty || save.state === "saving"}>
-            {save.state === "saving" ? "Saving…" : "Save deadlines"}
+            {save.state === "saving" ? t("outsideChecklistTab.saving") : t("outsideChecklistTab.saveDeadlines")}
           </button>
         )}
-        {save.error ? <ErrorBanner error={save.error} title="The deadlines were not saved" /> : null}
+        {save.error ? <ErrorBanner error={save.error} title={t("outsideChecklistTab.theDeadlinesWereNotSaved")} /> : null}
       </form>
     </section>
   );
@@ -62,36 +64,37 @@ function Deadlines({ detail, readOnly, onChanged }: { detail: OutsideDetail; rea
 
 /** Internal milestones worked back from the full deadline, offered once it is set; created only on confirm. */
 function MilestonesOffer({ detail, onChanged }: { detail: OutsideDetail; onChanged: () => void }) {
-  const [rows, setRows] = useState(() => (detail.fullDue ? milestonesFor(detail.fullDue) : []));
+  // Offered in the page's language; the person can change the titles before adding them.
+  const [rows, setRows] = useState(() => (detail.fullDue ? milestonesFor(detail.fullDue).map((m) => ({ ...m, title: milestoneTitle(m.key, m.title) })) : []));
   const [dismissed, setDismissed] = useState(false);
   const create = useWKMutation((api, list: { title: string; dueOn: string }[]) => api.createMilestones(detail.id, list));
-  const titles = new Set(detail.tasks.map((t) => t.title.toLowerCase()));
-  const planned = MILESTONES.some((m) => titles.has(m.title.toLowerCase()));
+  const titles = new Set(detail.tasks.map((task) => task.title.toLowerCase()));
+  const planned = MILESTONES.some((m) => titles.has(m.title.toLowerCase()) || titles.has(milestoneTitle(m.key, m.title).toLowerCase()));
   if (!detail.fullDue || planned || dismissed) return null;
   return (
     <section className="card" aria-labelledby="ock-ms" style={{ borderStyle: "dashed" }}>
       <div className="card-h">
         <div>
           <h3 id="ock-ms" style={{ fontSize: "15px" }}>
-            Plan the writing back from the full deadline?
+            {t("outsideChecklistTab.planTheWritingBackFromThe")}
           </h3>
-          <p className="small muted">Three tasks, two weeks, one week and two days before {formatDate(detail.fullDue)}. Change the dates or titles first if you like.</p>
+          <p className="small muted">{t("outsideChecklistTab.milestonesIntro", { date: formatDate(detail.fullDue) })}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {rows.map((r, i) => (
           <div key={r.key} className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
             <label className="sr" htmlFor={`ms-t-${r.key}`}>
-              Milestone {i + 1}
+              {t("outsideChecklistTab.milestoneN", { n: i + 1 })}
             </label>
             <input id={`ms-t-${r.key}`} className="inp" style={{ flex: "2 1 200px" }} value={r.title} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} />
             <label className="sr" htmlFor={`ms-d-${r.key}`}>
-              Due date for milestone {i + 1}
+              {t("outsideChecklistTab.milestoneDue", { n: i + 1 })}
             </label>
             <input id={`ms-d-${r.key}`} type="date" className="inp" style={{ flex: "1 1 140px" }} value={r.dueOn} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, dueOn: e.target.value } : x)))} />
           </div>
         ))}
-        {create.error ? <ErrorBanner error={create.error} title="The tasks were not all added" /> : null}
+        {create.error ? <ErrorBanner error={create.error} title={t("outsideChecklistTab.theTasksWereNotAllAdded")} /> : null}
         <div className="row" style={{ gap: "8px" }}>
           <button
             type="button"
@@ -102,10 +105,10 @@ function MilestonesOffer({ detail, onChanged }: { detail: OutsideDetail; onChang
             }}
           >
             <CalendarPlus className="ic" aria-hidden="true" />
-            {create.state === "saving" ? "Adding…" : "Add these tasks"}
+            {create.state === "saving" ? t("outsideChecklistTab.adding") : t("outsideChecklistTab.addTheseTasks")}
           </button>
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDismissed(true)}>
-            Not now
+            {t("outsideChecklistTab.notNow")}
           </button>
         </div>
       </div>
@@ -124,7 +127,7 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
   const use = useWKMutation((api, label: string, documentId: string | null) => api.useFromVault(detail.id, label, documentId));
   const list = detail.requiredDocuments;
   const docs: VaultDocument[] = vault.status === "ready" ? vault.data : [];
-  const nameOf = (id: string | null) => docs.find((d) => d.id === id)?.name ?? "A document";
+  const nameOf = (id: string | null) => docs.find((d) => d.id === id)?.name ?? t("outsideChecklistTab.aDocument");
   const set = async (next: RequiredDocument[]) => (await save.run(next)) && onChanged();
   const patchAt = (i: number, p: Partial<RequiredDocument>) => void set(list.map((d, j) => (j === i ? { ...d, ...p } : d)));
   const attach = async (d: RequiredDocument, documentId: string | null) => (await use.run(d.label, documentId)) && onChanged();
@@ -134,14 +137,14 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
       <div className="card-h">
         <div>
           <h2 id="ock-req" style={{ fontSize: "18px" }}>
-            Required documents
+            {t("outsideChecklistTab.requiredDocuments")}
           </h2>
-          <p className="small muted">{list.length ? `${met} of ${list.length} ready` : "What the funder asks you to attach. Use a document from your vault for each."}</p>
+          <p className="small muted">{list.length ? t("outsideChecklistTab.readyCount", { met, total: list.length }) : t("outsideChecklistTab.whatTheFunderAsksYouTo")}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {list.length > 0 && (
-          <ul aria-label="Required documents" style={{ display: "flex", flexDirection: "column", gap: "10px", listStyle: "none", padding: 0, margin: 0 }}>
+          <ul aria-label={t("outsideChecklistTab.requiredDocuments")} style={{ display: "flex", flexDirection: "column", gap: "10px", listStyle: "none", padding: 0, margin: 0 }}>
             {list.map((d, i) => {
               const type = docTypeForLabel(d.label);
               const matches = docs.filter((v) => type && v.docType === type);
@@ -153,14 +156,14 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
                     <span className="b">{d.label}</span>
                     <StatusBadge kind="requiredDocument" status={d.status} />
                     {!readOnly && (
-                      <button type="button" className="iconbtn" style={{ marginLeft: "auto" }} aria-label={`Remove ${d.label}`} onClick={() => void set(list.filter((_, j) => j !== i))}>
+                      <button type="button" className="iconbtn" style={{ marginLeft: "auto" }} aria-label={t("outsideChecklistTab.removeLabel", { label: d.label })} onClick={() => void set(list.filter((_, j) => j !== i))}>
                         <X className="ic" aria-hidden="true" />
                       </button>
                     )}
                   </div>
                   {d.status === "attached" && d.documentId && (
                     <span className="small row" style={{ gap: "6px", flexWrap: "wrap" }}>
-                      From your vault: <span className="b">{nameOf(d.documentId)}</span>
+                      {t("outsideChecklistTab.fromYourVault")} <span className="b">{nameOf(d.documentId)}</span>
                       {vaultDoc && <ExpiryBadge expiresOn={vaultDoc.expiresOn} />}
                     </span>
                   )}
@@ -168,13 +171,13 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
                     <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
                       {matches[0] && (
                         <button type="button" className="btn btn-sm btn-secondary" disabled={use.state === "saving"} onClick={() => void attach(d, matches[0]!.id)}>
-                          Use from vault: {matches[0].name}
+                          {t("outsideChecklistTab.useFromVault", { name: matches[0].name })}
                         </button>
                       )}
                       {(others.length > 0 || matches.length > 1) && (
                         <>
                           <label className="sr" htmlFor={`req-pick-${i}`}>
-                            Another document for {d.label}
+                            {t("outsideChecklistTab.anotherFor", { label: d.label })}
                           </label>
                           <select
                             id={`req-pick-${i}`}
@@ -183,10 +186,10 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
                             value=""
                             onChange={(e) => e.target.value && void attach(d, e.target.value)}
                           >
-                            <option value="">{matches[0] ? "Or choose another from your vault…" : "Choose one from your vault…"}</option>
+                            <option value="">{matches[0] ? t("outsideChecklistTab.orChooseAnotherFromYourVault") : t("outsideChecklistTab.chooseOneFromYourVault")}</option>
                             {[...matches.slice(1), ...others].map((v) => (
                               <option key={v.id} value={v.id}>
-                                {v.name} ({DOC_TYPE_LABELS[v.docType]})
+                                {v.name} ({docTypeLabel(v.docType)})
                               </option>
                             ))}
                           </select>
@@ -194,19 +197,19 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
                       )}
                       {d.status === "needed" ? (
                         <button type="button" className="btn btn-sm btn-ghost" onClick={() => patchAt(i, { status: "not_needed", documentId: null })}>
-                          Not needed
+                          {t("outsideChecklistTab.notNeeded")}
                         </button>
                       ) : (
                         <button type="button" className="btn btn-sm btn-ghost" onClick={() => patchAt(i, { status: "needed" })}>
-                          Needed after all
+                          {t("outsideChecklistTab.neededAfterAll")}
                         </button>
                       )}
-                      {!matches[0] && d.status === "needed" && docs.length === 0 && <span className="small muted">Nothing in your vault yet. Add it under Organization, Documents.</span>}
+                      {!matches[0] && d.status === "needed" && docs.length === 0 && <span className="small muted">{t("outsideChecklistTab.nothingInYourVaultYetAdd")}</span>}
                     </div>
                   )}
                   {!readOnly && d.status === "attached" && (
                     <button type="button" className="btn btn-sm btn-ghost" style={{ alignSelf: "flex-start" }} disabled={use.state === "saving"} onClick={() => void attach(d, null)}>
-                      Change
+                      {t("outsideChecklistTab.change")}
                     </button>
                   )}
                 </li>
@@ -229,19 +232,19 @@ function RequiredDocuments({ detail, readOnly, onChanged }: { detail: OutsideDet
           >
             <div className="fld" style={{ flex: "1 1 220px" }}>
               <label className="lbl" htmlFor="ock-req-new">
-                Add a required document
+                {t("outsideChecklistTab.addARequiredDocument")}
               </label>
-              <input id="ock-req-new" className="inp" placeholder="IRS determination letter" value={label} onChange={(e) => setLabel(e.target.value)} />
+              <input id="ock-req-new" className="inp" placeholder={t("outsideChecklistTab.irsDeterminationLetter")} value={label} onChange={(e) => setLabel(e.target.value)} />
             </div>
             <button type="submit" className="btn btn-secondary" disabled={!label.trim() || save.state === "saving"}>
               <Plus className="ic" aria-hidden="true" />
-              Add
+              {t("outsideChecklistTab.add")}
             </button>
           </form>
         )}
-        {vault.status === "error" ? <ErrorBanner error={vault.error} title="Your vault could not be read" /> : null}
-        {save.error ? <ErrorBanner error={save.error} title="The checklist was not saved" /> : null}
-        {use.error ? <ErrorBanner error={use.error} title="The document was not used" /> : null}
+        {vault.status === "error" ? <ErrorBanner error={vault.error} title={t("outsideChecklistTab.yourVaultCouldNotBeRead")} /> : null}
+        {save.error ? <ErrorBanner error={save.error} title={t("outsideChecklistTab.theChecklistWasNotSaved")} /> : null}
+        {use.error ? <ErrorBanner error={use.error} title={t("outsideChecklistTab.theDocumentWasNotUsed")} /> : null}
       </div>
     </section>
   );
@@ -255,21 +258,21 @@ export function DocumentRow({ doc, applicationId, note }: { doc: AppDocument; ap
   });
   return (
     <div className="doc">
-      <span className={`ft ${fileKind(doc.name) ? `ft-${fileKind(doc.name)}` : ""}`}>{(fileKind(doc.name) || "file").toUpperCase()}</span>
+      <span className={`ft ${fileKind(doc.name) ? `ft-${fileKind(doc.name)}` : ""}`}>{fileKind(doc.name) ? fileKind(doc.name).toUpperCase() : t("form.file")}</span>
       <div className="grow" style={{ minWidth: 0 }}>
         <div className="nm" style={{ overflowWrap: "anywhere" }}>
           {doc.name}
         </div>
         <div className="mt">
-          {sizeText(doc.size)} · added {formatDate(doc.uploadedAt)}
-          {doc.source === "passport_locker" ? " · from Passport" : ""}
+          {sizeText(doc.size)} · {t("outsideChecklistTab.addedOn", { date: formatDate(doc.uploadedAt) })}
+          {doc.source === "passport_locker" ? ` · ${t("outsideChecklistTab.fromPassport")}` : ""}
           {note ? ` · ${note}` : ""}
         </div>
-        {open.error ? <ErrorBanner error={open.error} title="The file could not be opened" /> : null}
+        {open.error ? <ErrorBanner error={open.error} title={t("outsideChecklistTab.theFileCouldNotBeOpened")} /> : null}
       </div>
       {doc.source === "upload" && (
-        <button type="button" className="btn btn-sm btn-ghost" onClick={() => void open.run()} aria-label={`Open ${doc.name}`}>
-          Open
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => void open.run()} aria-label={t("outsideChecklistTab.openName", { name: doc.name })}>
+          {t("outsideChecklistTab.open")}
         </button>
       )}
     </div>
@@ -284,7 +287,7 @@ export function useUpload(applicationId: string, docType?: "award_letter") {
     setTooBig(null);
     if (!file) return undefined;
     if (file.size > MAX_UPLOAD_BYTES) {
-      setTooBig(`${file.name} is larger than 10 MB. Upload a smaller file.`);
+      setTooBig(t("outsideChecklistTab.tooLarge", { name: file.name }));
       return undefined;
     }
     return upload.run(file);
@@ -304,25 +307,25 @@ function Attachments({ detail, readOnly, onChanged }: { detail: OutsideDetail; r
       <div className="card-h">
         <div>
           <h2 id="ock-docs" style={{ fontSize: "18px" }}>
-            Attachments
+            {t("outsideChecklistTab.attachments")}
           </h2>
-          <p className="small muted">Keep the files the funder asks for in one place. They stay in your workspace; nothing is sent to the funder from here.</p>
+          <p className="small muted">{t("outsideChecklistTab.keepTheFilesTheFunderAsks")}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {docs.length === 0 && <p className="muted">No attachments yet.</p>}
+        {docs.length === 0 && <p className="muted">{t("outsideChecklistTab.noAttachmentsYet")}</p>}
         {docs.map((d) => (
-          <DocumentRow key={d.id} doc={d} applicationId={detail.id} note={d.id === detail.receiptDocumentId ? "submission receipt" : undefined} />
+          <DocumentRow key={d.id} doc={d} applicationId={detail.id} note={d.id === detail.receiptDocumentId ? t("outsideChecklistTab.submissionReceipt") : undefined} />
         ))}
         {!readOnly && (
           <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
             <label className="btn btn-sm btn-secondary" style={{ cursor: "pointer" }}>
               <Upload className="ic" aria-hidden="true" />
-              {upload.state === "saving" ? "Uploading…" : "Upload a file"}
+              {upload.state === "saving" ? t("outsideChecklistTab.uploading") : t("outsideChecklistTab.uploadAFile")}
               <input
                 type="file"
                 className="sr"
-                aria-label="Upload a file"
+                aria-label={t("outsideChecklistTab.uploadAFile")}
                 onChange={async (e) => {
                   const doc = await upload.run(e.target.files?.[0]);
                   e.target.value = "";
@@ -333,10 +336,10 @@ function Attachments({ detail, readOnly, onChanged }: { detail: OutsideDetail; r
             {lockerItems.length > 0 && (
               <>
                 <label className="sr" htmlFor="ock-locker">
-                  A document from your Passport locker
+                  {t("outsideChecklistTab.aDocumentFromYourPassportLocker")}
                 </label>
                 <select id="ock-locker" className="sel" style={{ maxWidth: "260px", height: "30px" }} value={pick} onChange={(e) => setPick(e.target.value)}>
-                  <option value="">From your Passport documents…</option>
+                  <option value="">{t("outsideChecklistTab.fromYourPassportDocuments")}</option>
                   {lockerItems.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.name}
@@ -356,15 +359,15 @@ function Attachments({ detail, readOnly, onChanged }: { detail: OutsideDetail; r
                     }
                   }}
                 >
-                  Add
+                  {t("outsideChecklistTab.add")}
                 </button>
               </>
             )}
           </div>
         )}
         {upload.tooBig && <p className="err-msg" role="alert">{upload.tooBig}</p>}
-        {upload.error ? <ErrorBanner error={upload.error} title="The file was not uploaded" /> : null}
-        {pin.error ? <ErrorBanner error={pin.error} title="The document was not added" /> : null}
+        {upload.error ? <ErrorBanner error={upload.error} title={t("outsideChecklistTab.theFileWasNotUploaded")} /> : null}
+        {pin.error ? <ErrorBanner error={pin.error} title={t("outsideChecklistTab.theDocumentWasNotAdded")} /> : null}
       </div>
     </section>
   );
@@ -377,30 +380,30 @@ function Tasks({ detail, members, readOnly, onChanged }: { detail: OutsideDetail
   const create = useOutsideMutation((api) => api.createTask(detail.id, { title: title.trim(), dueAt: due ? `${due}T00:00:00Z` : null, assigneeUserId: who || null }));
   const toggle = useApplicantMutation((api, id: string, done: boolean) => api.updateTask(id, { done }));
   const nameOf = (id: string | null) => members.find((m) => m.userId === id)?.name ?? null;
-  const open = detail.tasks.filter((t) => !t.doneAt).length;
+  const open = detail.tasks.filter((task) => !task.doneAt).length;
   return (
     <section className="card" aria-labelledby="ock-tasks">
       <div className="card-h">
         <div>
           <h2 id="ock-tasks" style={{ fontSize: "18px" }}>
-            Tasks
+            {t("outsideChecklistTab.tasks")}
           </h2>
-          <p className="small muted">{detail.tasks.length === 0 ? "Letters of support, budget sign-off, board approval: whatever needs doing first." : `${open} open of ${detail.tasks.length}`}</p>
+          <p className="small muted">{detail.tasks.length === 0 ? t("outsideChecklistTab.lettersOfSupportBudgetSignOff") : t("outsideChecklistTab.openOf", { open, total: detail.tasks.length })}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        <ul aria-label="Tasks" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {detail.tasks.map((t) => (
-            <li key={t.id} className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
+        <ul aria-label={t("outsideChecklistTab.tasks")} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {detail.tasks.map((task) => (
+            <li key={task.id} className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
               <label className="row" style={{ gap: "8px" }}>
-                <input type="checkbox" checked={!!t.doneAt} disabled={readOnly} onChange={async (e) => (await toggle.run(t.id, e.target.checked)) && onChanged()} />
-                <span style={t.doneAt ? { textDecoration: "line-through", color: "var(--og-gray-600)" } : undefined}>{t.title}</span>
+                <input type="checkbox" checked={!!task.doneAt} disabled={readOnly} onChange={async (e) => (await toggle.run(task.id, e.target.checked)) && onChanged()} />
+                <span style={task.doneAt ? { textDecoration: "line-through", color: "var(--og-gray-600)" } : undefined}>{task.title}</span>
               </label>
               <span className="small muted row" style={{ gap: "4px" }}>
-                {t.doneAt ? <CircleCheck className="ic ic-sm" aria-hidden="true" /> : <CircleDashed className="ic ic-sm" aria-hidden="true" />}
-                {t.doneAt ? "Done" : "Open"}
-                {nameOf(t.assigneeUserId) ? ` · ${nameOf(t.assigneeUserId)}` : ""}
-                {t.dueAt ? ` · due ${formatDate(t.dueAt)}` : ""}
+                {task.doneAt ? <CircleCheck className="ic ic-sm" aria-hidden="true" /> : <CircleDashed className="ic ic-sm" aria-hidden="true" />}
+                {task.doneAt ? t("outsideChecklistTab.done") : t("outsideChecklistTab.taskOpen")}
+                {nameOf(task.assigneeUserId) ? ` · ${nameOf(task.assigneeUserId)}` : ""}
+                {task.dueAt ? ` · ${t("outsideChecklistTab.dueOn", { date: formatDate(task.dueAt) })}` : ""}
               </span>
             </li>
           ))}
@@ -422,22 +425,22 @@ function Tasks({ detail, members, readOnly, onChanged }: { detail: OutsideDetail
           >
             <div className="fld" style={{ flex: "2 1 220px" }}>
               <label className="lbl" htmlFor="ock-task">
-                New task
+                {t("outsideChecklistTab.newTask")}
               </label>
               <input id="ock-task" className="inp" value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
             <div className="fld" style={{ flex: "1 1 140px" }}>
               <label className="lbl" htmlFor="ock-task-due">
-                Due
+                {t("outsideChecklistTab.due")}
               </label>
               <input id="ock-task-due" type="date" className="inp" value={due} onChange={(e) => setDue(e.target.value)} />
             </div>
             <div className="fld" style={{ flex: "1 1 160px" }}>
               <label className="lbl" htmlFor="ock-task-who">
-                Who
+                {t("outsideChecklistTab.who")}
               </label>
               <select id="ock-task-who" className="sel" value={who} onChange={(e) => setWho(e.target.value)}>
-                <option value="">No one yet</option>
+                <option value="">{t("outsideChecklistTab.noOneYet")}</option>
                 {members.map((m) => (
                   <option key={m.userId} value={m.userId}>
                     {m.name ?? m.email}
@@ -447,12 +450,12 @@ function Tasks({ detail, members, readOnly, onChanged }: { detail: OutsideDetail
             </div>
             <button type="submit" className="btn btn-secondary" disabled={!title.trim() || create.state === "saving"}>
               <Plus className="ic" aria-hidden="true" />
-              Add task
+              {t("outsideChecklistTab.addTask")}
             </button>
           </form>
         )}
-        {create.error ? <ErrorBanner error={create.error} title="The task was not added" /> : null}
-        {toggle.error ? <ErrorBanner error={toggle.error} title="The task was not updated" /> : null}
+        {create.error ? <ErrorBanner error={create.error} title={t("outsideChecklistTab.theTaskWasNotAdded")} /> : null}
+        {toggle.error ? <ErrorBanner error={toggle.error} title={t("outsideChecklistTab.theTaskWasNotUpdated")} /> : null}
       </div>
     </section>
   );
@@ -472,12 +475,12 @@ export function ChecklistTab({ detail, members, readOnly, onChanged }: { detail:
         <section className="card" aria-labelledby="ock-answers">
           <div className="card-h">
             <h2 id="ock-answers" style={{ fontSize: "18px" }}>
-              Answers
+              {t("outsideChecklistTab.answers")}
             </h2>
           </div>
           <div className="card-b row" style={{ gap: "8px" }}>
             {unanswered === 0 ? <CircleCheck className="ic" aria-hidden="true" style={{ color: "var(--s-ok-fg)" }} /> : <FileText className="ic" aria-hidden="true" />}
-            <span>{detail.questions.length === 0 ? "No questions added yet." : unanswered === 0 ? "Every required question has an answer." : `${unanswered} required question${unanswered === 1 ? "" : "s"} still without an answer.`}</span>
+            <span>{detail.questions.length === 0 ? t("outsideChecklistTab.noQuestionsAddedYet") : unanswered === 0 ? t("outsideChecklistTab.everyRequiredQuestionHasAnAnswer") : t("outsideChecklistTab.unanswered", { count: unanswered })}</span>
           </div>
         </section>
         <Tasks detail={detail} members={members} readOnly={readOnly} onChanged={onChanged} />

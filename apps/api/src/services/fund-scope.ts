@@ -160,6 +160,8 @@ const RULES: { [T in TableName]: Rule } = {
   templates: OPEN,
   threads: { kind: "check", allowed: SUBJECT.allowed, inWorkspace: async (r, v) => r.workspace_id === v.workspaceId || r.funder_workspace_id === v.workspaceId },
   tranches: parent("award_id", "awards", "Award"),
+  // A person's own language (migration 0043): nothing about a fund.
+  user_preferences: OPEN,
   webhook_deliveries: CLOSED,
   webhook_subscriptions: OPEN,
   workspace_creation_counts: OPEN,

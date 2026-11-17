@@ -10,6 +10,9 @@ import { ContactLine } from "../../components/launch.tsx";
 import { downloadCsv } from "../../lib/browser.ts";
 import { formatMinor } from "../../lib/format.ts";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
 export function PastAwards({ awards, handle }: { awards: PastAward[]; handle: string }) {
   const years = [...new Set(awards.map((a) => a.year))].sort().reverse();
   const [year, setYear] = useState(years[0] ?? "");
@@ -18,11 +21,11 @@ export function PastAwards({ awards, handle }: { awards: PastAward[]; handle: st
     <section id="past">
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", marginBottom: "16px" }}>
         <div>
-          <span className="eyebrow">Transparency</span>
-          <h2 style={{ marginBottom: "0", marginTop: "6px" }}>Past Awards</h2>
+          <span className="eyebrow">{t("publicExtras.transparency")}</span>
+          <h2 style={{ marginBottom: "0", marginTop: "6px" }}>{t("publicExtras.pastAwards")}</h2>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", fontSize: "14px", flexWrap: "wrap" }}>
-          <span className="seg" role="group" aria-label="Year">
+          <span className="seg" role="group" aria-label={t("publicExtras.year")}>
             {years.map((y) => (
               <button key={y} type="button" className={y === year ? "on" : undefined} aria-pressed={y === year} onClick={() => setYear(y)}>
                 {y}
@@ -35,21 +38,21 @@ export function PastAwards({ awards, handle }: { awards: PastAward[]; handle: st
             onClick={() => downloadCsv([["Year", "Recipient", "Amount", "Currency", "Purpose"], ...awards.map((a) => [a.year, a.recipient, a.amountMinor === null ? "" : (a.amountMinor / 100).toFixed(2), a.amountMinor === null ? "" : a.currency, a.purpose])], `${handle}-past-awards.csv`)}
           >
             <Download className="ic" aria-hidden="true" />
-            Download CSV
+            {t("publicExtras.downloadCsv")}
           </button>
         </div>
       </div>
-      <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Past awards, scrollable">
+      <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("publicExtras.pastAwardsScrollable")}>
         <table className="tbl" style={{ fontSize: "15px" }}>
-          <caption className="sr">Awards made in {year}</caption>
+          <caption className="sr">{t("publicExtras.awardsMadeIn", { year: String(year) })}</caption>
           <thead>
             <tr>
-              <th scope="col">Year</th>
-              <th scope="col">Recipient</th>
+              <th scope="col">{t("publicExtras.year")}</th>
+              <th scope="col">{t("publicExtras.recipient")}</th>
               <th scope="col" className="num">
-                Amount
+                {t("publicExtras.amount")}
               </th>
-              <th scope="col">Purpose</th>
+              <th scope="col">{t("publicExtras.purpose")}</th>
             </tr>
           </thead>
           <tbody>
@@ -57,7 +60,7 @@ export function PastAwards({ awards, handle }: { awards: PastAward[]; handle: st
               <tr key={`${a.recipient}-${i}`}>
                 <td>{a.year}</td>
                 <td className="b">{a.recipient}</td>
-                <td className="num">{a.amountMinor === null ? <><span aria-hidden="true">—</span><span className="sr">Amount not shown</span></> : formatMinor(a.amountMinor, a.currency)}</td>
+                <td className="num">{a.amountMinor === null ? <><span aria-hidden="true">—</span><span className="sr">{t("publicExtras.amountNotShown")}</span></> : formatMinor(a.amountMinor, a.currency)}</td>
                 <td style={{ whiteSpace: "normal" }}>{a.page ? <a href={new URL(a.page, window.location.origin).pathname}>{a.purpose}</a> : a.purpose}</td>
               </tr>
             ))}
@@ -72,8 +75,8 @@ export function Faq({ faq, contactEmail }: { faq: PublicExtras["faq"]; contactEm
   if (faq.length === 0) return null;
   return (
     <section id="faq">
-      <span className="eyebrow">Help</span>
-      <h2 style={{ marginTop: "6px" }}>Questions About Applying</h2>
+      <span className="eyebrow">{t("publicExtras.help")}</span>
+      <h2 style={{ marginTop: "6px" }}>{t("publicExtras.questionsAboutApplying")}</h2>
       {faq.map((f) => (
         <details key={f.question}>
           <summary>{f.question}</summary>
@@ -82,7 +85,7 @@ export function Faq({ faq, contactEmail }: { faq: PublicExtras["faq"]; contactEm
       ))}
       {contactEmail ? (
         <p style={{ marginTop: "16px", fontSize: "15px" }}>
-          Something else? Write to <a href={`mailto:${contactEmail}`}>{contactEmail}</a>.
+          {t.rich("publicExtras.somethingElseWriteTo", { contactEmail, link: (chunks) => <a href={`mailto:${contactEmail}`}>{chunks}</a> })}
         </p>
       ) : null}
     </section>
@@ -96,16 +99,16 @@ export function PublicContacts({ handle }: { handle: string; name?: string }) {
   if (contacts.length === 0) return null;
   return (
     <section id="contact" aria-labelledby="contact-h">
-      <span className="eyebrow">Contact</span>
+      <span className="eyebrow">{t("publicExtras.contact")}</span>
       <h2 id="contact-h" style={{ marginTop: "6px" }}>
-        Who to Ask
+        {t("publicExtras.whoToAsk")}
       </h2>
       <div className="card">
         <div className="card-b">
           <dl className="kv" style={{ fontSize: "15px" }}>
             {contacts.map((c) => (
               <Fragment key={`${c.name}|${c.email}`}>
-                <dt>{c.title ?? "Contact"}</dt>
+                <dt>{c.title ?? t("publicExtras.contact")}</dt>
                 <dd>
                   <ContactLine contact={c} />
                 </dd>
@@ -132,7 +135,7 @@ export function FunderExtras({ handle }: { handle: string }) {
 }
 
 export function DocumentList({ documents }: { documents: PublicDocument[] }) {
-  if (documents.length === 0) return <p style={{ fontSize: "15px", color: "var(--og-gray-600)" }}>No guideline documents are published for this opportunity.</p>;
+  if (documents.length === 0) return <p style={{ fontSize: "15px", color: "var(--og-gray-600)" }}>{t("publicExtras.noGuidelineDocumentsArePublished")}</p>;
   return (
     <ul style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
       {documents.map((d) => (
@@ -145,7 +148,7 @@ export function DocumentList({ documents }: { documents: PublicDocument[] }) {
               <span className="nm">{d.name}</span>
             </span>
             <Download className="ic" aria-hidden="true" />
-            <span className="sr">Download</span>
+            <span className="sr">{t("publicExtras.download")}</span>
           </a>
         </li>
       ))}
@@ -183,8 +186,8 @@ export function UnverifiedFunderBanner({ name }: { name: string }) {
     <div className="bnr bnr-warn" role="note">
       <ShieldOff className="ic" aria-hidden="true" />
       <div>
-        <div className="t">Not verified with OpenGrants Passport</div>
-        <div className="d">OpenGrants has not checked that this page belongs to {name}. Its name, mission and website are what the funder entered itself. Check with the funder directly before sharing your organization's details.</div>
+        <div className="t">{t("publicExtras.notVerifiedWithOpengrantsPassport")}</div>
+        <div className="d">{t("publicExtras.opengrantsHasNotCheckedThat", { name })}</div>
       </div>
     </div>
   );

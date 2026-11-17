@@ -5,7 +5,7 @@
 // import → the summary links to what was created, and the Applications list shows it. The same file
 // again skips every row. A funder imports grant history from Awards, with a payment recorded as
 // paid elsewhere.
-import { expect, rail, start, test } from "./helpers.ts";
+import { expect, rail, shown, start, test } from "./helpers.ts";
 
 /** Made at run time; no file holds such a value. */
 const IDENTITY_SHAPED = ["900", "00", "0001"].join("-");
@@ -51,7 +51,7 @@ test("import applications from a CSV file", async ({ app: page }) => {
   });
 
   await test.step("the summary links to what was created", async () => {
-    await expect(page.getByText("2 applications imported")).toBeVisible();
+    await expect(shown(page, "2 applications imported")).toBeVisible();
     await expect(page.getByRole("list", { name: "Imported applications" }).getByRole("link")).toHaveCount(2);
     await page.getByRole("link", { name: "Open Applications" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Applications" })).toBeVisible();
@@ -65,7 +65,7 @@ test("import applications from a CSV file", async ({ app: page }) => {
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByLabel("Choose a file").setInputFiles(file("pipeline (1).csv", PIPELINE));
     await page.getByRole("button", { name: "Read the file" }).click();
-    await expect(page.getByText("Matched as you saved it last time for this source.")).toBeVisible();
+    await expect(shown(page, "Matched as you saved it last time for this source.")).toBeVisible();
     await page.getByRole("button", { name: "Check the rows" }).click();
     await expect(page.getByRole("group", { name: "What will happen" })).toContainText("Skipped2");
     await expect(page.getByRole("button", { name: "Import 0 applications" })).toBeDisabled();
@@ -83,7 +83,7 @@ test("import a funder's grant history from Awards", async ({ app: page }) => {
   await page.getByRole("button", { name: "Check the rows" }).click();
   await expect(page.getByRole("table", { name: "Amounts by year" })).toContainText("Paid (recorded as paid elsewhere)");
   await page.getByRole("button", { name: "Import 1 award" }).click();
-  await expect(page.getByText("1 award imported")).toBeVisible();
+  await expect(shown(page, "1 award imported")).toBeVisible();
   await page.getByRole("link", { name: "Open Awards" }).click();
   await expect(rail(page, "Awards")).toHaveAttribute("aria-current", "page");
 });

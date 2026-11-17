@@ -745,7 +745,17 @@ model EligibilityRuleResult {
 
   outcome: TriState;
   actual?: unknown;
+
+  /** The result in an English sentence. */
   explain: string;
+
+  /**
+   * Why `explain` reads as it does, so a client can word it in its reader's language: the funder's
+   * own template (`custom`), a Passport-only fact for an organization without Passport, a rule met
+   * on what the organization entered itself, a fact not available, a value that cannot be compared,
+   * met, not met, or the outcome alone (another organization's record).
+   */
+  because?: "custom" | "passport_only" | "self_reported" | "unavailable" | "incomparable" | "met" | "not_met" | "outcome_only";
 
   /** The rule read a fact the applicant entered itself (no Passport record), not a verified one. */
   selfReported?: boolean;
@@ -1002,7 +1012,16 @@ model MemberNotification {
 
   type: string;
   category: NotificationCategory;
+
+  /** What happened, in English. */
   title: string;
+
+  /**
+   * The same title in the reader's language (the request's `gms_lang` cookie or Accept-Language),
+   * present only when that is not English.
+   */
+  titleLocalized?: string;
+
   subjectType: string | null;
   subjectId: string | null;
   message: string | null;
@@ -2238,6 +2257,18 @@ model MyWorkspace {
   verification: Verification;
 }
 
+/** A language the GMS speaks. */
+enum Locale {
+  en,
+  es,
+}
+
+/** A person's own preferences. */
+model Preferences {
+  /** The language of the interface and of the person's emails; null clears it (the browser's language, English for emails). */
+  locale: Locale | null;
+}
+
 /** The signed-in person and the workspaces they can open. */
 model Me {
   /** The same switches as `GET /gms/config` */
@@ -2251,6 +2282,9 @@ model Me {
 
   /** How this session was started. */
   signInMethod?: "passport" | "email";
+
+  /** The language the person chose for the interface and their emails (docs/i18n.md); null when they never chose. */
+  locale?: Locale | null;
 
   /** Whether this session has passed a second step: this app's authenticator, or Passport's (claimed after a Passport sign-in). */
   mfaVerified: boolean;

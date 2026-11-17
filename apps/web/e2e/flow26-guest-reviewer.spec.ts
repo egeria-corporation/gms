@@ -6,7 +6,7 @@
 // once to run a review panel for their own organization: dismissed, it stays gone; taken, it
 // creates a funder workspace through funder setup with their email domain as a suggestion.
 import type { Page } from "@playwright/test";
-import { expect, start, test } from "./helpers.ts";
+import { expect, shown, start, test } from "./helpers.ts";
 
 async function signOut(page: Page) {
   await start(page, "/workspaces");
@@ -39,7 +39,7 @@ test("a guest reviewer is welcomed and starts reviewing", async ({ app: page }) 
     const coi = page.getByRole("note", { name: "Conflicts of interest" });
     await expect(coi).toContainText("you step aside from it and it never opens for you");
     await expect(coi.getByRole("link", { name: "Read and confirm the conflict-of-interest steps" })).toHaveAttribute("href", "/review/assignments?ws=riverbend&sign=1");
-    await expect(page.getByText(/Organization name|Set up your funder workspace/)).toHaveCount(0);
+    await expect(shown(page, /Organization name|Set up your funder workspace/)).toHaveCount(0);
   });
 
   await test.step("Start reviewing opens the reviewer portal", async () => {
@@ -52,7 +52,7 @@ test("the done screen offers a panel once, and a dismissal sticks", async ({ app
   await signOut(page);
   await acceptAsNewcomer(page, "gms_inv_mock_guest_done");
   await expect(page).toHaveURL(/\/review\/welcome\?ws=cascade-county$/);
-  await expect(page.getByText("All 2 reviews submitted")).toBeVisible();
+  await expect(shown(page, "All 2 reviews submitted")).toBeVisible();
 
   await test.step("thanks, and the offer", async () => {
     await page.getByRole("link", { name: "See what’s next" }).click();
@@ -62,7 +62,7 @@ test("the done screen offers a panel once, and a dismissal sticks", async ({ app
     const offer = page.getByRole("region", { name: "Run a review panel for your own organization, free" });
     await expect(offer).toBeVisible();
     await offer.getByRole("button", { name: "Not now" }).click();
-    await expect(page.getByText("Got it. We won’t show this again.")).toBeVisible();
+    await expect(shown(page, "Got it. We won’t show this again.")).toBeVisible();
     await expect(offer).toBeHidden();
   });
 

@@ -6,7 +6,7 @@ import { downloadBlob } from "../../lib/browser.ts";
 import { useState } from "react";
 import { ChartColumn, Download, FileSpreadsheet, TriangleExclamationPoint, Upload } from "lucide-react";
 import { Link } from "react-router";
-import { VerificationBadge } from "../../components/status.tsx";
+import { STATUS, VerificationBadge, statusLook } from "../../components/status.tsx";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { CsvImportResult, CycleReport, Portfolio } from "../../api/funderMoney.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
@@ -15,21 +15,39 @@ import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, Tabs, TabP
 import { PortfolioExtras } from "./AnalyticsExtras.tsx";
 import { formatMinor } from "../../lib/format.ts";
 import { dateTime } from "./shared.tsx";
+import { t, useFunderMessages } from "./i18n.ts";
 
 type Tab = "portfolio" | "cycle" | "exports";
 const pct = (part: number, whole: number) => (whole > 0 ? `${Math.min(100, Math.round((part / whole) * 1000) / 10)}%` : "0%");
 const words = (key: string) => key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
-const TARGETS: { key: string; label: string; required?: boolean }[] = [
-  { key: "recipientName", label: "Recipient name", required: true },
-  { key: "title", label: "Award title", required: true },
-  { key: "awardedAmount", label: "Awarded amount", required: true },
-  { key: "recipientEin", label: "Recipient EIN" },
-  { key: "startDate", label: "Period start" },
-  { key: "endDate", label: "Period end" },
-  { key: "status", label: "Status" },
+const TARGETS: { key: string; readonly label: string; required?: boolean }[] = [
+  { key: "recipientName", get label() { return t("funderAnalytics.target.recipientName"); }, required: true },
+  { key: "title", get label() { return t("funderAnalytics.target.title"); }, required: true },
+  { key: "awardedAmount", get label() { return t("funderAnalytics.target.awardedAmount"); }, required: true },
+  { key: "recipientEin", get label() { return t("funderAnalytics.target.recipientEin"); } },
+  { key: "startDate", get label() { return t("funderAnalytics.target.startDate"); } },
+  { key: "endDate", get label() { return t("funderAnalytics.target.endDate"); } },
+  { key: "status", get label() { return t("funderAnalytics.target.status"); } },
 ];
 
-function Counts({ title, counts }: { title: string; counts: Record<string, unknown> }) {
+/** A count's name: an application or report status, a payment bucket, or the words of its key. */
+const applicationCount = (k: string) => (k in STATUS.application ? statusLook("application", k).label : words(k));
+const reportCount = (k: string) => (k in STATUS.requirement ? statusLook("requirement", k).label : words(k));
+const PAYMENT_COUNT: Record<string, () => string> = {
+  due: () => t("funderAnalytics.payment.due"),
+  held: () => t("funderAnalytics.payment.held"),
+  inFlight: () => t("funderAnalytics.payment.inFlight"),
+  settled: () => t("funderAnalytics.payment.settled"),
+};
+const paymentCount = (k: string) => PAYMENT_COUNT[k]?.() ?? words(k);
+const ELIGIBILITY_COUNT: Record<string, () => string> = {
+  true: () => t("funderAnalytics.eligibility.eligible"),
+  false: () => t("funderAnalytics.eligibility.notEligible"),
+  unknown: () => t("funderAnalytics.eligibility.unknown"),
+};
+const asWritten = (k: string) => k;
+
+function Counts({ title, counts, name = words }: { title: string; counts: Record<string, unknown>; name?: (key: string) => string }) {
   const rows = Object.entries(counts).filter((e): e is [string, number] => typeof e[1] === "number");
   const max = Math.max(1, ...rows.map(([, n]) => n));
   return (
@@ -40,14 +58,14 @@ function Counts({ title, counts }: { title: string; counts: Record<string, unkno
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         {rows.map(([k, n]) => (
           <div className="bar-h" key={k}>
-            <span>{words(k)}</span>
-            <div className="trk" role="img" aria-label={`${words(k)}: ${n}`}>
+            <span>{name(k)}</span>
+            <div className="trk" role="img" aria-label={t("funderAnalytics.countOf", { label: name(k), n })}>
               <div className="f1" style={{ width: pct(n, max) }} />
             </div>
             <span className="num b">{n}</span>
           </div>
         ))}
-        {!rows.length && <span className="muted small">Nothing to count yet.</span>}
+        {!rows.length && <span className="muted small">{t("funderAnalytics.nothingToCountYet")}</span>}
       </div>
     </section>
   );
@@ -59,28 +77,28 @@ function PortfolioPanel({ data }: { data: Portfolio }) {
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "16px" }}>
         <div className="stat">
-          <span className="stat-l">Budget</span>
+          <span className="stat-l">{t("funderAnalytics.budget")}</span>
           <span className="stat-v">{formatMinor(data.totals.budgetMinor)}</span>
         </div>
         <div className="stat">
-          <span className="stat-l">Committed</span>
+          <span className="stat-l">{t("funderAnalytics.committed")}</span>
           <span className="stat-v">{formatMinor(data.totals.committedMinor)}</span>
-          <span className="stat-d">{data.totals.awards} awards</span>
+          <span className="stat-d">{t("funderAnalytics.awards", { awards: data.totals.awards })}</span>
         </div>
         <div className="stat">
-          <span className="stat-l">Paid</span>
+          <span className="stat-l">{t("funderAnalytics.paid")}</span>
           <span className="stat-v">{formatMinor(data.totals.paidMinor)}</span>
-          <span className="stat-d">{data.paidAsOf ? `Read from Passport ${dateTime(data.paidAsOf)}` : "Not read from Passport yet"}</span>
+          <span className="stat-d">{data.paidAsOf ? t("funderAnalytics.readFromPassport", { dateTime: dateTime(data.paidAsOf) }) : t("funderAnalytics.notReadFromPassport")}</span>
         </div>
         <div className="stat">
-          <span className="stat-l">Committed, not yet paid</span>
+          <span className="stat-l">{t("funderAnalytics.committedNotYetPaid")}</span>
           <span className="stat-v">{formatMinor(data.totals.committedMinor - data.totals.paidMinor)}</span>
         </div>
       </div>
       <section className="card" aria-labelledby="by-program-h">
         <div className="card-h">
           <h2 id="by-program-h" style={{ fontSize: "16px" }}>
-            Committed vs paid by program
+            {t("funderAnalytics.committedVsPaidBy")}
           </h2>
         </div>
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -92,29 +110,29 @@ function PortfolioPanel({ data }: { data: Portfolio }) {
                   {over && <TriangleExclamationPoint className="ic" aria-hidden="true" />}
                   {p.name}
                 </span>
-                <div className="trk" role="img" aria-label={`${p.name}: ${formatMinor(p.paidMinor)} paid, ${formatMinor(p.committedNotPaidMinor)} committed and not yet paid${p.budgetMinor !== null ? `, of a ${formatMinor(p.budgetMinor)} budget` : ""}`} style={over ? { outline: "2px solid #C53030", outlineOffset: "1px" } : undefined}>
+                <div className="trk" role="img" aria-label={p.budgetMinor !== null ? t("funderAnalytics.paidCommittedOfBudget", { name: p.name, paid: formatMinor(p.paidMinor), committed: formatMinor(p.committedNotPaidMinor), budget: formatMinor(p.budgetMinor) }) : t("funderAnalytics.paidCommitted", { name: p.name, paid: formatMinor(p.paidMinor), committed: formatMinor(p.committedNotPaidMinor) })} style={over ? { outline: "2px solid #C53030", outlineOffset: "1px" } : undefined}>
                   <div className="f1" style={{ width: pct(p.paidMinor, scale) }} />
                   <div className="f2" style={{ width: pct(p.committedNotPaidMinor, scale) }} />
                 </div>
-                <span className={`num ${over ? "var-neg b" : ""}`}>{over ? `+${formatMinor(p.overBudgetMinor)} over` : `${formatMinor(p.committedMinor)}${p.budgetMinor !== null ? ` / ${formatMinor(p.budgetMinor)}` : ""}`}</span>
+                <span className={`num ${over ? "var-neg b" : ""}`}>{over ? t("funderAnalytics.over", { amount: formatMinor(p.overBudgetMinor) }) : `${formatMinor(p.committedMinor)}${p.budgetMinor !== null ? ` / ${formatMinor(p.budgetMinor)}` : ""}`}</span>
               </div>
             );
           })}
-          {!data.programs.length && <span className="muted">No programs yet.</span>}
+          {!data.programs.length && <span className="muted">{t("funderAnalytics.noProgramsYet")}</span>}
           <div className="row small muted" style={{ gap: "16px" }}>
             <span className="row">
-              <span style={{ width: "10px", height: "10px", background: "var(--og-teal-dark)", display: "inline-block" }} aria-hidden="true" /> Paid
+              <span style={{ width: "10px", height: "10px", background: "var(--og-teal-dark)", display: "inline-block" }} aria-hidden="true" /> {t("funderAnalytics.paid")}
             </span>
             <span className="row">
-              <span style={{ width: "10px", height: "10px", background: "var(--og-teal-light)", display: "inline-block" }} aria-hidden="true" /> Committed, not yet paid
+              <span style={{ width: "10px", height: "10px", background: "var(--og-teal-light)", display: "inline-block" }} aria-hidden="true" /> {t("funderAnalytics.committedNotYetPaid")}
             </span>
           </div>
         </div>
       </section>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "16px" }}>
-        <Counts title="Applications" counts={data.applications} />
-        <Counts title="Reporting" counts={data.reporting} />
-        <Counts title="Payments" counts={data.payments} />
+        <Counts title={t("funderAnalytics.applications")} counts={data.applications} name={applicationCount} />
+        <Counts title={t("funderAnalytics.reporting")} counts={data.reporting} name={reportCount} />
+        <Counts title={t("funderAnalytics.payments")} counts={data.payments} name={paymentCount} />
       </div>
     </div>
   );
@@ -122,37 +140,37 @@ function PortfolioPanel({ data }: { data: Portfolio }) {
 
 function CyclePanel({ competitionId }: { competitionId: string }) {
   const report = useApiQuery((api) => api.cycleReport(competitionId), [competitionId]);
-  if (report.status === "loading") return <Loading label="Loading the cycle" />;
+  if (report.status === "loading") return <Loading label={t("funderAnalytics.loadingTheCycle")} />;
   if (report.status === "error") return <ErrorBanner error={report.error} onRetry={report.reload} />;
   const c: CycleReport = report.data;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "16px" }}>
         <div className="stat">
-          <span className="stat-l">Started</span>
+          <span className="stat-l">{t("funderAnalytics.started")}</span>
           <span className="stat-v">{c.started}</span>
         </div>
         <div className="stat">
-          <span className="stat-l">Submitted</span>
+          <span className="stat-l">{t("funderAnalytics.submitted")}</span>
           <span className="stat-v">{c.submitted}</span>
-          <span className="stat-d">{c.submitRate === null ? "—" : `${Math.round(c.submitRate * 100)}% of started`}</span>
+          <span className="stat-d">{c.submitRate === null ? "—" : t("funderAnalytics.ofStarted", { round: Math.round(c.submitRate * 100) })}</span>
         </div>
         <div className="stat">
-          <span className="stat-l">Requested / awarded</span>
+          <span className="stat-l">{t("funderAnalytics.requestedAwarded")}</span>
           <span className="stat-v" style={{ fontSize: "20px" }}>
             {formatMinor(c.requestedMinor)} / {formatMinor(c.awardedMinor)}
           </span>
         </div>
         <div className="stat">
-          <span className="stat-l">Median days to decision</span>
+          <span className="stat-l">{t("funderAnalytics.medianDaysToDecision")}</span>
           <span className="stat-v">{c.medianDaysToDecision ?? "—"}</span>
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px" }}>
-        <Counts title="By stage" counts={Object.fromEntries(c.stages.map((s) => [s.label, s.applications]))} />
-        <Counts title="By status" counts={c.byStatus} />
-        <Counts title="Eligibility result" counts={{ Eligible: c.eligibility.true ?? 0, "Not eligible": c.eligibility.false ?? 0, Unknown: c.eligibility.unknown ?? 0 }} />
-        <Counts title="Passport level at submission" counts={c.byLevel} />
+        <Counts title={t("funderAnalytics.byStage")} counts={Object.fromEntries(c.stages.map((s) => [s.label, s.applications]))} name={asWritten} />
+        <Counts title={t("funderAnalytics.byStatus")} counts={c.byStatus} name={applicationCount} />
+        <Counts title={t("funderAnalytics.eligibilityResult")} counts={{ true: c.eligibility.true ?? 0, false: c.eligibility.false ?? 0, unknown: c.eligibility.unknown ?? 0 }} name={(k) => ELIGIBILITY_COUNT[k]!()} />
+        <Counts title={t("funderAnalytics.passportLevelAtSubmission")} counts={c.byLevel} name={asWritten} />
       </div>
     </div>
   );
@@ -167,7 +185,7 @@ function ImportPanel() {
     .map((c) => c.trim())
     .filter(Boolean);
   const run = useApiMutation((api, dryRun: boolean) => api.importAwardsCsv({ csv, mapping, dryRun }));
-  const ready = columns.length > 0 && TARGETS.filter((t) => t.required).every((t) => mapping[t.key]);
+  const ready = columns.length > 0 && TARGETS.filter((item) => item.required).every((item) => mapping[item.key]);
   const go = async (dryRun: boolean) => {
     const out = await run.run(dryRun);
     if (out) setResult(out);
@@ -176,13 +194,13 @@ function ImportPanel() {
     <section className="card" aria-labelledby="import-h">
       <div className="card-h">
         <div>
-          <h3 id="import-h">Import awards from a CSV</h3>
-          <p className="small muted">For bringing history from another system. Map each column, run a dry run, then import.</p>
+          <h3 id="import-h">{t("funderAnalytics.importAwardsFromA")}</h3>
+          <p className="small muted">{t("funderAnalytics.forBringingHistoryFrom")}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         {run.error !== null && <ErrorBanner error={run.error} />}
-        <Field id="import-file" label="CSV file" help="The first row must hold the column names. Do not include bank or identity details.">
+        <Field id="import-file" label={t("funderAnalytics.csvFile")} help={t("funderAnalytics.theFirstRowMust")}>
           <input
             className="inp"
             id="import-file"
@@ -196,7 +214,7 @@ function ImportPanel() {
             }}
           />
         </Field>
-        <Field id="import-text" label="Or paste CSV text">
+        <Field id="import-text" label={t("funderAnalytics.orPasteCsvText")}>
           <textarea
             className="ta mono"
             id="import-text"
@@ -208,39 +226,39 @@ function ImportPanel() {
           />
         </Field>
         {columns.length > 0 && (
-          <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Column mapping, scrollable">
-            <table className="tbl" aria-label="Column mapping">
+          <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("funderAnalytics.columnMappingScrollable")}>
+            <table className="tbl" aria-label={t("funderAnalytics.columnMapping")}>
               <thead>
                 <tr>
-                  <th>GMS field</th>
-                  <th>CSV column</th>
+                  <th>{t("funderAnalytics.gmsField")}</th>
+                  <th>{t("funderAnalytics.csvColumn")}</th>
                 </tr>
               </thead>
               <tbody>
-                {TARGETS.map((t) => (
-                  <tr key={t.key}>
+                {TARGETS.map((targetRow) => (
+                  <tr key={targetRow.key}>
                     <td>
-                      <label htmlFor={`map-${t.key}`}>
-                        {t.label}
-                        {t.required && <span className="req"> *</span>}
+                      <label htmlFor={`map-${targetRow.key}`}>
+                        {targetRow.label}
+                        {targetRow.required && <span className="req"> *</span>}
                       </label>
                     </td>
                     <td>
                       <select
                         className="sel"
-                        id={`map-${t.key}`}
-                        value={mapping[t.key] ?? ""}
+                        id={`map-${targetRow.key}`}
+                        value={mapping[targetRow.key] ?? ""}
                         onChange={(e) =>
                           setMapping((m) => {
                             const next = { ...m };
-                            if (e.target.value) next[t.key] = e.target.value;
-                            else delete next[t.key];
+                            if (e.target.value) next[targetRow.key] = e.target.value;
+                            else delete next[targetRow.key];
                             return next;
                           })
                         }
                         style={{ height: "30px", maxWidth: "280px" }}
                       >
-                        <option value="">Not mapped</option>
+                        <option value="">{t("funderAnalytics.notMapped")}</option>
                         {columns.map((c) => (
                           <option key={c} value={c}>
                             {c}
@@ -255,21 +273,22 @@ function ImportPanel() {
           </div>
         )}
         {result && (
-          <Notice tone={result.failed ? "warn" : "ok"} title={result.dryRun ? `Dry run: ${result.rows - result.failed} of ${result.rows} rows would import` : `Imported ${result.created} of ${result.rows} rows`}>
-            {result.failed > 0 && `${result.failed} rows have problems (first: row ${result.results.find((r) => !r.ok)?.row}, ${result.results.find((r) => !r.ok)?.error}). `}
-            {result.unmatchedRecipients > 0 && `${result.unmatchedRecipients} recipients are not on the GMS yet and would be imported by name only.`}
+          <Notice tone={result.failed ? "warn" : "ok"} title={result.dryRun ? t("funderAnalytics.dryRunOfRows", { ok: result.rows - result.failed, total: result.rows }) : t("funderAnalytics.importedOfRows", { created: result.created, total: result.rows })}>
+            {result.failed > 0 && t("funderAnalytics.rowsHaveProblemsFirst", { failed: result.failed, row: String(result.results.find((r) => !r.ok)?.row ?? ""), error: result.results.find((r) => !r.ok)?.error })}
+            {result.failed > 0 && result.unmatchedRecipients > 0 && " "}
+            {result.unmatchedRecipients > 0 && t("funderAnalytics.recipientsAreNotOn", { count: result.unmatchedRecipients })}
           </Notice>
         )}
       </div>
       <div className="card-f">
         <button type="button" className="btn btn-secondary" disabled={!ready || run.state === "saving"} onClick={() => go(true)}>
-          Dry run
+          {t("funderAnalytics.dryRun")}
         </button>
         <button type="button" className="btn btn-primary" disabled={!ready || !result?.dryRun || run.state === "saving"} onClick={() => go(false)}>
           <Upload className="ic" aria-hidden="true" />
-          Import
+          {t("funderAnalytics.import")}
         </button>
-        {!result?.dryRun && <span className="help">Run a dry run first.</span>}
+        {!result?.dryRun && <span className="help">{t("funderAnalytics.runADryRun")}</span>}
       </div>
     </section>
   );
@@ -288,17 +307,17 @@ function ExportsPanel() {
       <section className="card" aria-labelledby="pf-h">
         <div className="card-h">
           <div>
-            <h3 id="pf-h">990-PF Part XV grant list</h3>
-            <p className="small muted">Grants paid during the year and approved for future payment. Paid amounts are the figures last read from Passport.</p>
+            <h3 id="pf-h">{t("funderAnalytics.n990PfPartXv")}</h3>
+            <p className="small muted">{t("funderAnalytics.grantsPaidDuringThe")}</p>
           </div>
           <div className="row">
             <label className="lbl" htmlFor="pf-year">
-              Year
+              {t("funderAnalytics.year")}
             </label>
             <input className="inp" id="pf-year" inputMode="numeric" value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, "").slice(0, 4))} style={{ width: "88px" }} />
             <button type="button" className="btn btn-secondary" disabled={year.length !== 4 || csv.state === "saving"} onClick={() => csv.run()}>
               <Download className="ic" aria-hidden="true" />
-              Download CSV
+              {t("funderAnalytics.downloadCsv")}
             </button>
           </div>
         </div>
@@ -312,7 +331,7 @@ function ExportsPanel() {
             <div className="bnr bnr-warn" role="note">
               <TriangleExclamationPoint className="ic" aria-hidden="true" />
               <div>
-                <div className="t">Check before filing</div>
+                <div className="t">{t("funderAnalytics.checkBeforeFiling")}</div>
                 {list.data.warnings.map((w) => (
                   <div key={w} className="d">
                     {w}
@@ -323,14 +342,14 @@ function ExportsPanel() {
           </div>
         ) : null}
         {list.data && (
-          <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="990-PF grant list, scrollable">
-            <table className="tbl" aria-label="990-PF grant list">
+          <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label={t("funderAnalytics.n990PfGrantList")}>
+            <table className="tbl" aria-label={t("funderAnalytics.n990PfGrantList2")}>
               <thead>
                 <tr>
-                  <th>Recipient</th>
-                  <th>Purpose</th>
-                  <th className="num">Paid</th>
-                  <th className="num">Approved for future payment</th>
+                  <th>{t("funderAnalytics.recipient")}</th>
+                  <th>{t("funderAnalytics.purpose")}</th>
+                  <th className="num">{t("funderAnalytics.paid")}</th>
+                  <th className="num">{t("funderAnalytics.approvedForFuturePayment")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -350,7 +369,7 @@ function ExportsPanel() {
                 {!list.data.items.length && (
                   <tr>
                     <td colSpan={4} className="muted">
-                      No awards for {year}.
+                      {t("funderAnalytics.noAwardsFor", { year })}
                     </td>
                   </tr>
                 )}
@@ -358,7 +377,7 @@ function ExportsPanel() {
               <tfoot>
                 <tr>
                   <td colSpan={2} className="b">
-                    Total
+                    {t("funderAnalytics.total")}
                   </td>
                   <td className="num b">{formatMinor(list.data.totals.paidMinor)}</td>
                   <td className="num b">{formatMinor(list.data.totals.approvedForFuturePaymentMinor)}</td>
@@ -371,12 +390,12 @@ function ExportsPanel() {
       <section className="card" aria-labelledby="bundle-h">
         <div className="card-h">
           <div>
-            <h3 id="bundle-h">Export everything</h3>
-            <p className="small muted">A CommonGrants JSON bundle (opportunities, competitions, forms, applications, awards) plus the GMS records and an attachments manifest.</p>
+            <h3 id="bundle-h">{t("funderAnalytics.exportEverything")}</h3>
+            <p className="small muted">{t("funderAnalytics.aCommongrantsJsonBundle")}</p>
           </div>
           <button type="button" className="btn btn-secondary" disabled={bundle.state === "saving"} onClick={() => bundle.run()}>
             <Download className="ic" aria-hidden="true" />
-            Export bundle
+            {t("funderAnalytics.exportBundle")}
           </button>
         </div>
         {bundle.error !== null && (
@@ -386,8 +405,8 @@ function ExportsPanel() {
         )}
         {bundle.state === "saved" && (
           <div className="card-b">
-            <Notice tone="ok" title="Export written">
-              The bundle was written to this workspace’s exports. Files are listed in the ledger.
+            <Notice tone="ok" title={t("funderAnalytics.exportWritten")}>
+              {t("funderAnalytics.theBundleWasWritten")}
             </Notice>
           </div>
         )}
@@ -398,6 +417,7 @@ function ExportsPanel() {
 }
 
 export default function Analytics() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const base = `/w/${ws.handle}`;
   const [tab, setTab] = useState<Tab>("portfolio");
@@ -411,23 +431,23 @@ export default function Analytics() {
 
   return (
     <>
-      <title>{`Analytics — ${ws.name}`}</title>
+      <title>{t("funderAnalytics.analytics", { name: ws.name })}</title>
       <FunderShell active="Analytics">
         <main className="main">
-          <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Analytics" }]} title="Analytics" meta={page.data ? <span>As of {dateTime(page.data.portfolio.asOf)}</span> : undefined} actions={<Link className="btn btn-secondary" to={`${base}/report-builder`}><FileSpreadsheet className="ic" aria-hidden="true" /> Report builder</Link>} />
-          {page.status === "loading" && <Loading label="Loading analytics" />}
+          <PageHeader crumbs={[{ label: ws.name, to: base }, { label: t("funderAnalytics.analytics2") }]} title={t("funderAnalytics.analytics2")} meta={page.data ? <span>{t("funderAnalytics.asOf", { dateTime: dateTime(page.data.portfolio.asOf) })}</span> : undefined} actions={<Link className="btn btn-secondary" to={`${base}/report-builder`}><FileSpreadsheet className="ic" aria-hidden="true" /> {t("funderAnalytics.reportBuilder")}</Link>} />
+          {page.status === "loading" && <Loading label={t("funderAnalytics.loadingAnalytics")} />}
           {page.status === "error" && <ErrorBanner error={page.error} onRetry={page.reload} />}
           {page.data && (
             <>
               <Tabs
-                label="Analytics views"
+                label={t("funderAnalytics.analyticsViews")}
                 idPrefix="analytics"
                 active={tab}
                 onChange={setTab}
                 tabs={[
-                  { key: "portfolio", label: "Portfolio" },
-                  { key: "cycle", label: "Cycle" },
-                  { key: "exports", label: "Exports & import" },
+                  { key: "portfolio", label: t("funderAnalytics.portfolio") },
+                  { key: "cycle", label: t("funderAnalytics.cycle") },
+                  { key: "exports", label: t("funderAnalytics.exportsImport") },
                 ]}
               />
               <TabPanel idPrefix="analytics" tab="portfolio" active={tab}>
@@ -437,15 +457,15 @@ export default function Analytics() {
               <TabPanel idPrefix="analytics" tab="cycle" active={tab}>
                 {!current ? (
                   <div className="card">
-                    <EmptyState icon={ChartColumn} title="No competitions yet">
-                      Cycle metrics appear once a competition has applications.
+                    <EmptyState icon={ChartColumn} title={t("funderAnalytics.noCompetitionsYet")}>
+                      {t("funderAnalytics.cycleMetricsAppearOnce")}
                     </EmptyState>
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                     <div className="row">
                       <label className="lbl" htmlFor="cycle-pick">
-                        Competition
+                        {t("funderAnalytics.competition")}
                       </label>
                       <select className="sel" id="cycle-pick" value={current} onChange={(e) => setCompetitionId(e.target.value)} style={{ maxWidth: "360px" }}>
                         {competitions.map((c) => (

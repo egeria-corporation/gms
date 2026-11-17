@@ -3,6 +3,7 @@
 // delivery, Passport sync, the Mercury poll and the nightly ledger archive. The jobs Worker
 // imports this module (`@gms/api/jobs`) and calls these functions from its cron and queue
 // handlers, so scheduled work runs through the same services, machines and ledger as requests.
+import { DEFAULT_LOCALE, type Locale } from "@gms/i18n";
 import { archiveDay, GENESIS_HASH, type ArchiveBucket } from "@gms/ledger";
 import { PassportApiError } from "@gms/passport-client";
 import { evaluateDue } from "@gms/payments";
@@ -16,7 +17,7 @@ import { audit, changeStatus, systemContext, type BaseContext, type ServiceConte
 import { pollOrgChanges } from "./services/grantees.ts";
 import { mailMembers } from "./services/member-mail.ts";
 import { OUTSIDE_REMINDABLE, OUTSIDE_ROLES } from "./services/outside.ts";
-import { VAULT_TYPE_LABEL, type VaultType } from "./services/vault.ts";
+import { vaultTypeLabel } from "./services/vault.ts";
 import { processInbound } from "./services/inbound.ts";
 import { syncBank } from "./services/integrations.ts";
 import { passportClientFor } from "./services/passport-link.ts";
@@ -33,6 +34,8 @@ export { OUTSIDE_REMINDABLE } from "./services/outside.ts";
 export { sendDigests } from "./services/member-mail.ts";
 export { CONTENT_DIGEST_SCHEDULE, sendContentDigests } from "./services/content-digests.ts";
 export { SupabaseUserDirectory } from "./services/ports.ts";
+// A person's language for the emails jobs send (docs/i18n.md): wire `preferences` into the jobs' ports.
+export { MemoryPreferences, SupabasePreferences, recipientLocale, recipientLocales, type PreferencesPort } from "./services/preferences.ts";
 export { SupabaseRepos } from "./services/repos/supabase.ts";
 export { MemoryRepos } from "./services/repos/memory.ts";
 export { RestOpenGrantsClient, R2FileStorage } from "./services/ports.ts";
@@ -249,8 +252,8 @@ export async function sendOutsideReminders(base: BaseContext): Promise<{ checked
     const open = questions.filter((q) => q.status !== "approved");
     const people = [...new Set([row.owner_user_id, ...open.map((q) => q.assignee_user_id)].filter((x): x is string => !!x))];
     if (!people.length) return;
-    const mail = outsideDeadlineEmail({ organization: ws.legal_name ?? ws.display_name, title: row.title, funder: row.funder_name, kind, dueOn: date, daysLeft: days, openQuestions: open.length, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${row.id}` });
-    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_deadline", subject: mail.subject, text: mail.text, html: mail.html, userIds: people, roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_DEADLINE_TEMPLATE}:${row.id}:${kind}:${date}:${days}` });
+    const mail = (locale: Locale = DEFAULT_LOCALE) => outsideDeadlineEmail({ locale, organization: ws.legal_name ?? ws.display_name, title: row.title, funder: row.funder_name, kind, dueOn: date, daysLeft: days, openQuestions: open.length, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${row.id}` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_deadline", ...mail(), localized: mail, userIds: people, roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_DEADLINE_TEMPLATE}:${row.id}:${kind}:${date}:${days}` });
     reminded++;
     sent += out.sent;
   });
@@ -277,8 +280,9 @@ export async function sendDocumentExpiryWarnings(base: BaseContext): Promise<{ c
   const failed = await each(due, async ({ doc, days }) => {
     const ws = await base.repos.table("workspaces").one({ id: doc.workspace_id });
     if (!ws || ws.kind !== "applicant" || !doc.expires_on) return;
-    const mail = documentExpiringEmail({ organization: ws.legal_name ?? ws.display_name, documentName: doc.name, typeLabel: VAULT_TYPE_LABEL[doc.doc_type as VaultType] ?? "Document", expiresOn: doc.expires_on, daysLeft: days, link: `${base.config.webBaseUrl}/w/${ws.handle}/organization/documents` });
-    const out = await mailMembers(base, { workspaceId: ws.id, category: "document_expiring", subject: mail.subject, text: mail.text, html: mail.html, roles: ["admin", "editor"], always: true, idempotencyKey: `${DOCUMENT_EXPIRING_TEMPLATE}:${doc.id}:${doc.expires_on}:${days}` });
+    const expiresOn = doc.expires_on;
+    const mail = (locale: Locale = DEFAULT_LOCALE) => documentExpiringEmail({ locale, organization: ws.legal_name ?? ws.display_name, documentName: doc.name, typeLabel: vaultTypeLabel(doc.doc_type, locale), expiresOn, daysLeft: days, link: `${base.config.webBaseUrl}/w/${ws.handle}/organization/documents` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "document_expiring", ...mail(), localized: mail, roles: ["admin", "editor"], always: true, idempotencyKey: `${DOCUMENT_EXPIRING_TEMPLATE}:${doc.id}:${doc.expires_on}:${days}` });
     warned++;
     sent += out.sent;
   });
@@ -336,8 +340,8 @@ export async function sendObligationReminders(base: BaseContext): Promise<{ made
     const questions = o.kind === "report" ? await base.repos.table("outside_questions").find({ workspace_id: o.workspace_id, obligation_id: o.id }) : [];
     const people = [...new Set([award.owner_user_id, ...questions.filter((q) => q.status !== "approved").map((q) => q.assignee_user_id)].filter((x): x is string => !!x))];
     if (!people.length) return;
-    const mail = outsideObligationEmail({ organization: ws.legal_name ?? ws.display_name, title: award.title, funder: award.funder_name, obligationTitle: o.title, kind: o.kind as "report" | "condition", dueOn: o.due_on!, daysLeft: days, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${award.id}` });
-    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_obligation_due", subject: mail.subject, text: mail.text, html: mail.html, userIds: people, roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_OBLIGATION_TEMPLATE}:${o.id}:${o.due_on}:${days}` });
+    const mail = (locale: Locale = DEFAULT_LOCALE) => outsideObligationEmail({ locale, organization: ws.legal_name ?? ws.display_name, title: award.title, funder: award.funder_name, obligationTitle: o.title, kind: o.kind as "report" | "condition", dueOn: o.due_on!, daysLeft: days, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${award.id}` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_obligation_due", ...mail(), localized: mail, userIds: people, roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_OBLIGATION_TEMPLATE}:${o.id}:${o.due_on}:${days}` });
     reminded++;
     sent += out.sent;
   });
@@ -357,8 +361,9 @@ export async function sendNextCycleReminders(base: BaseContext): Promise<{ check
   const failed = await each(rows, async (row) => {
     const ws = await base.repos.table("workspaces").one({ id: row.workspace_id });
     if (!ws || ws.kind !== "applicant" || !row.owner_user_id || !row.next_cycle_on) return;
-    const mail = outsideNextCycleEmail({ organization: ws.legal_name ?? ws.display_name, title: row.title, funder: row.funder_name, programName: row.program_name, nextCycleOn: row.next_cycle_on, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${row.id}` });
-    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_next_cycle", subject: mail.subject, text: mail.text, html: mail.html, userIds: [row.owner_user_id], roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_NEXT_CYCLE_TEMPLATE}:${row.id}:${row.next_cycle_on}` });
+    const nextCycleOn = row.next_cycle_on;
+    const mail = (locale: Locale = DEFAULT_LOCALE) => outsideNextCycleEmail({ locale, organization: ws.legal_name ?? ws.display_name, title: row.title, funder: row.funder_name, programName: row.program_name, nextCycleOn, link: `${base.config.webBaseUrl}/w/${ws.handle}/outside/${row.id}` });
+    const out = await mailMembers(base, { workspaceId: ws.id, category: "outside_next_cycle", ...mail(), localized: mail, userIds: [row.owner_user_id], roles: OUTSIDE_ROLES, always: true, idempotencyKey: `${OUTSIDE_NEXT_CYCLE_TEMPLATE}:${row.id}:${row.next_cycle_on}` });
     reminded++;
     sent += out.sent;
   });

@@ -4,6 +4,7 @@
 // fixture rows). A definition only ever names column keys of its data set.
 import type { Aggregate, Cell, ColumnInfo, DataSet, DataSetKey, Definition, Filter, OutColumn, ReportResult } from "../api/reports.ts";
 import { formatDate, formatMinor } from "./format.ts";
+import { intlLocale } from "../i18n/current.ts";
 
 export const PREVIEW_ROWS = 200;
 export const CSV_MAX_ROWS = 50_000;
@@ -39,7 +40,7 @@ export function displayCell(column: OutColumn, value: Cell, currency?: string | 
   if (value === null || value === "") return "—";
   if (column.type === "money" && typeof value === "number") return formatMinor(value, currency && /^[A-Z]{3}$/.test(currency) ? currency : "USD");
   if (column.type === "date" && typeof value === "string") return formatDate(value);
-  if (column.type === "number" && typeof value === "number") return value.toLocaleString("en-US");
+  if (column.type === "number" && typeof value === "number") return value.toLocaleString(intlLocale());
   return String(value);
 }
 

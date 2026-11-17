@@ -13,6 +13,9 @@ import { timeAgo } from "../../components/applicant.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
 import { DigestSettings } from "./digestSettings.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
 const ICON: Record<MemberNotification["category"], { icon: LucideIcon; cls: string }> = {
   application: { icon: FileText, cls: "av-t" },
   decision: { icon: Star, cls: "av-t" },
@@ -89,20 +92,20 @@ function Group({ ws, filter, onCount }: { ws: MeWorkspace; filter: Filter; onCou
           <h2 id={headingId} style={{ fontSize: "15px" }}>
             {ws.name}
           </h2>
-          <span className="role">{ws.kind === "funder" ? "Funder" : "Applicant"}</span>
+          <span className="role">{ws.kind === "funder" ? t("notifications.funder") : t("notifications.applicant")}</span>
         </div>
         <div className="row" style={{ gap: "10px" }}>
-          {list && <span className="muted small">{list.unread > 0 ? `${list.unread} new` : "All read"}</span>}
+          {list && <span className="muted small">{list.unread > 0 ? t("notifications.new", { unread: list.unread }) : t("notifications.allRead")}</span>}
           {list && list.unread > 0 && (
-            <button className="btn btn-sm btn-secondary" type="button" aria-label={`Mark all read in ${ws.name}`} onClick={() => void markAll(list)}>
-              Mark all read
+            <button className="btn btn-sm btn-secondary" type="button" aria-label={t("notifications.markAllReadIn", { name: ws.name })} onClick={() => void markAll(list)}>
+              {t("notifications.markAllRead")}
             </button>
           )}
         </div>
       </div>
       {query.status === "loading" && (
         <div style={{ padding: "0 20px" }}>
-          <Loading label="Loading notifications" />
+          <Loading label={t("notifications.loadingNotifications")} />
         </div>
       )}
       {query.status === "error" && (
@@ -112,10 +115,10 @@ function Group({ ws, filter, onCount }: { ws: MeWorkspace; filter: Filter; onCou
       )}
       {markError !== null && (
         <div style={{ padding: "16px 20px 0" }}>
-          <ErrorBanner error={markError} title="Could not mark as read" />
+          <ErrorBanner error={markError} title={t("notifications.couldNotMarkAsRead")} />
         </div>
       )}
-      {list && items.length === 0 && <p className="small muted" style={{ padding: "16px 20px" }}>{filter === "unread" ? "Nothing unread here." : "Nothing has happened here yet."}</p>}
+      {list && items.length === 0 && <p className="small muted" style={{ padding: "16px 20px" }}>{filter === "unread" ? t("notifications.nothingUnreadHere") : t("notifications.nothingHasHappenedHereYet")}</p>}
       {list && items.length > 0 && (
         <ul>
           {items.map((n) => {
@@ -129,7 +132,7 @@ function Group({ ws, filter, onCount }: { ws: MeWorkspace; filter: Filter; onCou
                 <div style={{ minWidth: "0" }}>
                   <div>
                     <Link to={hrefFor(n, ws)} className="b" onClick={() => !n.read && void markOne(list, n.id)}>
-                      {n.title}
+                      {n.titleLocalized ?? n.title}
                     </Link>
                     {n.message ? <span> {n.message}</span> : null}
                   </div>
@@ -137,12 +140,12 @@ function Group({ ws, filter, onCount }: { ws: MeWorkspace; filter: Filter; onCou
                     <span>{timeAgo(n.at)}</span>
                     <span aria-hidden="true">·</span>
                     <span style={{ textTransform: "capitalize" }}>{n.category}</span>
-                    {!n.read && <span className="tag">Unread</span>}
+                    {!n.read && <span className="tag">{t("notifications.unread")}</span>}
                   </div>
                 </div>
                 {!n.read ? (
-                  <button className="btn btn-sm btn-ghost" type="button" aria-label={`Mark read: ${n.title}`} onClick={() => void markOne(list, n.id)}>
-                    Mark read
+                  <button className="btn btn-sm btn-ghost" type="button" aria-label={t("notifications.markRead", { title: n.titleLocalized ?? n.title })} onClick={() => void markOne(list, n.id)}>
+                    {t("notifications.markRead2")}
                   </button>
                 ) : (
                   <span />
@@ -164,40 +167,40 @@ export default function Notifications() {
   const onCount = (id: string, n: number) => setCounts((prev) => (prev[id] === n ? prev : { ...prev, [id]: n }));
   return (
     <>
-      <title>Notifications — OpenGrants GMS</title>
+      <title>{t("notifications.notificationsOpengrantsGms")}</title>
       <AccountShell active="notifications">
         <div className="ph">
           <div>
             <div className="title">
-              <h1>Notifications</h1>
+              <h1>{t("notifications.notifications")}</h1>
               <span className="bdg bdg-info" role="status">
                 <Bell className="ic" aria-hidden="true" />
-                {unread} unread
+                {t("notifications.unread2", { unread })}
               </span>
             </div>
             <div className="meta">
-              <span>Grouped by workspace. Each one opens the record it refers to.</span>
+              <span>{t("notifications.groupedByWorkspaceEachOne")}</span>
               <span aria-hidden="true">·</span>
-              <span>Choose what reaches you in each workspace's settings.</span>
+              <span>{t("notifications.chooseWhatReachesYouIn")}</span>
             </div>
           </div>
           <div className="actions">
-            <div className="seg" role="group" aria-label="Filter">
+            <div className="seg" role="group" aria-label={t("notifications.filter")}>
               <button type="button" className={filter === "all" ? "on" : undefined} aria-pressed={filter === "all"} onClick={() => setFilter("all")}>
-                All
+                {t("notifications.all")}
               </button>
               <button type="button" className={filter === "unread" ? "on" : undefined} aria-pressed={filter === "unread"} onClick={() => setFilter("unread")}>
-                Unread
+                {t("notifications.unread")}
               </button>
             </div>
           </div>
         </div>
-        {meState.status === "loading" && <Loading label="Loading your workspaces" />}
+        {meState.status === "loading" && <Loading label={t("notifications.loadingYourWorkspaces")} />}
         {meState.status === "error" && <ErrorBanner error={meState.error} onRetry={reloadMe} />}
         {meState.status === "ready" && meState.me.workspaces.length === 0 && (
           <div className="card">
-            <EmptyState icon={Bell} title="No workspaces yet" actions={<Link to="/workspaces" className="btn btn-primary">Open workspaces</Link>}>
-              Notifications appear once you belong to a funder or applicant workspace.
+            <EmptyState icon={Bell} title={t("notifications.noWorkspacesYet")} actions={<Link to="/workspaces" className="btn btn-primary">{t("notifications.openWorkspaces")}</Link>}>
+              {t("notifications.notificationsAppearOnceYouBelong")}
             </EmptyState>
           </div>
         )}
@@ -209,8 +212,8 @@ export default function Notifications() {
               ))}
               {meState.me.workspaces.length > 0 && unread === 0 && filter === "unread" ? (
                 <div className="card">
-                  <EmptyState icon={Bell} title="You’re caught up">
-                    Nothing unread in any workspace.
+                  <EmptyState icon={Bell} title={t("notifications.youReCaughtUp")}>
+                    {t("notifications.nothingUnreadInAnyWorkspace")}
                   </EmptyState>
                 </div>
               ) : null}

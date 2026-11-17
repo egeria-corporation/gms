@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { MemoryRepos, type BaseContext } from "@gms/api/jobs";
+import { MemoryRepos, SupabasePreferences, type BaseContext } from "@gms/api/jobs";
 import { MemoryLedgerStore } from "@gms/ledger";
 import { MemoryWebhookStore } from "@gms/webhooks";
 import { readFileSync } from "node:fs";
@@ -64,6 +64,12 @@ describe("jobs worker", () => {
       expect(out, name).toBeTypeOf("object");
     }
     expect(await runJob("ledger-archive", b, {})).toEqual({ skipped: "LEDGER_ARCHIVE is not bound" });
+  });
+
+  it("reads each person's language from the database, so scheduled emails are written in it", () => {
+    const b = baseFor({ GMS_BASE_URL: "https://gms.test", WEB_BASE_URL: "https://app.gms.test", SUPABASE_URL: "https://db.gms.test", SUPABASE_SERVICE_ROLE_KEY: "test-only-not-a-key" });
+    expect(b?.ports.preferences).toBeInstanceOf(SupabasePreferences);
+    expect(b?.ports.directory).toBeDefined();
   });
 
   it("is a no-op, not a crash, when the database is not configured", async () => {

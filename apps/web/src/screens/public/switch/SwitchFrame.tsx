@@ -4,8 +4,12 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import { ChevronDown, ExternalLink } from "lucide-react";
-import { TRADEMARK_NOTE } from "../../../content/switch.ts";
+import { switchText } from "../../../content/switch.ts";
 
+import { translator } from "../../../i18n/index.tsx";
+
+import { LanguageSwitcher } from "../../../components/LanguageSwitcher.tsx";
+const t = translator("public");
 export function SwitchFrame({ title, children }: { title: string; children: ReactNode }) {
   return (
     <>
@@ -17,12 +21,12 @@ export function SwitchFrame({ title, children }: { title: string; children: Reac
               <img src="/brand/opengrants-logo-black.png" alt="OpenGrants" />
               <span className="suffix">GMS</span>
             </Link>
-            <nav aria-label="Switching" className="landing-tools">
+            <nav aria-label={t("switchFrame.switching")} className="landing-tools">
               <Link to="/switch" className="btn btn-ghost">
-                All systems
+                {t("switchFrame.allSystems")}
               </Link>
               <Link to="/signin?as=funder" className="btn btn-secondary">
-                Sign in
+                {t("switchFrame.signIn")}
               </Link>
             </nav>
           </div>
@@ -31,25 +35,27 @@ export function SwitchFrame({ title, children }: { title: string; children: Reac
         <footer className="pub-foot" style={{ marginTop: "auto" }}>
           <div className="wrap-c" style={{ flexDirection: "column", alignItems: "flex-start", gap: "12px" }}>
             <p data-testid="switch-note" style={{ margin: 0 }}>
-              {TRADEMARK_NOTE} Write to{" "}
-              <a href="mailto:hello@agents.opengrants.io">hello@agents.opengrants.io</a>.
+              {t.rich("switchFrame.writeToHelloAgentsOpengrants", { TRADEMARK_NOTE: switchText().trademarkNote, link: (chunks) => <a href="mailto:hello@agents.opengrants.io">{chunks}</a> })}
             </p>
             <div style={{ display: "flex", gap: "18px", flexWrap: "wrap", width: "100%", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "20px", height: "20px" }} />
-                <span>OpenGrants GMS · gms.opengrants.io</span>
+                <span>{t("switchFrame.opengrantsGmsGmsOpengrantsIo")}</span>
               </div>
               <div style={{ display: "flex", gap: "18px", flexWrap: "wrap" }}>
-                <Link to="/">Home</Link>
-                <Link to="/switch">Switching</Link>
+                <Link to="/">{t("switchFrame.home")}</Link>
+                <Link to="/switch">{t("switchFrame.switching")}</Link>
                 <a href="https://commongrants.org">
                   CommonGrants <ExternalLink className="ic ic-sm" aria-hidden="true" />
                 </a>
                 <a href="https://github.com/egeria-corporation/gms">
-                  Source (AGPL) <ExternalLink className="ic ic-sm" aria-hidden="true" />
+                  {t("switchFrame.sourceAgpl")} <ExternalLink className="ic ic-sm" aria-hidden="true" />
                 </a>
               </div>
             </div>
+          </div>
+          <div className="wrap-c lang-row">
+            <LanguageSwitcher />
           </div>
         </footer>
       </div>
@@ -62,7 +68,7 @@ export function SourceLink({ label, url }: { label: string; url: string }) {
   return (
     <a href={url} rel="noopener noreferrer external" target="_blank">
       {label} <ExternalLink className="ic ic-sm" aria-hidden="true" />
-      <span className="sr"> (opens in a new tab)</span>
+      <span className="sr"> {t("switchFrame.opensInANewTab")}</span>
     </a>
   );
 }

@@ -39,12 +39,23 @@ export interface RuleContext {
   applicant?: { type?: string } & Record<string, unknown>;
 }
 
+/**
+ * Why a result's `explain` reads as it does, so a reader can word it in their own language (the
+ * sentence itself is English): the funder's own template (`custom`, kept as written), a fact only
+ * Passport supplies for an organization without Passport, a rule met on what the organization
+ * entered itself, a fact not available, a value that cannot be compared, met, not met, or (set by a
+ * caller that withholds what was found) the outcome alone.
+ */
+export const BECAUSE = ["custom", "passport_only", "self_reported", "unavailable", "incomparable", "met", "not_met", "outcome_only"] as const;
+export type Because = (typeof BECAUSE)[number];
+
 export interface RuleResult {
   rule: LeafRule;
   label: string;
   outcome: Outcome;
   actual: unknown;
   explain: string;
+  because: Because;
   /** The rule read a fact the applicant reported about itself, not one Passport verified. */
   selfReported?: true;
 }

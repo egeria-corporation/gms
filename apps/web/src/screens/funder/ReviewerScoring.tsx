@@ -2,7 +2,7 @@
 // Reviewer portal — scoring one assignment. The application shows in reviewer mode (fields the
 // funder hid from reviewers are absent; personal fields are masked for external reviewers), beside
 // a score card built from the stage's rubric. Scores save as a draft and lock on submit.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Check, EyeOff, Lock } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
@@ -13,6 +13,8 @@ import { ErrorBanner, Loading, Notice, problemsOf } from "../../components/ui.ts
 import { ResponseCard } from "./ApplicationDetail.tsx";
 import { ASSIGNMENT_LOOK, ReviewerFrame, assignmentName, usePortal } from "./ReviewerAssignments.tsx";
 import { AiSummaryPanel } from "./ApplicationPanels.tsx";
+import { formatDateAs } from "../../lib/format.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
 type ScoreValue = number | string;
 interface Entry {
@@ -33,7 +35,7 @@ function ScoreCard({ c, entry, onChange, readOnly, error }: { c: RubricCriterion
           <h3 id={`${id}-h`}>{c.label}</h3>
           {(c.guidance ?? c.description) && <div className="guide">{c.guidance ?? c.description}</div>}
         </div>
-        <span className="w">Weight {c.weight}</span>
+        <span className="w">{t("reviewerScoring.weight", { weight: c.weight })}</span>
       </div>
       {c.scale.type === "numeric" ? (
         <div className="scale">
@@ -41,7 +43,7 @@ function ScoreCard({ c, entry, onChange, readOnly, error }: { c: RubricCriterion
           <input
             className={error ? "inp v err" : "inp v"}
             type="number"
-            aria-label={`${c.label} score, ${c.scale.min} to ${c.scale.max}`}
+            aria-label={t("reviewerScoring.scoreTo", { label: c.label, min: c.scale.min, max: c.scale.max })}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? `${id}-err` : undefined}
             min={c.scale.min}
@@ -62,10 +64,10 @@ function ScoreCard({ c, entry, onChange, readOnly, error }: { c: RubricCriterion
       )}
       {error && (
         <span className="err-msg" id={`${id}-err`}>
-          Score this criterion before submitting
+          {t("reviewerScoring.scoreThisCriterionBefore")}
         </span>
       )}
-      <textarea className="ta" style={{ minHeight: "64px" }} aria-label={`Comment on ${c.label}`} placeholder="Comment (optional)" value={entry.comment ?? ""} readOnly={readOnly} onChange={(e) => onChange({ ...entry, comment: e.target.value })} />
+      <textarea className="ta" style={{ minHeight: "64px" }} aria-label={t("reviewerScoring.commentOn", { label: c.label })} placeholder={t("reviewerScoring.commentOptional")} value={entry.comment ?? ""} readOnly={readOnly} onChange={(e) => onChange({ ...entry, comment: e.target.value })} />
     </div>
   );
 }
@@ -96,17 +98,31 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
     return api.updateAssignment(assignmentId, patch);
   });
 
+  // What the reviewer has changed on this assignment. The saved review fills the form only where
+  // they have not: the assignment can arrive, or arrive again, after their first keystroke, and
+  // filling the whole form then threw away what they had typed.
+  const touched = useRef(new Set<string>());
+  const edit = (field: string) => touched.current.add(field);
+  useEffect(() => {
+    touched.current.clear();
+  }, [assignmentId]);
+
   useEffect(() => {
     const d: ReviewAssignmentDetail | undefined = detail.data;
     if (!d) return;
-    setEntries(Object.fromEntries(Object.entries(d.myReview?.scores ?? {}).map(([k, v]) => [k, entryOf(v)])));
-    setNarrative(d.myReview?.narrative ?? "");
-    setRecommendation(d.myReview?.recommendation ?? "");
-    setVisibility(d.myReview?.visibility ?? "panel");
+    const saved = Object.fromEntries(Object.entries(d.myReview?.scores ?? {}).map(([k, v]) => [k, entryOf(v)]));
+    setEntries((now) => {
+      const next: Record<string, Entry> = { ...saved };
+      for (const [key, entry] of Object.entries(now)) if (touched.current.has(`score:${key}`)) next[key] = entry;
+      return next;
+    });
+    if (!touched.current.has("narrative")) setNarrative(d.myReview?.narrative ?? "");
+    if (!touched.current.has("recommendation")) setRecommendation(d.myReview?.recommendation ?? "");
+    if (!touched.current.has("visibility")) setVisibility(d.myReview?.visibility ?? "panel");
   }, [detail.data]);
 
-  if (detail.status === "loading") return <Loading label="Loading the application" />;
-  if (detail.status === "error") return <ErrorBanner error={detail.error} onRetry={detail.reload} title="This assignment could not be opened" />;
+  if (detail.status === "loading") return <Loading label={t("reviewerScoring.loadingTheApplication")} />;
+  if (detail.status === "error") return <ErrorBanner error={detail.error} onRetry={detail.reload} title={t("reviewerScoring.thisAssignmentCouldNot")} />;
   const d = detail.data;
   const app = d.application as InboxApplication | null;
   const criteria = d.rubric.criteria as RubricCriterion[];
@@ -123,7 +139,7 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
       <div className="ph">
         <div>
           <div className="crumbs">
-            <Link to="/review/assignments">My assignments</Link>
+            <Link to="/review/assignments">{t("reviewerScoring.myAssignments")}</Link>
             <span>›</span>
             <span>{assignmentName(d)}</span>
           </div>
@@ -138,29 +154,29 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
             <span>{d.anonymized ? d.applicationTitle : app?.applicant.name}</span>
             <span>·</span>
             <span>
-              {d.rubric.name} v{d.rubric.version}
+              {t("reviewerScoring.rubricVersion", { name: d.rubric.name, version: d.rubric.version })}
             </span>
             {d.dueAt && (
               <>
                 <span>·</span>
-                <span>Due {new Date(d.dueAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}</span>
+                <span>{t("reviewerScoring.due", { date: formatDateAs(d.dueAt, "short") })}</span>
               </>
             )}
           </div>
         </div>
       </div>
       {needsCoi && (
-        <Notice tone="warn" title="Declare any conflict of interest first">
-          Go back to <Link to="/review/assignments">My assignments</Link> and open this application from there.
+        <Notice tone="warn" title={t("reviewerScoring.declareAnyConflictOf")}>
+          {t.rich("reviewerScoring.goBackToMy", { link: (chunks) => <Link to="/review/assignments">{chunks}</Link> })}
         </Notice>
       )}
       {d.anonymized && (
-        <Notice tone="neu" title="Anonymized review">
-          You do not see who applied. The organization&rsquo;s name, website and identifying answers are hidden, its name in an answer shows as [applicant], and attachments carry neutral names.
+        <Notice tone="neu" title={t("reviewerScoring.anonymizedReview")}>
+          {t("reviewerScoring.youDoNotSee")}
         </Notice>
       )}
-      {!own && <Notice tone="info" title="You are viewing another reviewer’s assignment">Only the assigned reviewer can score it.</Notice>}
-      {d.status === "recused" && <Notice tone="neu" title="Recused">This application is not shown to a recused reviewer.</Notice>}
+      {!own && <Notice tone="info" title={t("reviewerScoring.youAreViewingAnother")}>{t("reviewerScoring.onlyTheAssignedReviewer")}</Notice>}
+      {d.status === "recused" && <Notice tone="neu" title={t("reviewerScoring.recused")}>{t("reviewerScoring.thisApplicationIsNot")}</Notice>}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.25fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
         <div className="col" style={{ gap: "16px" }}>
@@ -168,53 +184,53 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
           {app && !app.organization && (
             <span className="masked">
               <EyeOff className="ic ic-sm" aria-hidden="true" />
-              Applicant contact details are hidden
+              {t("reviewerScoring.applicantContactDetailsAre")}
             </span>
           )}
           {(app?.formResponses ?? []).map((r) => (
             <ResponseCard key={`${r.formId}:${r.formVersion}`} r={r} mode="reviewer" external={!app?.organization} />
           ))}
         </div>
-        <aside className="col" style={{ gap: "12px" }} aria-label="Score card">
+        <aside className="col" style={{ gap: "12px" }} aria-label={t("reviewerScoring.scoreCard")}>
           <div className="row" style={{ justifyContent: "space-between" }}>
-            <h2 style={{ fontSize: "16px" }}>Score card</h2>
+            <h2 style={{ fontSize: "16px" }}>{t("reviewerScoring.scoreCard")}</h2>
             <span className="small muted">
-              {scored} of {criteria.length} scored
+              {t("reviewerScoring.ofScored", { scored, count: criteria.length })}
             </span>
           </div>
           {criteria.map((c) => (
-            <ScoreCard key={c.key} c={c} entry={entries[c.key] ?? {}} readOnly={readOnly || needsCoi} error={missing.includes(c.key)} onChange={(e) => setEntries((all) => ({ ...all, [c.key]: e }))} />
+            <ScoreCard key={c.key} c={c} entry={entries[c.key] ?? {}} readOnly={readOnly || needsCoi} error={missing.includes(c.key)} onChange={(e) => { edit(`score:${c.key}`); setEntries((all) => ({ ...all, [c.key]: e })); }} />
           ))}
           <div className="score">
             <div className="hd">
               <div>
-                <h3 id="rec-h">Overall recommendation</h3>
-                <div className="guide">The panel sees your recommendation beside your weighted score{d.review?.overall !== null && d.review?.overall !== undefined ? ` (currently ${d.review.overall.toFixed(1)} of 100)` : ""}.</div>
+                <h3 id="rec-h">{t("reviewerScoring.overallRecommendation")}</h3>
+                <div className="guide">{d.review?.overall !== null && d.review?.overall !== undefined ? t("reviewerScoring.panelSeesCurrently", { overall: d.review.overall.toFixed(1) }) : t("reviewerScoring.panelSees")}</div>
               </div>
             </div>
             {recommendations.length > 0 && (
               <div className="scale-cat" role="radiogroup" aria-labelledby="rec-h">
                 {recommendations.map((r) => (
-                  <button key={r} type="button" role="radio" aria-checked={recommendation === r} className={recommendation === r ? "on" : undefined} disabled={readOnly || needsCoi} onClick={() => setRecommendation(r)}>
+                  <button key={r} type="button" role="radio" aria-checked={recommendation === r} className={recommendation === r ? "on" : undefined} disabled={readOnly || needsCoi} onClick={() => { edit("recommendation"); setRecommendation(r); }}>
                     {r}
                   </button>
                 ))}
               </div>
             )}
             <label className="lbl" htmlFor="narr" style={{ marginTop: "4px" }}>
-              Narrative for the panel
+              {t("reviewerScoring.narrativeForThePanel")}
             </label>
-            <textarea className="ta" id="narr" value={narrative} readOnly={readOnly || needsCoi} onChange={(e) => setNarrative(e.target.value)} />
+            <textarea className="ta" id="narr" value={narrative} readOnly={readOnly || needsCoi} onChange={(e) => { edit("narrative"); setNarrative(e.target.value); }} />
             {/* .col spaces the two radios so each keeps a 24px target (WCAG 2.5.8). */}
             <fieldset className="col" style={{ border: 0, padding: 0, margin: "4px 0 0" }}>
-              <legend className="lbl">Who reads your narrative and comments</legend>
+              <legend className="lbl">{t("reviewerScoring.whoReadsYourNarrative")}</legend>
               <label className="radio">
-                <input type="radio" name="visibility" checked={visibility === "panel"} disabled={readOnly || needsCoi} onChange={() => setVisibility("panel")} />
-                <span>The panel</span>
+                <input type="radio" name="visibility" checked={visibility === "panel"} disabled={readOnly || needsCoi} onChange={() => { edit("visibility"); setVisibility("panel"); }} />
+                <span>{t("reviewerScoring.thePanel")}</span>
               </label>
               <label className="radio">
-                <input type="radio" name="visibility" checked={visibility === "funder_only"} disabled={readOnly || needsCoi} onChange={() => setVisibility("funder_only")} />
-                <span>Program staff only (left out of the board docket unless staff include it)</span>
+                <input type="radio" name="visibility" checked={visibility === "funder_only"} disabled={readOnly || needsCoi} onChange={() => { edit("visibility"); setVisibility("funder_only"); }} />
+                <span>{t("reviewerScoring.programStaffOnlyLeft")}</span>
               </label>
             </fieldset>
           </div>
@@ -224,24 +240,24 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
               {d.status === "submitted" ? (
                 <>
                   <Lock className="ic" aria-hidden="true" />
-                  Submitted. Your scores are locked.
+                  {t("reviewerScoring.submittedYourScoresAre")}
                 </>
               ) : savedAt ? (
                 <>
                   <Check className="ic" aria-hidden="true" style={{ color: "#0B5E47" }} />
-                  Draft saved
+                  {t("reviewerScoring.draftSaved")}
                 </>
               ) : (
-                "Submitting locks your scores until the panel opens."
+                t("reviewerScoring.submittingLocksYourScores")
               )}
             </span>
             {!readOnly && !needsCoi && (
               <div className="row">
                 <button type="button" className="btn btn-secondary" disabled={save.state === "saving"} onClick={async () => (await save.run("save")) && setSavedAt(new Date().toISOString())}>
-                  Save draft
+                  {t("reviewerScoring.saveDraft")}
                 </button>
                 <button type="button" className="btn btn-primary" disabled={save.state === "saving"} onClick={async () => (await save.run("submit")) && (await afterSubmit())}>
-                  Submit review
+                  {t("reviewerScoring.submitReview")}
                 </button>
               </div>
             )}
@@ -253,10 +269,11 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
 }
 
 export default function ReviewerScoring() {
+  useFunderMessages();
   // The route names the review assignment; the reviewer never needs the application's own id.
   const { appId = "" } = useParams();
   return (
-    <ReviewerFrame tab="scoring" title="Scoring">
+    <ReviewerFrame tab="scoring" title={t("reviewerScoring.scoring")}>
       <Scoring assignmentId={appId} />
     </ReviewerFrame>
   );

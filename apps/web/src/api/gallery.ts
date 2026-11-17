@@ -7,6 +7,7 @@
 // the same interface in the browser.
 import { ApiError } from "./client.ts";
 import type { components } from "./schema.d.ts";
+import { translate } from "../i18n/current.ts";
 
 type S = components["schemas"];
 export type GalleryKind = S["Models.GalleryKind"];
@@ -58,20 +59,20 @@ export interface GalleryApi {
   reject(submissionId: string, reason: string): Promise<GallerySubmission>;
 }
 
-/** What each kind is called on screen. */
+/** What each kind is called on screen, in the page's language (read each time; the public catalog loads with the gallery's screens). */
 export const KIND_LABEL: Record<GalleryKind, string> = {
-  application_form: "Application form",
-  report_form: "Report form",
-  rubric: "Rubric",
-  email_template: "Email template",
-  program_kit: "Program kit",
+  get application_form() { return translate("public", "gallery.kind.application_form"); },
+  get report_form() { return translate("public", "gallery.kind.report_form"); },
+  get rubric() { return translate("public", "gallery.kind.rubric"); },
+  get email_template() { return translate("public", "gallery.kind.email_template"); },
+  get program_kit() { return translate("public", "gallery.kind.program_kit"); },
 };
 export const KIND_PLURAL: Record<GalleryKind, string> = {
-  application_form: "Application forms",
-  report_form: "Report forms",
-  rubric: "Rubrics",
-  email_template: "Email templates",
-  program_kit: "Program kits",
+  get application_form() { return translate("public", "gallery.kinds.application_form"); },
+  get report_form() { return translate("public", "gallery.kinds.report_form"); },
+  get rubric() { return translate("public", "gallery.kinds.rubric"); },
+  get email_template() { return translate("public", "gallery.kinds.email_template"); },
+  get program_kit() { return translate("public", "gallery.kinds.program_kit"); },
 };
 export const GALLERY_KINDS = Object.keys(KIND_LABEL) as GalleryKind[];
 export const LICENCE = { code: "CC-BY-4.0", name: "CC BY 4.0", url: "https://creativecommons.org/licenses/by/4.0/" } as const;

@@ -19,6 +19,7 @@ import { ErrorBanner, Notice } from "../../../components/ui.tsx";
 import { formatDate } from "../../../lib/format.ts";
 import { countText } from "../../../lib/outside.ts";
 import { isStale, splitUnknowns, STALE_AFTER_MONTHS } from "../../../lib/writeKeep.ts";
+import { t } from "../i18n.ts";
 
 // ------------------------------------------------------------------------------------ freshness
 
@@ -26,16 +27,16 @@ import { isStale, splitUnknowns, STALE_AFTER_MONTHS } from "../../../lib/writeKe
 export function StaleBadge({ lastVerifiedAt, compact = false }: { lastVerifiedAt: string | null | undefined; compact?: boolean }) {
   if (isStale(lastVerifiedAt)) {
     return (
-      <span className="bdg bdg-warn" title={lastVerifiedAt ? `Last verified ${formatDate(lastVerifiedAt)}` : "Never verified"}>
+      <span className="bdg bdg-warn" title={lastVerifiedAt ? t("outsideWriteFaster.lastVerified", { date: formatDate(lastVerifiedAt) }) : t("outsideWriteFaster.neverVerified")}>
         <CalendarX className="ic" aria-hidden="true" />
-        {compact ? "Needs checking" : lastVerifiedAt ? `Needs checking · verified ${formatDate(lastVerifiedAt)}` : "Needs checking · never verified"}
+        {compact ? t("outsideWriteFaster.needsChecking") : lastVerifiedAt ? t("outsideWriteFaster.needsCheckingVerified", { date: formatDate(lastVerifiedAt) }) : t("outsideWriteFaster.needsCheckingNeverVerified")}
       </span>
     );
   }
   return (
     <span className="bdg bdg-ok">
       <CalendarCheck className="ic" aria-hidden="true" />
-      {compact ? "Verified" : `Verified ${formatDate(lastVerifiedAt)}`}
+      {compact ? t("outsideWriteFaster.verified") : t("outsideWriteFaster.verifiedOn", { date: formatDate(lastVerifiedAt) })}
     </span>
   );
 }
@@ -59,7 +60,7 @@ export function DraftText({ text }: { text: string }) {
   );
 }
 
-const quotaLine = (q: AssistStatus["quota"]) => (q && q.limit !== undefined ? `${Math.max(0, q.remaining ?? q.limit - (q.used ?? 0))} of ${q.limit} AI drafts left this month` : null);
+const quotaLine = (q: AssistStatus["quota"]) => (q && q.limit !== undefined ? t("outsideWriteFaster.quota", { left: Math.max(0, q.remaining ?? q.limit - (q.used ?? 0)), limit: q.limit }) : null);
 
 /**
  * Drafts an answer from the library and the organization's facts. Accept saves it as a new version
@@ -88,21 +89,21 @@ export function DraftPanel({
   const write = useWKMutation((api) => api.draftAnswer(question.id));
   const spent = quotaSpent(status.quota);
   const used = draft ? library.filter((a) => draft.usedAnswerIds.includes(a.id)) : [];
-  const titleOf = (id: string | null) => library.find((a) => a.id === id)?.title ?? "a library answer";
+  const titleOf = (id: string | null) => library.find((a) => a.id === id)?.title ?? t("outsideWriteFaster.aLibraryAnswer");
   const headId = `draft-${question.id}`;
   return (
     <section className="assist" aria-labelledby={headId}>
       <div className="hd">
         <Sparkles className="ic" aria-hidden="true" style={{ color: "var(--s-agent-fg)" }} />
-        <h3 id={headId}>AI draft</h3>
-        <span className="draft-mark">Draft — review before use</span>
+        <h3 id={headId}>{t("outsideWriteFaster.aiDraft")}</h3>
+        <span className="draft-mark">{t("outsideWriteFaster.draftReviewBeforeUse")}</span>
         {quotaLine(status.quota) && <span className="quota">{quotaLine(status.quota)}</span>}
-        <button className="iconbtn" type="button" aria-label="Close the AI draft" onClick={onClose} style={{ marginLeft: quotaLine(status.quota) ? undefined : "auto" }}>
+        <button className="iconbtn" type="button" aria-label={t("outsideWriteFaster.closeTheAiDraft")} onClick={onClose} style={{ marginLeft: quotaLine(status.quota) ? undefined : "auto" }}>
           <X className="ic" aria-hidden="true" />
         </button>
       </div>
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", fontSize: "14px" }}>
-        <p>The assistant writes from your answer library and your organization’s details only. It adds no facts of its own and leaves [brackets] where something is missing. Nothing is saved until you accept.</p>
+        <p>{t("outsideWriteFaster.theAssistantWritesFromYourAnswer")}</p>
         {!draft && (
           <button
             type="button"
@@ -116,22 +117,22 @@ export function DraftPanel({
             }}
           >
             <Sparkles className="ic" aria-hidden="true" />
-            {write.state === "saving" ? "Writing a draft…" : "Write a draft"}
+            {write.state === "saving" ? t("outsideWriteFaster.writingADraft") : t("outsideWriteFaster.writeADraft")}
           </button>
         )}
         {spent ? <QuotaSpentNote resetsAt={status.quota?.resetsAt} /> : null}
-        {write.error ? <ErrorBanner error={write.error} title="The assistant could not write a draft" /> : null}
+        {write.error ? <ErrorBanner error={write.error} title={t("outsideWriteFaster.theAssistantCouldNotWriteA")} /> : null}
         {draft && (
-          <div role="status" aria-label="The draft" style={{ border: "1px dashed var(--s-agent-fg)", borderRadius: "8px", padding: "10px 12px", background: "var(--s-agent-bg)", display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div role="status" aria-label={t("outsideWriteFaster.theDraft")} style={{ border: "1px dashed var(--s-agent-fg)", borderRadius: "8px", padding: "10px 12px", background: "var(--s-agent-bg)", display: "flex", flexDirection: "column", gap: "10px" }}>
             <DraftText text={draft.draft} />
             <span className="small muted">
-              {countText(draft.draft).words.toLocaleString("en-US")} words · {countText(draft.draft).chars.toLocaleString("en-US")} characters
-              {draft.overLimit ? " · still over the limit: shorten it before you accept" : ""}
+              {t("outsideWriteFaster.counts", { words: countText(draft.draft).words, chars: countText(draft.draft).chars })}
+              {draft.overLimit ? ` · ${t("outsideWriteFaster.overLimit")}` : ""}
             </span>
             <div className="small">
-              <span className="b">Drawn from: </span>
+              <span className="b">{t("outsideWriteFaster.drawnFrom")} </span>
               {used.length ? (
-                <ul aria-label="Library answers used" style={{ display: "inline-flex", gap: "8px", flexWrap: "wrap", listStyle: "none", padding: 0, margin: 0 }}>
+                <ul aria-label={t("outsideWriteFaster.libraryAnswersUsed")} style={{ display: "inline-flex", gap: "8px", flexWrap: "wrap", listStyle: "none", padding: 0, margin: 0 }}>
                   {used.map((a) => (
                     <li key={a.id} className="row" style={{ gap: "6px" }}>
                       <span className="prov prov-library">
@@ -143,21 +144,23 @@ export function DraftPanel({
                   ))}
                 </ul>
               ) : (
-                <span className="muted">your organization’s details only (no library answer matched)</span>
+                <span className="muted">{t("outsideWriteFaster.yourOrganizationsDetailsOnlyNoLibrary")}</span>
               )}
             </div>
             {draft.unknowns.length > 0 && (
               <div className="small">
-                <span className="b">Fill in before you use it: </span>
+                <span className="b">{t("outsideWriteFaster.fillInBeforeYouUseIt")} </span>
                 {draft.unknowns.map((u) => `[${u}]`).join(", ")}
               </div>
             )}
             {draft.staleFlags.length > 0 && (
-              <Notice tone="warn" title="Check these figures">
+              <Notice tone="warn" title={t("outsideWriteFaster.checkTheseFigures")}>
                 <ul style={{ margin: 0, paddingLeft: "18px" }}>
                   {draft.staleFlags.map((f, i) => (
                     <li key={i}>
-                      “{f.figure}” comes from {titleOf(f.answerId)}, {f.lastVerifiedAt ? `last verified ${formatDate(f.lastVerifiedAt)}` : "never verified"} (over {STALE_AFTER_MONTHS} months).
+                      {f.lastVerifiedAt
+                        ? t("outsideWriteFaster.staleFigure", { figure: f.figure, source: titleOf(f.answerId), date: formatDate(f.lastVerifiedAt), months: STALE_AFTER_MONTHS })
+                        : t("outsideWriteFaster.staleFigureNever", { figure: f.figure, source: titleOf(f.answerId), months: STALE_AFTER_MONTHS })}
                     </li>
                   ))}
                 </ul>
@@ -165,15 +168,15 @@ export function DraftPanel({
             )}
             <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
               <button type="button" className="btn btn-sm btn-primary" disabled={accepting} onClick={() => onAccept(draft.draft)}>
-                {accepting ? "Saving…" : "Accept the draft"}
+                {accepting ? t("outsideWriteFaster.saving") : t("outsideWriteFaster.acceptTheDraft")}
               </button>
               <button type="button" className="btn btn-sm btn-secondary" onClick={() => onEdit(draft.draft)}>
-                Edit before saving
+                {t("outsideWriteFaster.editBeforeSaving")}
               </button>
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDraft(null)}>
-                Discard
+                {t("outsideWriteFaster.discard")}
               </button>
-              <CopyButton value={draft.draft} what="the draft" label="Copy draft" className="btn btn-sm btn-ghost" />
+              <CopyButton value={draft.draft} what={t("outsideWriteFaster.theDraftLower")} label={t("outsideWriteFaster.copyDraft")} className="btn btn-sm btn-ghost" />
             </div>
           </div>
         )}
@@ -189,12 +192,12 @@ export function AiUseNote({ questions }: { questions: OutsideQuestion[] }) {
   const assisted = questions.map((q, i) => ({ q, n: i + 1 })).filter(({ q }) => q.answer?.provenance === "assist");
   if (!assisted.length) return null;
   return (
-    <div className="bnr bnr-agent" role="note" aria-label="AI use">
+    <div className="bnr bnr-agent" role="note" aria-label={t("outsideWriteFaster.aiUse")}>
       <Sparkles className="ic" aria-hidden="true" />
       <div>
-        <div className="t">AI use</div>
+        <div className="t">{t("outsideWriteFaster.aiUse")}</div>
         <div className="d">
-          The current answer{assisted.length === 1 ? " to question" : "s to questions"} {assisted.map((x) => x.n).join(", ")} {assisted.length === 1 ? "was" : "were"} drafted with AI from your own library and reviewed by your team. Some funders ask you to say so.
+          {t("outsideWriteFaster.aiUseBody", { count: assisted.length, list: assisted.map((x) => x.n).join(", ") })}
         </div>
       </div>
     </div>
@@ -207,15 +210,15 @@ export function CommentsPanel({ applicationId, question, n, members, readOnly }:
   const list = useWKQuery((api) => api.comments(applicationId, question.id), [applicationId, question.id]);
   const [body, setBody] = useState("");
   const add = useWKMutation((api, text: string) => api.addComment(question.id, text));
-  const nameOf = (id: string | null) => members.find((m) => m.userId === id)?.name ?? "A teammate";
+  const nameOf = (id: string | null) => members.find((m) => m.userId === id)?.name ?? t("outsideWriteFaster.aTeammate");
   return (
-    <section aria-label={`Comments on question ${n}`} style={{ borderTop: "1px solid var(--og-gray-100)", paddingTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
-      <Loaded query={list} label="Loading comments">
+    <section aria-label={t("outsideWriteFaster.commentsOnQuestion", { n })} style={{ borderTop: "1px solid var(--og-gray-100)", paddingTop: "10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+      <Loaded query={list} label={t("outsideWriteFaster.loadingComments")}>
         {(comments) =>
           comments.length === 0 ? (
-            <p className="small muted">No comments yet. Only your team sees them.</p>
+            <p className="small muted">{t("outsideWriteFaster.noCommentsYetOnlyYourTeam")}</p>
           ) : (
-            <ul aria-label="Comments" style={{ display: "flex", flexDirection: "column", gap: "6px", listStyle: "none", padding: 0, margin: 0 }}>
+            <ul aria-label={t("outsideWriteFaster.comments")} style={{ display: "flex", flexDirection: "column", gap: "6px", listStyle: "none", padding: 0, margin: 0 }}>
               {comments.map((c) => (
                 <li key={c.id} className="cmt">
                   <div className="hd">
@@ -244,16 +247,16 @@ export function CommentsPanel({ applicationId, question, n, members, readOnly }:
           }}
         >
           <label className="sr" htmlFor={`cmt-${question.id}`}>
-            Comment on question {n}
+            {t("outsideWriteFaster.commentOnQuestion", { n })}
           </label>
-          <textarea id={`cmt-${question.id}`} className="ta grow" style={{ minHeight: "40px" }} placeholder="Add a comment for your team" value={body} onChange={(e) => setBody(e.target.value)} />
+          <textarea id={`cmt-${question.id}`} className="ta grow" style={{ minHeight: "40px" }} placeholder={t("outsideWriteFaster.addACommentForYourTeam")} value={body} onChange={(e) => setBody(e.target.value)} />
           <button type="submit" className="btn btn-sm btn-secondary" disabled={!body.trim() || add.state === "saving"}>
             <Send className="ic" aria-hidden="true" />
-            {add.state === "saving" ? "Posting…" : "Post"}
+            {add.state === "saving" ? t("outsideWriteFaster.posting") : t("outsideWriteFaster.post")}
           </button>
         </form>
       )}
-      {add.error ? <ErrorBanner error={add.error} title="The comment was not posted" /> : null}
+      {add.error ? <ErrorBanner error={add.error} title={t("outsideWriteFaster.theCommentWasNotPosted")} /> : null}
     </section>
   );
 }
@@ -261,7 +264,7 @@ export function CommentsPanel({ applicationId, question, n, members, readOnly }:
 export const CommentsButton = ({ open, onToggle }: { open: boolean; onToggle: () => void }) => (
   <button type="button" className="btn btn-sm btn-ghost" aria-expanded={open} onClick={onToggle}>
     <MessageSquare className="ic" aria-hidden="true" />
-    Comments
+    {t("outsideWriteFaster.comments")}
   </button>
 );
 
@@ -278,11 +281,11 @@ export function ReuseDialog({ question, obligationId, onInsert, onClose, busy, e
       <div className="hd">
         <div>
           <h3 id="reuse-title" style={{ fontSize: "16px" }}>
-            Reuse from an earlier report
+            {t("outsideWriteFaster.reuseFromAnEarlierReport")}
           </h3>
           <p className="small muted">{question.prompt}</p>
         </div>
-        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+        <button className="iconbtn" type="button" aria-label={t("outsideWriteFaster.close")} onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
@@ -296,30 +299,30 @@ export function ReuseDialog({ question, obligationId, onInsert, onClose, busy, e
           }}
         >
           <label className="sr" htmlFor="reuse-q">
-            Search earlier report answers
+            {t("outsideWriteFaster.searchEarlierReportAnswers")}
           </label>
-          <input id="reuse-q" type="search" className="inp" placeholder="A word from the question or answer" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input id="reuse-q" type="search" className="inp" placeholder={t("outsideWriteFaster.aWordFromTheQuestionOr")} value={q} onChange={(e) => setQ(e.target.value)} />
           <button type="submit" className="btn btn-secondary">
-            Search
+            {t("outsideWriteFaster.search")}
           </button>
         </form>
-        <Loaded query={list} label="Loading earlier reports">
+        <Loaded query={list} label={t("outsideWriteFaster.loadingEarlierReports")}>
           {(rows) =>
             rows.length === 0 ? (
-              <p className="muted">No earlier report answers{search ? " match that" : " yet"}. Answers to other reports’ questions appear here.</p>
+              <p className="muted">{search ? t("outsideWriteFaster.noPriorMatch") : t("outsideWriteFaster.noPriorYet")}</p>
             ) : (
-              <ol aria-label="Earlier report answers" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <ol aria-label={t("outsideWriteFaster.earlierReportAnswers")} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {rows.map((r) => (
                   <li key={r.answerId} className="card" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "6px" }}>
                     <span className="small muted">
                       {[r.applicationTitle, r.funderName].filter(Boolean).join(" · ")}
                       {r.obligationTitle ? ` · ${r.obligationTitle}` : ""}
-                      {r.submittedAt ? ` · submitted ${formatDate(r.submittedAt)}` : ""}
+                      {r.submittedAt ? ` · ${t("outsideWriteFaster.submittedOn", { date: formatDate(r.submittedAt) })}` : ""}
                     </span>
                     <span className="b">{r.prompt}</span>
                     <p style={{ whiteSpace: "pre-wrap", fontSize: "14px" }}>{r.body}</p>
-                    <button type="button" className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }} disabled={busy} onClick={() => onInsert(r)} aria-label={`Use the answer to “${r.prompt}”`}>
-                      Use this answer
+                    <button type="button" className="btn btn-sm btn-secondary" style={{ alignSelf: "flex-start" }} disabled={busy} onClick={() => onInsert(r)} aria-label={t("outsideWriteFaster.useAnswerTo", { prompt: r.prompt })}>
+                      {t("outsideWriteFaster.useThisAnswer")}
                     </button>
                   </li>
                 ))}
@@ -327,7 +330,7 @@ export function ReuseDialog({ question, obligationId, onInsert, onClose, busy, e
             )
           }
         </Loaded>
-        {error ? <ErrorBanner error={error} title="The answer was not inserted" /> : null}
+        {error ? <ErrorBanner error={error} title={t("outsideWriteFaster.theAnswerWasNotInserted")} /> : null}
       </div>
     </Dialog>
   );

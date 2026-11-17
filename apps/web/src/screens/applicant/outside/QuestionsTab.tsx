@@ -23,30 +23,38 @@ import { StatusBadge } from "../../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Notice, SaveNote } from "../../../components/ui.tsx";
 import { quotaSpent, QuotaSpentNote } from "../../../components/launch.tsx";
 import { downloadBlob } from "../../../lib/browser.ts";
-import { countFor, countText, isOverLimit, LIMIT_UNITS, limitPhrase, type ParsedQuestion, type TextCounts } from "../../../lib/outside.ts";
+import { countFor, countText, isOverLimit, type ParsedQuestion, type TextCounts } from "../../../lib/outside.ts";
 import { bestVariant, canApprove as mayApprove, mergeRequired, variantChoices, type RequiredDocument } from "../../../lib/writeKeep.ts";
 import { InviteDialog, InviteOptions, InvitePicker, InviteSentNote, TeamNote, useDraftInvites } from "../inviteDraft.tsx";
 import { GuidelinesReader } from "./guidelines.tsx";
 import { orgFacts } from "./shared.tsx";
 import { AiUseNote, CommentsButton, CommentsPanel, DraftPanel, ReuseDialog, StaleBadge } from "./writeFaster.tsx";
+import { t } from "../i18n.ts";
+import { limitPhrase, variantLabel } from "../labels.ts";
 
-export const PHASE_LABELS: Record<QuestionPhase, string> = { loi: "Letter of inquiry", full: "Full application", report: "Report" };
-const STATUS_OPTIONS: { value: QuestionStatus; label: string }[] = [
-  { value: "empty", label: "Not started" },
-  { value: "draft", label: "Draft" },
-  { value: "ready", label: "Ready for review" },
-  { value: "approved", label: "Approved" },
+/** Each part's name, read in the page's language every time. */
+export const PHASE_LABELS: Record<QuestionPhase, string> = {
+  get loi() { return t("outsideQuestionsTab.phase.loi"); },
+  get full() { return t("outsideQuestionsTab.phase.full"); },
+  get report() { return t("outsideQuestionsTab.phase.report"); },
+};
+// Tables of labels are functions, so they follow the page's language (docs/i18n.md).
+const STATUS_OPTIONS = (): { value: QuestionStatus; label: string }[] => [
+  { value: "empty", label: t("outsideQuestionsTab.status.empty") },
+  { value: "draft", label: t("outsideQuestionsTab.status.draft") },
+  { value: "ready", label: t("outsideQuestionsTab.status.ready") },
+  { value: "approved", label: t("outsideQuestionsTab.status.approved") },
 ];
-const LIMIT_OPTIONS: { value: LimitKind | ""; label: string }[] = [
-  { value: "", label: "No limit" },
-  { value: "words", label: "Words" },
-  { value: "chars", label: "Characters" },
-  { value: "chars_no_spaces", label: "Characters without spaces" },
+const LIMIT_OPTIONS = (): { value: LimitKind | ""; label: string }[] => [
+  { value: "", label: t("labels.limit.none") },
+  { value: "words", label: t("outsideQuestionsTab.limitKind.words") },
+  { value: "chars", label: t("outsideQuestionsTab.limitKind.chars") },
+  { value: "chars_no_spaces", label: t("outsideQuestionsTab.limitKind.charsNoSpaces") },
 ];
 
 /** Every question and its latest answer as plain text, ready to paste into a funder's portal. */
 export function plainText(questions: OutsideQuestion[]): string {
-  return questions.map((q, i) => `${i + 1}. ${q.prompt}\n\n${q.answer?.body.trim() || "(no answer yet)"}`).join("\n\n");
+  return questions.map((q, i) => `${i + 1}. ${q.prompt}\n\n${q.answer?.body.trim() || t("outsideQuestionsTab.noAnswerYet")}`).join("\n\n");
 }
 
 // ------------------------------------------------------------------------------------ counters
@@ -54,30 +62,35 @@ export function plainText(questions: OutsideQuestion[]): string {
 /** Words, characters and characters without spaces. The funder's limit is highlighted; over it is said in words. */
 export function Counters({ counts, limitKind, limitValue, id }: { counts: TextCounts; limitKind: LimitKind | null; limitValue: number | null; id?: string }) {
   const over = isOverLimit(counts, limitKind, limitValue);
-  const item = (kind: LimitKind, n: number, unit: string) => {
+  const item = (kind: LimitKind, n: number) => {
     const active = kind === limitKind && !!limitValue;
+    const text =
+      kind === "words"
+        ? active ? t("outsideQuestionsTab.counter.wordsOf", { count: n, limit: limitValue! }) : t("outsideQuestionsTab.counter.words", { count: n })
+        : kind === "chars"
+          ? active ? t("outsideQuestionsTab.counter.charsOf", { count: n, limit: limitValue! }) : t("outsideQuestionsTab.counter.chars", { count: n })
+          : active ? t("outsideQuestionsTab.counter.noSpacesOf", { count: n, limit: limitValue! }) : t("outsideQuestionsTab.counter.noSpaces", { count: n });
     return (
       <span key={kind} className={active ? (over ? "counter over" : "counter b") : "counter"} data-active={active ? "true" : undefined} style={active ? { color: over ? undefined : "var(--og-navy-dark)" } : undefined}>
-        {n.toLocaleString("en-US")}
-        {active ? ` / ${limitValue!.toLocaleString("en-US")}` : ""} {unit}
+        {text}
       </span>
     );
   };
   return (
     <div className="row" id={id} style={{ gap: "14px", flexWrap: "wrap", justifyContent: "flex-end" }}>
-      {item("words", counts.words, "words")}
-      {item("chars", counts.chars, "characters")}
-      {item("chars_no_spaces", counts.charsNoSpaces, "without spaces")}
+      {item("words", counts.words)}
+      {item("chars", counts.chars)}
+      {item("chars_no_spaces", counts.charsNoSpaces)}
       <span role="status" aria-live="polite" className="row" style={{ gap: "6px" }}>
         {over && limitKind && limitValue ? (
           <span className="counter over row" style={{ gap: "4px" }}>
             <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
-            Over the limit by {(countFor(counts, limitKind) - limitValue).toLocaleString("en-US")} {LIMIT_UNITS[limitKind]}
+            {t("outsideQuestionsTab.overBy", { kind: limitKind, count: countFor(counts, limitKind) - limitValue })}
           </span>
         ) : limitKind && limitValue ? (
           <span className="counter row" style={{ gap: "4px", color: "var(--s-ok-fg)" }}>
             <CircleCheck className="ic ic-sm" aria-hidden="true" />
-            Within the limit
+            {t("outsideQuestionsTab.withinTheLimit")}
           </span>
         ) : null}
       </span>
@@ -97,22 +110,22 @@ function QuestionForm({ initial, onSave, onCancel, saving, submitLabel }: { init
   const [required, setRequired] = useState(initial?.required ?? true);
   const key = initial?.id ?? "new";
   const value = Number.parseInt(limitValue.replace(/,/g, ""), 10);
-  const limitError = limitKind && !(value > 0) ? "Enter the limit as a number" : null;
+  const limitError = limitKind && !(value > 0) ? t("outsideQuestionsTab.limitNumber") : null;
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() || limitError) return;
     onSave({ prompt: prompt.trim(), guidance: guidance.trim() || null, phase, section: section.trim() || null, limitKind: limitKind || null, limitValue: limitKind ? value : null, required });
   };
   return (
-    <form onSubmit={submit} className="card" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "12px" }} aria-label={initial ? "Edit question" : "New question"}>
-      <Field id={`qf-prompt-${key}`} label="Question" required>
+    <form onSubmit={submit} className="card" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "12px" }} aria-label={initial ? t("outsideQuestionsTab.editQuestion") : t("outsideQuestionsTab.newQuestion")}>
+      <Field id={`qf-prompt-${key}`} label={t("outsideQuestionsTab.question")} required>
         <textarea id={`qf-prompt-${key}`} className="ta" style={{ minHeight: "64px" }} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
       </Field>
-      <Field id={`qf-guidance-${key}`} label="Guidance" help="Anything the funder says about how to answer.">
+      <Field id={`qf-guidance-${key}`} label={t("outsideQuestionsTab.guidance")} help={t("outsideQuestionsTab.anythingTheFunderSaysAboutHow")}>
         <textarea id={`qf-guidance-${key}`} className="ta" style={{ minHeight: "48px" }} value={guidance} onChange={(e) => setGuidance(e.target.value)} />
       </Field>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "12px" }}>
-        <Field id={`qf-phase-${key}`} label="Part">
+        <Field id={`qf-phase-${key}`} label={t("outsideQuestionsTab.part")}>
           <select id={`qf-phase-${key}`} className="sel" value={phase} onChange={(e) => setPhase(e.target.value as QuestionPhase)}>
             {(Object.keys(PHASE_LABELS) as QuestionPhase[]).map((p) => (
               <option key={p} value={p}>
@@ -121,32 +134,32 @@ function QuestionForm({ initial, onSave, onCancel, saving, submitLabel }: { init
             ))}
           </select>
         </Field>
-        <Field id={`qf-section-${key}`} label="Section">
+        <Field id={`qf-section-${key}`} label={t("outsideQuestionsTab.section")}>
           <input id={`qf-section-${key}`} className="inp" value={section} onChange={(e) => setSection(e.target.value)} />
         </Field>
-        <Field id={`qf-limitkind-${key}`} label="Limit">
+        <Field id={`qf-limitkind-${key}`} label={t("outsideQuestionsTab.limit")}>
           <select id={`qf-limitkind-${key}`} className="sel" value={limitKind} onChange={(e) => setLimitKind(e.target.value as LimitKind | "")}>
-            {LIMIT_OPTIONS.map((o) => (
+            {LIMIT_OPTIONS().map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
           </select>
         </Field>
-        <Field id={`qf-limit-${key}`} label="Limit amount" error={limitError}>
+        <Field id={`qf-limit-${key}`} label={t("outsideQuestionsTab.limitAmount")} error={limitError}>
           <input id={`qf-limit-${key}`} className="inp" inputMode="numeric" disabled={!limitKind} value={limitValue} onChange={(e) => setLimitValue(e.target.value)} />
         </Field>
       </div>
       <label className="row" style={{ gap: "8px", fontSize: "14px" }}>
         <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} />
-        The funder requires an answer
+        {t("outsideQuestionsTab.theFunderRequiresAnAnswer")}
       </label>
       <div className="row" style={{ gap: "8px", justifyContent: "flex-end" }}>
         <button type="button" className="btn btn-secondary" onClick={onCancel}>
-          Cancel
+          {t("outsideQuestionsTab.cancel")}
         </button>
         <button type="submit" className="btn btn-primary" disabled={saving || !prompt.trim() || !!limitError}>
-          {saving ? "Saving…" : submitLabel}
+          {saving ? t("outsideQuestionsTab.saving") : submitLabel}
         </button>
       </div>
     </form>
@@ -194,30 +207,30 @@ export function PasteQuestionsDialog({
       <div className="hd">
         <div>
           <h3 id="paste-q-title" style={{ fontSize: "16px" }}>
-            Paste the funder’s questions
+            {t("outsideQuestionsTab.pasteTheFundersQuestions")}
           </h3>
           <p className="small muted">
             {proposed
-              ? "Check each question and its limit. Nothing is saved until you save them."
+              ? t("outsideQuestionsTab.checkEachQuestionAndItsLimit")
               : mode === "ai"
-                ? "The assistant reads the funder’s guidelines and finds the questions, their limits and the documents the funder asks for."
-                : "Paste the questions from the funder’s guidelines or portal. Numbered lists and blank lines are split into questions, and limits such as “250 words” are picked up."}
+                ? t("outsideQuestionsTab.theAssistantReadsTheFundersGuidelines")
+                : t("outsideQuestionsTab.pasteTheQuestionsFromTheFunders")}
           </p>
         </div>
-        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+        <button className="iconbtn" type="button" aria-label={t("outsideQuestionsTab.close")} onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
       <div className="bd">
         {!proposed && aiOn && (
-          <div className="seg" role="group" aria-label="How to find the questions">
+          <div className="seg" role="group" aria-label={t("outsideQuestionsTab.howToFindTheQuestions")}>
             <button type="button" className={mode === "text" ? "on" : undefined} aria-pressed={mode === "text"} onClick={() => setMode("text")}>
               <ClipboardList className="ic ic-sm" aria-hidden="true" />
-              Paste the questions
+              {t("outsideQuestionsTab.pasteTheQuestions")}
             </button>
             <button type="button" className={mode === "ai" ? "on" : undefined} aria-pressed={mode === "ai"} onClick={() => setMode("ai")}>
               <Sparkles className="ic ic-sm" aria-hidden="true" />
-              Read the funder’s guidelines
+              {t("outsideQuestionsTab.readTheFundersGuidelines")}
             </button>
           </div>
         )}
@@ -232,34 +245,34 @@ export function PasteQuestionsDialog({
             }}
           />
         ) : !proposed ? (
-          <Field id="paste-q-text" label="Questions">
-            <textarea id="paste-q-text" className="ta" style={{ minHeight: "220px" }} value={text} onChange={(e) => setText(e.target.value)} placeholder={"1. Describe the need your project addresses. (250 words)\n2. How will you measure success? Maximum 1,500 characters."} />
+          <Field id="paste-q-text" label={t("outsideQuestionsTab.questions")}>
+            <textarea id="paste-q-text" className="ta" style={{ minHeight: "220px" }} value={text} onChange={(e) => setText(e.target.value)} placeholder={t("outsideQuestionsTab.n1DescribeTheNeedYourProject")} />
           </Field>
         ) : proposed.length === 0 && docs.length === 0 ? (
-          <Notice tone="neu" title="No questions were found in that text">
-            Go back and paste the questions themselves, one per line or numbered.
+          <Notice tone="neu" title={t("outsideQuestionsTab.noQuestionsWereFoundInThat")}>
+            {t("outsideQuestionsTab.goBackAndPasteTheQuestions")}
           </Notice>
         ) : (
-          <ol aria-label="Proposed questions" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <ol aria-label={t("outsideQuestionsTab.proposedQuestions")} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {proposed.map((q, i) => (
               <li key={i} className="card" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px", opacity: q.keep ? 1 : 0.6 }}>
                 <div className="row" style={{ justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
                   <label className="row small b" style={{ gap: "6px" }}>
                     <input type="checkbox" checked={q.keep} onChange={(e) => update(i, { keep: e.target.checked })} />
-                    Keep question {i + 1}
+                    {t("outsideQuestionsTab.keepQuestion", { n: i + 1 })}
                   </label>
                   <span className="small muted">
                     {PHASE_LABELS[q.phase]} · {limitPhrase(q.limitKind, q.limitValue)}
-                    {q.limitKind ? " (found in the text)" : ""}
+                    {q.limitKind ? ` ${t("outsideQuestionsTab.foundInText")}` : ""}
                   </span>
                 </div>
                 <label className="sr" htmlFor={`pq-${i}`}>
-                  Question {i + 1}
+                  {t("outsideQuestionsTab.questionN", { n: i + 1 })}
                 </label>
                 <textarea id={`pq-${i}`} className="ta" style={{ minHeight: "48px" }} value={q.prompt} onChange={(e) => update(i, { prompt: e.target.value })} />
                 <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
                   <label className="sr" htmlFor={`pq-kind-${i}`}>
-                    Limit for question {i + 1}
+                    {t("outsideQuestionsTab.limitFor", { n: i + 1 })}
                   </label>
                   <select
                     id={`pq-kind-${i}`}
@@ -272,7 +285,7 @@ export function PasteQuestionsDialog({
                       else setProposed((p) => p && p.map((x, j) => (j === i ? { prompt: x.prompt, phase: x.phase, keep: x.keep } : x)));
                     }}
                   >
-                    {LIMIT_OPTIONS.map((o) => (
+                    {LIMIT_OPTIONS().map((o) => (
                       <option key={o.value} value={o.value}>
                         {o.label}
                       </option>
@@ -281,13 +294,13 @@ export function PasteQuestionsDialog({
                   {q.limitKind && (
                     <>
                       <label className="sr" htmlFor={`pq-val-${i}`}>
-                        Limit amount for question {i + 1}
+                        {t("outsideQuestionsTab.limitAmountFor", { n: i + 1 })}
                       </label>
                       <input id={`pq-val-${i}`} className="inp" inputMode="numeric" style={{ maxWidth: "120px" }} value={q.limitValue ?? ""} onChange={(e) => update(i, { limitValue: Number.parseInt(e.target.value.replace(/,/g, ""), 10) || 0 })} />
                     </>
                   )}
                   <label className="sr" htmlFor={`pq-phase-${i}`}>
-                    Part for question {i + 1}
+                    {t("outsideQuestionsTab.partFor", { n: i + 1 })}
                   </label>
                   <select id={`pq-phase-${i}`} className="sel" style={{ maxWidth: "200px" }} value={q.phase} onChange={(e) => update(i, { phase: e.target.value as QuestionPhase })}>
                     {(Object.keys(PHASE_LABELS) as QuestionPhase[]).map((p) => (
@@ -301,11 +314,11 @@ export function PasteQuestionsDialog({
             ))}
           </ol>
         )}
-        {proposed && kept && <p className="small muted">The guidelines file, {kept}, is kept with this application’s attachments.</p>}
+        {proposed && kept && <p className="small muted">{t("outsideQuestionsTab.guidelinesKept", { name: kept })}</p>}
         {proposed && docs.length > 0 && (
           <fieldset className="card" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "6px", margin: 0 }}>
             <legend className="small b" style={{ padding: "0 4px" }}>
-              Documents the funder asks for
+              {t("outsideQuestionsTab.documentsTheFunderAsksFor")}
             </legend>
             {docs.map((d, i) => (
               <label key={d.label} className="row small" style={{ gap: "8px" }}>
@@ -313,11 +326,11 @@ export function PasteQuestionsDialog({
                 {d.label}
               </label>
             ))}
-            <span className="help">Kept ones go on the Checklist tab, where you can use a document from your vault.</span>
+            <span className="help">{t("outsideQuestionsTab.keptOnesGoOnTheChecklist")}</span>
           </fieldset>
         )}
-        {parse.error ? <ErrorBanner error={parse.error} title="The questions could not be read" /> : null}
-        {save.error ? <ErrorBanner error={save.error} title="The questions were not saved" /> : null}
+        {parse.error ? <ErrorBanner error={parse.error} title={t("outsideQuestionsTab.theQuestionsCouldNotBeRead")} /> : null}
+        {save.error ? <ErrorBanner error={save.error} title={t("outsideQuestionsTab.theQuestionsWereNotSaved")} /> : null}
       </div>
       <div className="ft">
         {proposed ? (
@@ -331,7 +344,7 @@ export function PasteQuestionsDialog({
                 setKept(null);
               }}
             >
-              {mode === "ai" ? "Back to the guidelines" : "Back to the text"}
+              {mode === "ai" ? t("outsideQuestionsTab.backToTheGuidelines") : t("outsideQuestionsTab.backToTheText")}
             </button>
             <button
               className="btn btn-primary"
@@ -345,13 +358,13 @@ export function PasteQuestionsDialog({
                 if (made) onSaved(made.length, keepDocs.length);
               }}
             >
-              {save.state === "saving" ? "Saving…" : saveLabel(keep.length, keepDocs.length)}
+              {save.state === "saving" ? t("outsideQuestionsTab.saving") : saveLabel(keep.length, keepDocs.length)}
             </button>
           </>
         ) : (
           <>
             <button className="btn btn-secondary" type="button" onClick={onClose}>
-              Cancel
+              {t("outsideQuestionsTab.cancel")}
             </button>
             {(mode === "text" || !aiOn) && (
               <button
@@ -366,7 +379,7 @@ export function PasteQuestionsDialog({
                   }
                 }}
               >
-                {parse.state === "saving" ? "Reading…" : "Find the questions"}
+                {parse.state === "saving" ? t("outsideQuestionsTab.reading") : t("outsideQuestionsTab.findTheQuestions")}
               </button>
             )}
           </>
@@ -376,8 +389,7 @@ export function PasteQuestionsDialog({
   );
 }
 
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
-const saveLabel = (q: number, d: number) => (d === 0 ? `Save ${plural(q, "question")}` : q === 0 ? `Save ${plural(d, "document")}` : `Save ${plural(q, "question")} and ${plural(d, "document")}`);
+const saveLabel = (q: number, d: number) => (d === 0 ? t("outsideQuestionsTab.saveQuestions", { count: q }) : q === 0 ? t("outsideQuestionsTab.saveDocuments", { count: d }) : t("outsideQuestionsTab.saveBoth", { questions: q, documents: d }));
 
 // ------------------------------------------------------------------------------------ inserts
 
@@ -393,16 +405,16 @@ function LibraryDialog({ answers, question, onInsert, onClose, busy, error }: { 
       <div className="hd">
         <div>
           <h3 id="olib-title" style={{ fontSize: "16px" }}>
-            Insert from answer library
+            {t("outsideQuestionsTab.insertFromAnswerLibrary")}
           </h3>
-          <p className="small muted">The library text replaces the answer and is saved as a new version marked “From library”. The library copy is not changed.</p>
+          <p className="small muted">{t("outsideQuestionsTab.theLibraryTextReplacesTheAnswer")}</p>
         </div>
-        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+        <button className="iconbtn" type="button" aria-label={t("outsideQuestionsTab.close")} onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
       <div className="bd">
-        <Field id="olib-answer" label="Library answer">
+        <Field id="olib-answer" label={t("outsideQuestionsTab.libraryAnswer")}>
           <select
             id="olib-answer"
             className="sel"
@@ -414,7 +426,7 @@ function LibraryDialog({ answers, question, onInsert, onClose, busy, error }: { 
           >
             {answers.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.title} · v{a.version} · {a.words} words
+                {a.title} · {t("outsideQuestionsTab.versionShort", { version: String(a.version) })} · {t("outsideQuestionsTab.wordsCount", { count: a.words })}
               </option>
             ))}
           </select>
@@ -425,12 +437,12 @@ function LibraryDialog({ answers, question, onInsert, onClose, busy, error }: { 
           </div>
         )}
         {choices.length > 1 && choice && (
-          <Field id="olib-variant" label="Version" help={question.limitKind && question.limitValue ? `${best?.label ?? "This version"} fits best within ${limitPhrase(question.limitKind, question.limitValue)}.` : undefined}>
+          <Field id="olib-variant" label={t("outsideQuestionsTab.version")} help={question.limitKind && question.limitValue ? t("outsideQuestionsTab.fitsBest", { name: best ? variantLabel(best.key) : t("outsideQuestionsTab.thisVersion"), limit: limitPhrase(question.limitKind, question.limitValue) }) : undefined}>
             <select id="olib-variant" className="sel" value={choice.key} onChange={(e) => setPicked(e.target.value)}>
               {choices.map((c) => (
                 <option key={c.key} value={c.key}>
-                  {c.label} · {c.counts.words} words
-                  {question.limitKind && question.limitValue && countFor(c.counts, question.limitKind) > question.limitValue ? " · over the limit" : ""}
+                  {variantLabel(c.key)} · {t("outsideQuestionsTab.wordsCount", { count: c.counts.words })}
+                  {question.limitKind && question.limitValue && countFor(c.counts, question.limitKind) > question.limitValue ? ` · ${t("outsideQuestionsTab.overTheLimit")}` : ""}
                 </option>
               ))}
             </select>
@@ -441,14 +453,14 @@ function LibraryDialog({ answers, question, onInsert, onClose, busy, error }: { 
             {choice.text}
           </p>
         )}
-        {error ? <ErrorBanner error={error} title="The answer was not inserted" /> : null}
+        {error ? <ErrorBanner error={error} title={t("outsideQuestionsTab.theAnswerWasNotInserted")} /> : null}
       </div>
       <div className="ft">
         <button className="btn btn-secondary" type="button" onClick={onClose}>
-          Cancel
+          {t("outsideQuestionsTab.cancel")}
         </button>
         <button className="btn btn-primary" type="button" disabled={!answer || !choice || busy} onClick={() => answer && choice && onInsert(answer, choice.text)}>
-          {busy ? "Inserting…" : "Insert"}
+          {busy ? t("outsideQuestionsTab.inserting") : t("outsideQuestionsTab.insert")}
         </button>
       </div>
     </Dialog>
@@ -462,21 +474,21 @@ function FactDialog({ org, onInsert, onClose }: { org: MyOrganization | null; on
       <div className="hd">
         <div>
           <h3 id="ofact-title" style={{ fontSize: "16px" }}>
-            Insert a fact about your organization
+            {t("outsideQuestionsTab.insertAFactAboutYourOrganization")}
           </h3>
-          <p className="small muted">The fact goes in where your cursor was. Save the answer to keep it.</p>
+          <p className="small muted">{t("outsideQuestionsTab.theFactGoesInWhereYour")}</p>
         </div>
-        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+        <button className="iconbtn" type="button" aria-label={t("outsideQuestionsTab.close")} onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
       <div className="bd">
         {facts.length === 0 ? (
-          <Notice tone="neu" title="No organization facts yet">
-            Add your organization’s details under Organization, or connect Passport.
+          <Notice tone="neu" title={t("outsideQuestionsTab.noOrganizationFactsYet")}>
+            {t("outsideQuestionsTab.addYourOrganizationsDetailsUnderOrganization")}
           </Notice>
         ) : (
-          <ul aria-label="Organization facts" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          <ul aria-label={t("outsideQuestionsTab.organizationFacts")} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {facts.map((f) => (
               <li key={f.key} className="row" style={{ gap: "12px", justifyContent: "space-between", padding: "8px 0", borderTop: "1px solid var(--og-gray-100)" }}>
                 <div className="grow" style={{ minWidth: 0 }}>
@@ -484,8 +496,8 @@ function FactDialog({ org, onInsert, onClose }: { org: MyOrganization | null; on
                   <div style={{ fontSize: "14px", overflowWrap: "anywhere" }}>{f.value}</div>
                   <div className="small muted">{f.from}</div>
                 </div>
-                <button type="button" className="btn btn-sm btn-secondary" aria-label={`Insert ${f.label}`} onClick={() => onInsert(f.value)}>
-                  Insert
+                <button type="button" className="btn btn-sm btn-secondary" aria-label={t("outsideQuestionsTab.insertLabel", { label: f.label })} onClick={() => onInsert(f.value)}>
+                  {t("outsideQuestionsTab.insert")}
                 </button>
               </li>
             ))}
@@ -494,7 +506,7 @@ function FactDialog({ org, onInsert, onClose }: { org: MyOrganization | null; on
       </div>
       <div className="ft">
         <button className="btn btn-secondary" type="button" onClick={onClose}>
-          Close
+          {t("outsideQuestionsTab.close")}
         </button>
       </div>
     </Dialog>
@@ -505,27 +517,27 @@ export const provenanceTag = (p: string) =>
   p === "assist" ? (
     <span className="prov prov-agent">
       <Sparkles className="ic" aria-hidden="true" />
-      Drafted with AI
+      {t("outsideQuestionsTab.draftedWithAi")}
     </span>
   ) : p === "prior_submission" ? (
     <span className="prov prov-report">
       <FileClock className="ic" aria-hidden="true" />
-      From an earlier report
+      {t("outsideQuestionsTab.fromAnEarlierReport")}
     </span>
   ) : p === "library" ? (
     <span className="prov prov-library">
       <BookOpen className="ic" aria-hidden="true" />
-      From library
+      {t("outsideQuestionsTab.fromLibrary")}
     </span>
   ) : p.startsWith("agent") ? (
     <span className="prov prov-agent">
       <Bot className="ic" aria-hidden="true" />
-      Drafted by an agent
+      {t("outsideQuestionsTab.draftedByAnAgent")}
     </span>
   ) : (
     <span className="prov prov-entered">
       <Pencil className="ic" aria-hidden="true" />
-      Written by your team
+      {t("outsideQuestionsTab.writtenByYourTeam")}
     </span>
   );
 
@@ -536,33 +548,33 @@ function HistoryDialog({ question, onUse, onClose, nameOf }: { question: Outside
       <div className="hd">
         <div>
           <h3 id="ohist-title" style={{ fontSize: "16px" }}>
-            Earlier versions
+            {t("outsideQuestionsTab.earlierVersions")}
           </h3>
           <p className="small muted">{question.prompt}</p>
         </div>
-        <button className="iconbtn" type="button" aria-label="Close" onClick={onClose}>
+        <button className="iconbtn" type="button" aria-label={t("outsideQuestionsTab.close")} onClick={onClose}>
           <X className="ic ic-md" aria-hidden="true" />
         </button>
       </div>
       <div className="bd" style={{ maxHeight: "60vh", overflow: "auto" }}>
-        <Loaded query={history} label="Loading versions">
+        <Loaded query={history} label={t("outsideQuestionsTab.loadingVersions")}>
           {(versions) => (
-            <ol aria-label="Versions" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <ol aria-label={t("outsideQuestionsTab.versions")} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {versions.map((v: OutsideAnswer) => (
                 <li key={v.id} className="card" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
                   <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
-                    <span className="b">Version {v.version}</span>
+                    <span className="b">{t("outsideQuestionsTab.versionN", { version: String(v.version) })}</span>
                     {provenanceTag(v.provenance)}
                     <span className="small muted">
                       {nameOf(v.createdBy)} · {timeAgo(v.createdAt)}
                     </span>
                   </div>
-                  <p style={{ whiteSpace: "pre-wrap", fontSize: "14px" }}>{v.body || <span className="muted">(empty)</span>}</p>
+                  <p style={{ whiteSpace: "pre-wrap", fontSize: "14px" }}>{v.body || <span className="muted">{t("outsideQuestionsTab.empty")}</span>}</p>
                   <div className="row" style={{ gap: "8px" }}>
                     <button type="button" className="btn btn-sm btn-secondary" onClick={() => onUse(v.body)}>
-                      Put this version in the editor
+                      {t("outsideQuestionsTab.putThisVersionInTheEditor")}
                     </button>
-                    <CopyButton value={v.body} what={`version ${v.version}`} className="btn btn-sm btn-ghost" />
+                    <CopyButton value={v.body} what={t("outsideQuestionsTab.versionLower", { version: String(v.version) })} className="btn btn-sm btn-ghost" />
                   </div>
                 </li>
               ))}
@@ -589,15 +601,15 @@ function FitToLimit({ question, answers, onUse, onClose }: { question: OutsideQu
     <section className="assist" aria-labelledby={`fit-${question.id}`}>
       <div className="hd">
         <Sparkles className="ic" aria-hidden="true" style={{ color: "var(--s-agent-fg)" }} />
-        <h3 id={`fit-${question.id}`}>Fit to limit</h3>
-        <span className="draft-mark">Draft — review before use</span>
-        <button className="iconbtn" type="button" aria-label="Close fit to limit" onClick={onClose} style={{ marginLeft: "auto" }}>
+        <h3 id={`fit-${question.id}`}>{t("outsideQuestionsTab.fitToLimit")}</h3>
+        <span className="draft-mark">{t("outsideQuestionsTab.draftReviewBeforeUse")}</span>
+        <button className="iconbtn" type="button" aria-label={t("outsideQuestionsTab.closeFitToLimit")} onClick={onClose} style={{ marginLeft: "auto" }}>
           <X className="ic" aria-hidden="true" />
         </button>
       </div>
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", fontSize: "14px" }}>
-        <p>The assistant rewrites a library answer for this question{maxWords ? ` in about ${maxWords} words` : ""}. Nothing changes until you put the draft in the editor and save.</p>
-        <Field id={`fit-answer-${question.id}`} label="Library answer">
+        <p>{maxWords ? t("outsideQuestionsTab.fitIntroWords", { words: maxWords }) : t("outsideQuestionsTab.fitIntro")}</p>
+        <Field id={`fit-answer-${question.id}`} label={t("outsideQuestionsTab.libraryAnswer")}>
           <select id={`fit-answer-${question.id}`} className="sel" value={answerId} onChange={(e) => setAnswerId(e.target.value)}>
             {answers.map((a) => (
               <option key={a.id} value={a.id}>
@@ -619,19 +631,19 @@ function FitToLimit({ question, answers, onUse, onClose }: { question: OutsideQu
             }
           }}
         >
-          {adapt.state === "saving" ? "Adapting…" : "Adapt to this question"}
+          {adapt.state === "saving" ? t("outsideQuestionsTab.adapting") : t("outsideQuestionsTab.adaptToThisQuestion")}
         </button>
         {spent ? <QuotaSpentNote resetsAt={quota?.resetsAt} /> : null}
-        {adapt.error ? <ErrorBanner error={adapt.error} title="The assistant could not draft this" /> : null}
+        {adapt.error ? <ErrorBanner error={adapt.error} title={t("outsideQuestionsTab.theAssistantCouldNotDraftThis")} /> : null}
         {draft ? (
           <div role="status" style={{ border: "1px dashed var(--s-agent-fg)", borderRadius: "8px", padding: "10px 12px", background: "var(--s-agent-bg)", display: "flex", flexDirection: "column", gap: "8px" }}>
             <p style={{ whiteSpace: "pre-wrap" }}>{draft.text}</p>
             <Counters counts={countText(draft.text)} limitKind={question.limitKind} limitValue={question.limitValue} />
             <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
               <button type="button" className="btn btn-sm btn-primary" onClick={() => onUse(draft.text)}>
-                Put the draft in the editor
+                {t("outsideQuestionsTab.putTheDraftInTheEditor")}
               </button>
-              <CopyButton value={draft.text} what="the draft" label="Copy draft" className="btn btn-sm btn-secondary" />
+              <CopyButton value={draft.text} what={t("outsideQuestionsTab.theDraft")} label={t("outsideQuestionsTab.copyDraft")} className="btn btn-sm btn-secondary" />
             </div>
           </div>
         ) : null}
@@ -705,7 +717,7 @@ export function QuestionCard({
   });
   const counts = useMemo(() => countText(draft), [draft]);
   const dirty = draft !== saved;
-  const nameOf = (id: string | null) => members.find((m) => m.userId === id)?.name ?? (id ? "A teammate" : "Someone");
+  const nameOf = (id: string | null) => members.find((m) => m.userId === id)?.name ?? (id ? t("outsideQuestionsTab.aTeammate") : t("outsideQuestionsTab.someone"));
   const headId = `oq-${q.id}-h`;
 
   const save = async () => {
@@ -746,7 +758,7 @@ export function QuestionCard({
     return (
       <QuestionForm
         initial={q}
-        submitLabel="Save question"
+        submitLabel={t("outsideQuestionsTab.saveQuestion")}
         saving={patch.state === "saving"}
         onCancel={() => setEditing(false)}
         onSave={async (input) => {
@@ -764,9 +776,9 @@ export function QuestionCard({
       <div className="card-h" style={{ alignItems: "flex-start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 }}>
           <span className="small muted">
-            Question {n} · {PHASE_LABELS[q.phase]}
+            {t("outsideQuestionsTab.questionN", { n })} · {PHASE_LABELS[q.phase]}
             {q.section ? ` · ${q.section}` : ""}
-            {q.required ? "" : " · Optional"}
+            {q.required ? "" : ` · ${t("outsideQuestionsTab.optional")}`}
           </span>
           <h3 id={headId} style={{ fontSize: "16px", overflowWrap: "anywhere" }}>
             {q.prompt}
@@ -777,13 +789,13 @@ export function QuestionCard({
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
-          <span className="tag">Limit: {limitPhrase(q.limitKind, q.limitValue)}</span>
+          <span className="tag">{t("outsideQuestionsTab.limitTag", { limit: limitPhrase(q.limitKind, q.limitValue) })}</span>
           {cowriter ? (
-            <span className="tag">{q.assigneeUserId && q.assigneeUserId === myId ? "Assigned to you" : q.assigneeUserId ? "Assigned to a teammate" : "No one assigned"}</span>
+            <span className="tag">{q.assigneeUserId && q.assigneeUserId === myId ? t("outsideQuestionsTab.assignedToYou") : q.assigneeUserId ? t("outsideQuestionsTab.assignedToATeammate") : t("outsideQuestionsTab.noOneAssigned")}</span>
           ) : (
             <>
               <label className="sr" htmlFor={`oq-assignee-${q.id}`}>
-                Who writes question {n}
+                {t("outsideQuestionsTab.whoWrites", { n })}
               </label>
               <InvitePicker
                 id={`oq-assignee-${q.id}`}
@@ -796,7 +808,7 @@ export function QuestionCard({
                   if ((await patch.run({ assigneeUserId: value || null })) !== undefined) onChanged();
                 }}
               >
-                <option value="">No one assigned</option>
+                <option value="">{t("outsideQuestionsTab.noOneAssigned")}</option>
                 {members.map((m) => (
                   <option key={m.userId} value={m.userId}>
                     {m.name ?? m.email}
@@ -807,7 +819,7 @@ export function QuestionCard({
             </>
           )}
           <label className="sr" htmlFor={`oq-status-${q.id}`}>
-            Status of question {n}
+            {t("outsideQuestionsTab.statusOf", { n })}
           </label>
           <select
             id={`oq-status-${q.id}`}
@@ -818,44 +830,44 @@ export function QuestionCard({
             aria-describedby={canApprove ? undefined : `oq-approve-${q.id}`}
             onChange={async (e) => (await patch.run({ status: e.target.value as QuestionStatus })) && onChanged()}
           >
-            {STATUS_OPTIONS.map((o) => (
+            {STATUS_OPTIONS().map((o) => (
               <option key={o.value} value={o.value} disabled={o.value === "approved" && !canApprove}>
                 {o.label}
-                {o.value === "approved" && !canApprove ? " (admin or owner)" : ""}
+                {o.value === "approved" && !canApprove ? ` ${t("outsideQuestionsTab.adminOrOwner")}` : ""}
               </option>
             ))}
           </select>
           {!canApprove && !readOnly && (
             <span id={`oq-approve-${q.id}`} className="small muted">
-              A workspace admin or the application’s owner approves answers.
+              {t("outsideQuestionsTab.aWorkspaceAdminOrTheApplications")}
             </span>
           )}
           {!readOnly && !cowriter && (
             <span className="row" style={{ gap: "4px", marginLeft: "auto" }}>
-              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditing(true)} aria-label={`Edit question ${n}`}>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => setEditing(true)} aria-label={t("outsideQuestionsTab.editQuestionN", { n })}>
                 <Pencil className="ic" aria-hidden="true" />
-                Edit
+                {t("outsideQuestionsTab.edit")}
               </button>
               {confirmDelete ? (
                 <>
                   <button type="button" className="btn btn-sm btn-danger" onClick={async () => (await remove.run()) && onChanged()}>
-                    Delete question {n} and its answers
+                    {t("outsideQuestionsTab.deleteWithAnswers", { n })}
                   </button>
                   <button type="button" className="btn btn-sm btn-ghost" onClick={() => setConfirmDelete(false)}>
-                    Keep it
+                    {t("outsideQuestionsTab.keepIt")}
                   </button>
                 </>
               ) : (
-                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setConfirmDelete(true)} aria-label={`Delete question ${n}`}>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => setConfirmDelete(true)} aria-label={t("outsideQuestionsTab.deleteQuestionN", { n })}>
                   <Trash className="ic" aria-hidden="true" />
-                  Delete
+                  {t("outsideQuestionsTab.delete")}
                 </button>
               )}
             </span>
           )}
         </div>
         <label className="lbl" htmlFor={`oq-answer-${q.id}`}>
-          Answer to question {n}
+          {t("outsideQuestionsTab.answerTo", { n })}
         </label>
         <textarea
           ref={area}
@@ -873,50 +885,50 @@ export function QuestionCard({
         <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
           {!readOnly && (
             <button type="button" className="btn btn-sm btn-primary" disabled={!dirty || put.state === "saving"} onClick={() => void save()}>
-              {put.state === "saving" ? "Saving…" : "Save answer"}
+              {put.state === "saving" ? t("outsideQuestionsTab.saving") : t("outsideQuestionsTab.saveAnswer")}
             </button>
           )}
           {!readOnly && (
             <button type="button" className="btn btn-sm btn-secondary" aria-haspopup="dialog" disabled={!answers.length} onClick={() => setDialog("library")}>
               <BookOpen className="ic" aria-hidden="true" />
-              Insert from library
+              {t("outsideQuestionsTab.insertFromLibrary")}
             </button>
           )}
           {!readOnly && (
             <button type="button" className="btn btn-sm btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("fact")}>
               <Building className="ic" aria-hidden="true" />
-              Insert a fact
+              {t("outsideQuestionsTab.insertAFact")}
             </button>
           )}
           {!readOnly && assistOn && (
             <button type="button" className="btn btn-sm btn-secondary" aria-expanded={ai} onClick={() => setAi((v) => !v)}>
               <Sparkles className="ic" aria-hidden="true" />
-              Draft with AI
+              {t("outsideQuestionsTab.draftWithAi")}
             </button>
           )}
           {!readOnly && assistOn && answers.length > 0 && (
             <button type="button" className="btn btn-sm btn-secondary" aria-expanded={fit} onClick={() => setFit((v) => !v)}>
               <Sparkles className="ic" aria-hidden="true" />
-              Fit to limit
+              {t("outsideQuestionsTab.fitToLimit")}
             </button>
           )}
           {!readOnly && reportOf && (
             <button type="button" className="btn btn-sm btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("reuse")}>
               <FileClock className="ic" aria-hidden="true" />
-              Reuse from an earlier report
+              {t("outsideQuestionsTab.reuseFromAnEarlierReport")}
             </button>
           )}
-          <CopyButton value={draft} what={`the answer to question ${n}`} className="btn btn-sm btn-ghost" />
+          <CopyButton value={draft} what={t("outsideQuestionsTab.theAnswerTo", { n })} className="btn btn-sm btn-ghost" />
           <CommentsButton open={comments} onToggle={() => setComments((v) => !v)} />
           {q.answer && (
             <button type="button" className="btn btn-sm btn-ghost" aria-haspopup="dialog" onClick={() => setDialog("history")}>
               <Clock className="ic" aria-hidden="true" />
-              Version history ({q.answer.version})
+              {t("outsideQuestionsTab.versionHistory", { version: String(q.answer.version) })}
             </button>
           )}
           <span className="row" style={{ gap: "8px", marginLeft: "auto" }}>
-            {dirty ? <span className="small muted">{fromAi ? "Unsaved AI draft" : "Unsaved changes"}</span> : q.answer ? provenanceTag(q.answer.provenance) : null}
-            <SaveNote state={put.state === "saved" && !dirty ? "saved" : "idle"} savedText={`Saved as version ${q.answer?.version ?? 1}`} />
+            {dirty ? <span className="small muted">{fromAi ? t("outsideQuestionsTab.unsavedAiDraft") : t("outsideQuestionsTab.unsavedChanges")}</span> : q.answer ? provenanceTag(q.answer.provenance) : null}
+            <SaveNote state={put.state === "saved" && !dirty ? "saved" : "idle"} savedText={t("outsideQuestionsTab.savedAsVersion", { version: String(q.answer?.version ?? 1) })} />
           </span>
         </div>
         {ai && assist && (
@@ -938,9 +950,9 @@ export function QuestionCard({
         )}
         {fit && <FitToLimit question={q} answers={answers} onClose={() => setFit(false)} onUse={(t) => setDraft(t)} />}
         {comments && <CommentsPanel applicationId={applicationId} question={q} n={n} members={members} readOnly={readOnly} />}
-        {put.error && dialog !== "library" && dialog !== "reuse" ? <ErrorBanner error={put.error} title="The answer was not saved" /> : null}
-        {patch.error ? <ErrorBanner error={patch.error} title="The question was not changed" /> : null}
-        {remove.error ? <ErrorBanner error={remove.error} title="The question was not deleted" /> : null}
+        {put.error && dialog !== "library" && dialog !== "reuse" ? <ErrorBanner error={put.error} title={t("outsideQuestionsTab.theAnswerWasNotSaved")} /> : null}
+        {patch.error ? <ErrorBanner error={patch.error} title={t("outsideQuestionsTab.theQuestionWasNotChanged")} /> : null}
+        {remove.error ? <ErrorBanner error={remove.error} title={t("outsideQuestionsTab.theQuestionWasNotDeleted")} /> : null}
       </div>
       {dialog === "library" && <LibraryDialog answers={answers} question={q} busy={put.state === "saving"} error={put.error} onClose={() => setDialog(null)} onInsert={(a, t) => void insertLibrary(a, t)} />}
       {dialog === "reuse" && reportOf && (
@@ -1023,26 +1035,26 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
     <>
       <div className="row" style={{ gap: "8px", flexWrap: "wrap", justifyContent: "space-between" }}>
         <span className="small muted">
-          {questions.length} question{questions.length === 1 ? "" : "s"} · {approved} approved
+          {t("outsideQuestionsTab.questionCount", { count: questions.length })} · {t("outsideQuestionsTab.approvedCount", { count: approved })}
         </span>
         <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
           {!setupLocked && (
             <>
               <button type="button" className="btn btn-sm btn-primary" aria-haspopup="dialog" onClick={() => setPasting(true)}>
                 <ClipboardList className="ic" aria-hidden="true" />
-                Paste questions
+                {t("outsideQuestionsTab.pasteQuestions")}
               </button>
               <button type="button" className="btn btn-sm btn-secondary" onClick={() => setAdding(true)} disabled={adding}>
                 <Plus className="ic" aria-hidden="true" />
-                Add a question
+                {t("outsideQuestionsTab.addAQuestion")}
               </button>
             </>
           )}
-          {questions.length > 0 && <CopyButton value={plainText(questions)} what="all questions and answers as plain text" label="Copy all as plain text" className="btn btn-sm btn-secondary" />}
+          {questions.length > 0 && <CopyButton value={plainText(questions)} what={t("outsideQuestionsTab.allAsPlainText")} label={t("outsideQuestionsTab.copyAllAsPlainText")} className="btn btn-sm btn-secondary" />}
           {questions.length > 0 && (
             <span className="row" style={{ gap: "4px" }}>
               <label className="sr" htmlFor="oq-export">
-                Download format
+                {t("outsideQuestionsTab.downloadFormat")}
               </label>
               <select id="oq-export" className="sel" style={{ height: "30px", width: "auto" }} defaultValue="" onChange={(e) => {
                 const v = e.target.value as "txt" | "md" | "pdf" | "";
@@ -1050,10 +1062,10 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
                 if (v) void exp.run(v);
               }}>
                 <option value="" disabled>
-                  Download…
+                  {t("outsideQuestionsTab.download")}
                 </option>
-                <option value="txt">Plain text (.txt)</option>
-                <option value="md">Markdown (.md)</option>
+                <option value="txt">{t("outsideQuestionsTab.plainTextTxt")}</option>
+                <option value="md">{t("outsideQuestionsTab.markdownMd")}</option>
                 <option value="pdf">PDF</option>
               </select>
             </span>
@@ -1062,21 +1074,21 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
       </div>
       {note && (
         <Notice tone="ok" title={note}>
-          Write each answer below; counts follow the funder’s limits as you type.
+          {t("outsideQuestionsTab.writeEachAnswerBelowCountsFollow")}
         </Notice>
       )}
       {cowriter && (
-        <Notice tone="info" title="You were invited to help write this application">
-          Write and save your answers here, and mark them ready when they are. The team sets up the questions and approves the answers.
+        <Notice tone="info" title={t("outsideQuestionsTab.youWereInvitedToHelpWrite")}>
+          {t("outsideQuestionsTab.writeAndSaveYourAnswersHere")}
         </Notice>
       )}
       {!cowriter && <TeamNote canInvite={!readOnly && !!inviteList?.canInvite} onInvite={() => setInviting({ questionId: null })} />}
       {sent && <InviteSentNote sent={sent} onDone={() => setSent(null)} />}
       <AiUseNote questions={questions} />
-      {exp.error ? <ErrorBanner error={exp.error} title="The download did not start" /> : null}
+      {exp.error ? <ErrorBanner error={exp.error} title={t("outsideQuestionsTab.theDownloadDidNotStart")} /> : null}
       {adding && (
         <QuestionForm
-          submitLabel="Add question"
+          submitLabel={t("outsideQuestionsTab.addQuestion")}
           saving={add.state === "saving"}
           onCancel={() => setAdding(false)}
           onSave={async (q) => {
@@ -1087,21 +1099,21 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
           }}
         />
       )}
-      {add.error ? <ErrorBanner error={add.error} title="The question was not added" /> : null}
+      {add.error ? <ErrorBanner error={add.error} title={t("outsideQuestionsTab.theQuestionWasNotAdded")} /> : null}
       {questions.length === 0 && !adding ? (
         <div className="card">
           <EmptyState
             icon={ClipboardList}
-            title="No questions yet"
+            title={t("outsideQuestionsTab.noQuestionsYet")}
             actions={
               !setupLocked ? (
                 <button type="button" className="btn btn-primary" onClick={() => setPasting(true)}>
-                  Paste questions
+                  {t("outsideQuestionsTab.pasteQuestions")}
                 </button>
               ) : undefined
             }
           >
-            Paste the questions from the funder’s guidelines or portal, or add them one at a time.
+            {t("outsideQuestionsTab.pasteTheQuestionsFromTheFunders2")}
           </EmptyState>
         </div>
       ) : (
@@ -1147,7 +1159,7 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
           onClose={() => setPasting(false)}
           onSaved={(n, docs = 0) => {
             setPasting(false);
-            setNote([n || !docs ? `${n} question${n === 1 ? "" : "s"} added` : null, docs ? `${docs} document${docs === 1 ? "" : "s"} added to the checklist` : null].filter(Boolean).join(" · "));
+            setNote([n || !docs ? t("outsideQuestionsTab.questionsAdded", { count: n }) : null, docs ? t("outsideQuestionsTab.documentsAdded", { count: docs }) : null].filter(Boolean).join(" · "));
             assist.reload();
             onChanged();
           }}

@@ -17,8 +17,10 @@ import { StatusBadge } from "../../../components/status.tsx";
 import { ErrorBanner } from "../../../components/ui.tsx";
 import { formatDate } from "../../../lib/format.ts";
 import { describe, loadStatus, WITHDRAWABLE } from "../ApplicationStatus.tsx";
+import { t, useApplicantText } from "../i18n.ts";
 
 export default function ApplicationStatusPhone() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const { appId = "" } = useParams();
@@ -26,20 +28,20 @@ export default function ApplicationStatusPhone() {
   const [reply, setReply] = useState("");
   const [confirm, setConfirm] = useState(false);
   const send = useApplicantMutation(async (a, thread: Thread | null, body: string) => {
-    const t = thread ?? (await a.openThread(appId));
-    const m = await a.postMessage(t.id, body);
-    return { ...t, messages: [...t.messages, m] };
+    const open = thread ?? (await a.openThread(appId));
+    const m = await a.postMessage(open.id, body);
+    return { ...open, messages: [...open.messages, m] };
   });
   const withdraw = useApplicantMutation((a) => a.withdraw(appId));
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
   return (
     <>
-      <title>{query.status === "ready" ? `${query.data.status.title} — ${ws.name}` : `Application — ${ws.name}`}</title>
-      <PhoneShell title="Application" active="Applications">
+      <title>{query.status === "ready" ? `${query.data.status.title} — ${ws.name}` : t("applicationStatus.pageTitle", { workspace: ws.name })}</title>
+      <PhoneShell title={t("applicationStatusPhone.application")} active="Applications">
         <main className="main" style={{ flex: 1 }}>
-          <Loaded query={query} label="Loading the application">
+          <Loaded query={query} label={t("applicationStatusPhone.loadingTheApplication")}>
             {({ status, summary, thread }) => {
-              const funder = summary?.funder.name ?? "the funder";
+              const funder = summary?.funder.name ?? t("applicationStatus.theFunder");
               const editable = status.status === "draft" || status.status === "revision_requested";
               const requests = status.timeline.filter((e) => e.type === "request_revision");
               const responses = status.timeline.filter((e) => e.type === "submit" && e.revision);
@@ -64,12 +66,12 @@ export default function ApplicationStatusPhone() {
                     </div>
                     <div className="row wrap" style={{ gap: "8px" }}>
                       <span className="mono muted">{status.id.slice(0, 12)}…</span>
-                      {status.submittedAt && <span className="small muted">Submitted {formatDate(status.submittedAt)}</span>}
+                      {status.submittedAt && <span className="small muted">{t("applicationStatus.submittedOn", { date: formatDate(status.submittedAt) })}</span>}
                     </div>
                     {editable && (
                       <Link to={`${base}/applications/${status.id}/edit`} className="btn btn-primary btn-lg btn-block">
                         <Pencil className="ic" aria-hidden="true" />
-                        {status.status === "draft" ? "Continue editing" : "Respond to revision"}
+                        {status.status === "draft" ? t("applicationStatusPhone.continueEditing") : t("applicationStatusPhone.respondToRevision")}
                       </Link>
                     )}
                   </div>
@@ -77,9 +79,9 @@ export default function ApplicationStatusPhone() {
                   <section className="card" aria-labelledby="tl-h">
                     <div className="card-h" style={{ padding: "14px 16px" }}>
                       <h3 id="tl-h" style={{ fontSize: "16px" }}>
-                        Timeline
+                        {t("applicationStatusPhone.timeline")}
                       </h3>
-                      {current?.closes && <span className="small muted">Stage closes {formatDate(current.closes)}</span>}
+                      {current?.closes && <span className="small muted">{t("applicationStatusPhone.stageClosesOn", { date: formatDate(current.closes) })}</span>}
                     </div>
                     <div className="card-b" style={{ padding: "16px 16px 4px" }}>
                       <ol className="tl tl-sm">
@@ -105,13 +107,13 @@ export default function ApplicationStatusPhone() {
                   <section className="card" aria-labelledby="msg-h">
                     <div className="card-h" style={{ padding: "14px 16px", flexWrap: "wrap" }}>
                       <h3 id="msg-h" style={{ fontSize: "16px" }}>
-                        Messages
+                        {t("applicationStatusPhone.messages")}
                       </h3>
-                      <span className="shared-mark">Shared with {funder}</span>
+                      <span className="shared-mark">{t("applicationStatus.sharedWith", { funder })}</span>
                     </div>
                     <div className="card-b" style={{ padding: "14px 16px 16px", display: "flex", flexDirection: "column", gap: "12px" }}>
                       <div className="th">
-                        {(thread?.messages ?? []).length === 0 && <p className="muted">No messages yet. Write to {funder} here; replies arrive by email too.</p>}
+                        {(thread?.messages ?? []).length === 0 && <p className="muted">{t("applicationStatus.noMessagesYet", { funder })}</p>}
                         {(thread?.messages ?? []).map((m) => (
                           <div className="msg" key={m.id}>
                             <Avatar name={m.author} index={m.authorUserId ? 0 : 3} />
@@ -127,14 +129,14 @@ export default function ApplicationStatusPhone() {
                       </div>
                       <form className="composer" style={{ flexDirection: "column", alignItems: "stretch" }} onSubmit={onSend}>
                         <label className="sr" htmlFor="reply">
-                          Reply to {funder}
+                          {t("applicationStatusPhone.replyTo", { funder })}
                         </label>
-                        <textarea className="ta" id="reply" placeholder={`Reply to ${funder}…`} style={{ minHeight: "72px" }} value={reply} onChange={(e) => setReply(e.target.value)} />
+                        <textarea className="ta" id="reply" placeholder={t("applicationStatus.replyTo", { funder })} style={{ minHeight: "72px" }} value={reply} onChange={(e) => setReply(e.target.value)} />
                         <button className="btn btn-primary btn-lg" type="submit" disabled={send.state === "saving" || !reply.trim()}>
-                          Send
+                          {t("applicationStatusPhone.send")}
                         </button>
                       </form>
-                      {send.error ? <ErrorBanner error={send.error} title="The message was not sent" /> : null}
+                      {send.error ? <ErrorBanner error={send.error} title={t("applicationStatusPhone.theMessageWasNotSent")} /> : null}
                     </div>
                   </section>
 
@@ -142,14 +144,14 @@ export default function ApplicationStatusPhone() {
                     <section className="card" aria-labelledby="rev-h">
                       <div className="card-h" style={{ padding: "14px 16px" }}>
                         <h3 id="rev-h" style={{ fontSize: "16px" }}>
-                          Revision request
+                          {t("applicationStatusPhone.revisionRequest")}
                         </h3>
-                        {status.status === "revision_requested" ? <StatusBadge kind="application" status="revision_requested" /> : <span className="bdg bdg-ok">Answered</span>}
+                        {status.status === "revision_requested" ? <StatusBadge kind="application" status="revision_requested" /> : <span className="bdg bdg-ok">{t("applicationStatusPhone.answered")}</span>}
                       </div>
                       <div className="card-b" style={{ padding: "14px 16px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
                         {requests.map((e) => (
                           <p key={e.id} style={{ fontSize: "14px" }}>
-                            <span className="b">{funder} asked on {formatDate(e.at)}:</span> {e.message ? `“${e.message}”` : "for changes"}
+                            <span className="b">{t("applicationStatusPhone.askedOn", { funder, date: formatDate(e.at) })}</span> {e.message ? `“${e.message}”` : t("applicationStatusPhone.forChanges")}
                           </p>
                         ))}
                         {responses.map((e) => (
@@ -161,25 +163,25 @@ export default function ApplicationStatusPhone() {
 
                   {WITHDRAWABLE.includes(status.status) && (
                     <button className="btn btn-danger btn-lg btn-block" type="button" aria-haspopup="dialog" onClick={() => setConfirm(true)}>
-                      Withdraw application
+                      {t("applicationStatusPhone.withdrawApplication")}
                     </button>
                   )}
-                  {withdraw.error ? <ErrorBanner error={withdraw.error} title="The application was not withdrawn" /> : null}
+                  {withdraw.error ? <ErrorBanner error={withdraw.error} title={t("applicationStatusPhone.theApplicationWasNotWithdrawn")} /> : null}
 
                   <Dialog open={confirm} onClose={() => setConfirm(false)} labelledBy="wd-title">
                     <div className="hd">
                       <h2 id="wd-title" style={{ fontSize: "16px" }}>
-                        Withdraw this application?
+                        {t("applicationStatusPhone.withdrawThisApplication")}
                       </h2>
                     </div>
                     <div className="bd">
                       <p>
-                        {funder} stops considering “{status.title}”. This cannot be undone; you would need to start a new application.
+                        {t("applicationStatus.withdrawBody", { funder, title: status.title })}
                       </p>
                     </div>
                     <div className="ft">
                       <button className="btn btn-secondary" type="button" onClick={() => setConfirm(false)}>
-                        Keep application
+                        {t("applicationStatusPhone.keepApplication")}
                       </button>
                       <button
                         className="btn btn-danger-solid"
@@ -191,7 +193,7 @@ export default function ApplicationStatusPhone() {
                           if (r) query.reload();
                         }}
                       >
-                        Withdraw
+                        {t("applicationStatusPhone.withdraw")}
                       </button>
                     </div>
                   </Dialog>

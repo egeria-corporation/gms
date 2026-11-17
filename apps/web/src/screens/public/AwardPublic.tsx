@@ -14,15 +14,18 @@ import { formatDate, formatMoney } from "../../lib/format.ts";
 import { PublicFrame, PublicState } from "./PublicFrame.tsx";
 import { UnverifiedFunderBanner } from "./publicExtras.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+const t = translator("public");
 export default function AwardPublic() {
   const { handle = "", slug = "" } = useParams();
   const page = useAwardSharingQuery((api) => api.awardPage(handle, slug), [handle, slug]);
 
-  if (page.status === "loading") return <PublicState title="Loading…" />;
+  if (page.status === "loading") return <PublicState title={t("awardPublic.loading")} />;
   if (page.status === "error") {
     if (page.error instanceof ApiError && page.error.status === 404) return <NotFound />;
     return (
-      <PublicState title="This page could not be loaded">
+      <PublicState title={t("awardPublic.thisPageCouldNotBe")}>
         <ErrorBanner error={page.error} onRetry={page.reload} />
       </PublicState>
     );
@@ -37,14 +40,14 @@ export default function AwardPublic() {
         funder={funder}
         nav={
           <>
-            <Link to={`/f/${funder.handle}`}>Funding opportunities</Link>
-            <Link to={`/f/${funder.handle}/awards`}>Grants awarded</Link>
+            <Link to={`/f/${funder.handle}`}>{t("awardPublic.fundingOpportunities")}</Link>
+            <Link to={`/f/${funder.handle}/awards`}>{t("awardPublic.grantsAwarded")}</Link>
           </>
         }
         hero={
           <div className="mission">
             <span className="eyebrow" style={{ color: "var(--on-tenant)" }}>
-              Grant awarded
+              {t("awardPublic.grantAwarded")}
             </span>
             <h1>{headline}</h1>
             <p className="sub" style={{ color: "var(--on-tenant)" }}>
@@ -57,38 +60,38 @@ export default function AwardPublic() {
           {!verified && <UnverifiedFunderBanner name={funder.name} />}
           <section aria-labelledby="award-facts">
             <h2 id="award-facts" className="sr">
-              About this grant
+              {t("awardPublic.aboutThisGrant")}
             </h2>
             <div className="card">
               <div className="card-b">
                 <dl className="kv" style={{ fontSize: "15px" }}>
-                  <dt>Recipient</dt>
+                  <dt>{t("awardPublic.recipient")}</dt>
                   <dd>{award.recipient.name}</dd>
-                  <dt>Funder</dt>
+                  <dt>{t("awardPublic.funder")}</dt>
                   <dd>
                     {funder.name}
                     {verified && (
                       <span className="bdg bdg-ok" style={{ marginLeft: "8px" }}>
                         <ShieldCheck className="ic" aria-hidden="true" />
-                        Verified with OpenGrants Passport
+                        {t("awardPublic.verifiedWithOpengrantsPassport")}
                       </span>
                     )}
                   </dd>
                   {award.amount && (
                     <>
-                      <dt>Amount</dt>
+                      <dt>{t("awardPublic.amount")}</dt>
                       <dd className="b">{formatMoney(award.amount)}</dd>
                     </>
                   )}
                   {award.program && (
                     <>
-                      <dt>Program</dt>
+                      <dt>{t("awardPublic.program")}</dt>
                       <dd>{award.program}</dd>
                     </>
                   )}
-                  <dt>Awarded</dt>
+                  <dt>{t("awardPublic.awarded")}</dt>
                   <dd>{formatDate(award.awardDate)}</dd>
-                  <dt>Purpose</dt>
+                  <dt>{t("awardPublic.purpose")}</dt>
                   <dd>{award.purpose}</dd>
                 </dl>
               </div>
@@ -96,7 +99,7 @@ export default function AwardPublic() {
             <p style={{ marginTop: "16px" }}>
               <Link to={`/f/${funder.handle}/awards`} style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700 }}>
                 <ArrowLeft className="ic" aria-hidden="true" />
-                All grants awarded by {funder.name}
+                {t("awardPublic.allGrantsAwardedBy", { name: funder.name })}
               </Link>
             </p>
           </section>

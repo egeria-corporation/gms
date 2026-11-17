@@ -9,6 +9,9 @@ import { useApiQuery } from "../api/hooks.ts";
 import { FUND_COLOR_TOKEN, fundInitials, fundOfProgram, type Fund } from "../api/funds.ts";
 import { useWorkspace } from "../app/workspace.tsx";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 const KEY = (workspaceId: string) => `gms.fund.${workspaceId}`;
 const listeners = new Set<() => void>();
 const memory = new Map<string, string | null>();
@@ -86,10 +89,10 @@ export function FundSwitcher() {
   if (f.status !== "ready" || (!f.several && !f.scoped) || f.funds.length === 0) return null;
   if (f.funds.length === 1) {
     return (
-      <div className="rail-tenant" style={{ borderTop: "none", display: "flex", alignItems: "center", gap: "8px" }} role="group" aria-label="Your fund">
+      <div className="rail-tenant" style={{ borderTop: "none", display: "flex", alignItems: "center", gap: "8px" }} role="group" aria-label={t("fundSwitcher.yourFund")}>
         <FundMark fund={f.funds[0]!} />
         <div>
-          <div className="sub">Your fund</div>
+          <div className="sub">{t("fundSwitcher.yourFund")}</div>
           <div className="small b">{f.funds[0]!.name}</div>
         </div>
       </div>
@@ -99,10 +102,10 @@ export function FundSwitcher() {
     <div className="rail-tenant" style={{ borderTop: "none" }}>
       <label className="sub row" htmlFor="fund-switcher" style={{ gap: "6px", marginBottom: "4px" }}>
         <Landmark className="ic ic-sm" aria-hidden="true" />
-        Fund
+        {t("fundSwitcher.fund")}
       </label>
       <select id="fund-switcher" className="sel" value={f.current?.id ?? ""} onChange={(e) => f.select(e.target.value || null)}>
-        <option value="">{f.scoped ? "All my funds" : "All funds"}</option>
+        <option value="">{f.scoped ? t("fundSwitcher.allMyFunds") : t("fundSwitcher.allFunds")}</option>
         {f.funds.map((x) => (
           <option key={x.id} value={x.id}>
             {x.name}

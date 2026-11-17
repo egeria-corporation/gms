@@ -14,12 +14,14 @@ import { LevelBadge, VerificationBadge, StatusBadge } from "../../../components/
 import { EmptyState } from "../../../components/ui.tsx";
 import { formatDate } from "../../../lib/format.ts";
 import { loadDashboard, Messages, Payments, ReportsDue, Tasks } from "../Dashboard.tsx";
+import { t, useApplicantText } from "../i18n.ts";
+import { readinessWords } from "../../../lib/readinessText.ts";
 
 const CHECK = {
-  pass: { cls: "rc-pass", icon: CircleCheck, word: "Passes" },
-  fail: { cls: "rc-fail", icon: CircleX, word: "Needs attention" },
-  unknown: { cls: "rc-unk", icon: CircleDashed, word: "Unknown" },
-} as const;
+  pass: { cls: "rc-pass", icon: CircleCheck, get word() { return t("dashboard.check.pass"); } },
+  fail: { cls: "rc-fail", icon: CircleX, get word() { return t("dashboard.check.fail"); } },
+  unknown: { cls: "rc-unk", icon: CircleDashed, get word() { return t("dashboard.check.unknown"); } },
+};
 
 function Readiness({ readiness, base }: { readiness: ApplicantReadiness; base: string }) {
   const passportFlags = usePassportFlags();
@@ -27,7 +29,7 @@ function Readiness({ readiness, base }: { readiness: ApplicantReadiness; base: s
     <section className="card" aria-labelledby="ready-h">
       <div className="card-h" style={{ padding: "14px 16px" }}>
         <h3 id="ready-h" style={{ fontSize: "16px" }}>
-          {readiness.linked ? "Passport readiness" : "Readiness"}
+          {readiness.linked ? t("dashboardPhone.passportReadiness") : t("dashboardPhone.readiness")}
         </h3>
         {readiness.linked ? <LevelBadge level={readiness.level} /> : <VerificationBadge verification={{ source: "self_declared", level: null }} />}
       </div>
@@ -39,8 +41,8 @@ function Readiness({ readiness, base }: { readiness: ApplicantReadiness; base: s
               <li key={c.key} className={`rc-row ${look.cls}`} style={{ padding: "8px 0", ...(i === 0 ? { borderTop: 0 } : {}) }}>
                 <look.icon className="ic" role="img" aria-label={look.word} />
                 <div>
-                  <div className="l">{c.label}</div>
-                  <div className="r">{c.reason}</div>
+                  <div className="l">{readinessWords(c).label}</div>
+                  <div className="r">{readinessWords(c).reason}</div>
                 </div>
                 <span></span>
               </li>
@@ -49,11 +51,11 @@ function Readiness({ readiness, base }: { readiness: ApplicantReadiness; base: s
         </ul>
         {readiness.linked ? (
           <Link to={`${base}/organization`} className="btn btn-secondary btn-lg btn-block">
-            Manage in Passport
+            {t("dashboardPhone.manageInPassport")}
           </Link>
         ) : passportFlags.linking ? (
           <Link to="/onboarding/applicant" className="btn btn-primary btn-lg btn-block">
-            Connect Passport
+            {t("dashboardPhone.connectPassport")}
           </Link>
         ) : null}
       </div>
@@ -79,11 +81,11 @@ function ApplicationCard({ app, base }: { app: MyApplication; base: string }) {
             {closes.text}
           </span>
         ) : (
-          <span className="small muted">{app.submittedAt ? `Submitted ${formatDate(app.submittedAt)}` : app.opportunity.title}</span>
+          <span className="small muted">{app.submittedAt ? t("dashboard.submittedOn", { date: formatDate(app.submittedAt) }) : app.opportunity.title}</span>
         )}
         {editable && (
           <span className="small muted">
-            {app.forms.complete} of {app.forms.total} forms complete
+            {t("dashboard.formsComplete", { complete: app.forms.complete, total: app.forms.total })}
           </span>
         )}
       </div>
@@ -92,13 +94,14 @@ function ApplicationCard({ app, base }: { app: MyApplication; base: string }) {
 }
 
 export default function DashboardPhone() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const query = useApplicantQuery(loadDashboard, [ws.id]);
   return (
     <>
-      <title>{`Dashboard — ${ws.name}`}</title>
-      <PhoneShell title="Dashboard" active="Dashboard">
+      <title>{t("dashboard.pageTitle", { workspace: ws.name })}</title>
+      <PhoneShell title={t("dashboardPhone.dashboard")} active="Dashboard">
         <main className="main" style={{ flex: 1 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
             <span className="eyebrow">{ws.name}</span>
@@ -106,25 +109,25 @@ export default function DashboardPhone() {
               {greeting()}, {firstName(ws.member.name)}
             </h2>
           </div>
-          <Loaded query={query} label="Loading your dashboard">
+          <Loaded query={query} label={t("dashboardPhone.loadingYourDashboard")}>
             {(d) => (
               <>
                 <Readiness readiness={d.readiness} base={base} />
                 <section style={{ display: "flex", flexDirection: "column", gap: "10px" }} aria-labelledby="apps-h">
                   <div className="row" style={{ justifyContent: "space-between" }}>
                     <h3 id="apps-h" style={{ fontSize: "16px" }}>
-                      Active applications
+                      {t("dashboardPhone.activeApplications")}
                     </h3>
                     <Link to={`${base}/find`} className="small b">
-                      Find funding
+                      {t("dashboardPhone.findFunding")}
                     </Link>
                   </div>
                   {d.applications.length ? (
                     d.applications.map((a) => <ApplicationCard key={a.id} app={a} base={base} />)
                   ) : (
                     <div className="card">
-                      <EmptyState icon={Search} title="Nothing in progress" actions={<Link to={`${base}/find`} className="btn btn-primary">Find funding</Link>}>
-                        Start an application with your Passport profile already filled in.
+                      <EmptyState icon={Search} title={t("dashboardPhone.nothingInProgress")} actions={<Link to={`${base}/find`} className="btn btn-primary">{t("dashboardPhone.findFunding")}</Link>}>
+                        {t("dashboardPhone.startAnApplicationWithYourPassport")}
                       </EmptyState>
                     </div>
                   )}

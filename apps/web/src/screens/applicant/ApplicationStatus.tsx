@@ -16,6 +16,7 @@ import { StatusBadge, statusLook } from "../../components/status.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { DecisionSection, InterviewSection } from "./statusExtras.tsx";
+import { t, useApplicantText } from "./i18n.ts";
 
 export const loadStatus = async (api: ApplicantApi, id: string) => {
   const [status, list, threads] = await Promise.all([api.applicationStatus(id), api.applications(), api.threads(id)]);
@@ -23,11 +24,11 @@ export const loadStatus = async (api: ApplicantApi, id: string) => {
 };
 
 const EVENT: Record<string, { icon: LucideIcon; text: (e: ApplicationEvent) => string; cls: string }> = {
-  started: { icon: Pencil, text: () => "Started", cls: "tl-person" },
-  submit: { icon: Send, text: () => "Submitted", cls: "tl-person" },
-  advance: { icon: ArrowRight, text: (e) => `Advanced to ${e.toStage ?? "the next stage"}`, cls: "tl-ok" },
-  request_revision: { icon: RotateCcw, text: () => "Revision requested", cls: "tl-warn" },
-  withdraw: { icon: LogOut, text: () => "Withdrawn", cls: "" },
+  started: { icon: Pencil, text: () => t("applicationStatus.event.started"), cls: "tl-person" },
+  submit: { icon: Send, text: () => t("applicationStatus.event.submitted"), cls: "tl-person" },
+  advance: { icon: ArrowRight, text: (e) => (e.toStage ? t("applicationStatus.event.advancedTo", { stage: e.toStage }) : t("applicationStatus.event.advanced")), cls: "tl-ok" },
+  request_revision: { icon: RotateCcw, text: () => t("applicationStatus.event.revisionRequested"), cls: "tl-warn" },
+  withdraw: { icon: LogOut, text: () => t("applicationStatus.event.withdrawn"), cls: "" },
 };
 export function describe(e: ApplicationEvent) {
   const known = EVENT[e.type];
@@ -39,6 +40,7 @@ export function describe(e: ApplicationEvent) {
 export const WITHDRAWABLE = ["draft", "submitted", "screening", "under_review", "revision_requested", "interview", "recommended", "waitlisted"];
 
 export default function ApplicationStatus() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const { appId = "" } = useParams();
@@ -46,21 +48,21 @@ export default function ApplicationStatus() {
   const [reply, setReply] = useState("");
   const [confirm, setConfirm] = useState(false);
   const send = useApplicantMutation(async (a, thread: Thread | null, body: string) => {
-    const t = thread ?? (await a.openThread(appId));
-    const m = await a.postMessage(t.id, body);
-    return { ...t, messages: [...t.messages, m] };
+    const open = thread ?? (await a.openThread(appId));
+    const m = await a.postMessage(open.id, body);
+    return { ...open, messages: [...open.messages, m] };
   });
   const withdraw = useApplicantMutation((a) => a.withdraw(appId));
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
 
   return (
     <>
-      <title>{query.status === "ready" ? `${query.data.status.title} — ${ws.name}` : `Application — ${ws.name}`}</title>
+      <title>{query.status === "ready" ? `${query.data.status.title} — ${ws.name}` : t("applicationStatus.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell active="Applications">
         <main className="main">
-          <Loaded query={query} label="Loading the application">
+          <Loaded query={query} label={t("applicationStatus.loadingTheApplication")}>
             {({ status, summary, thread }) => {
-              const funder = summary?.funder.name ?? "the funder";
+              const funder = summary?.funder.name ?? t("applicationStatus.theFunder");
               const editable = status.status === "draft" || status.status === "revision_requested";
               const revisions = status.timeline.filter((e) => e.type === "request_revision");
               const onSend = async (e: FormEvent) => {
@@ -75,9 +77,9 @@ export default function ApplicationStatus() {
               return (
                 <>
                   <div className="crumbs">
-                    <Link to={base}>Dashboard</Link>
+                    <Link to={base}>{t("applicationStatus.dashboard")}</Link>
                     <span>›</span>
-                    <Link to={`${base}/applications`}>Applications</Link>
+                    <Link to={`${base}/applications`}>{t("applicationStatus.applications")}</Link>
                     <span>›</span>
                     <span>{status.title}</span>
                   </div>
@@ -93,7 +95,7 @@ export default function ApplicationStatus() {
                         {status.submittedAt && (
                           <>
                             <span>·</span>
-                            <span>Submitted {formatDate(status.submittedAt)}</span>
+                            <span>{t("applicationStatus.submittedOn", { date: formatDate(status.submittedAt) })}</span>
                           </>
                         )}
                         <span>·</span>
@@ -104,32 +106,32 @@ export default function ApplicationStatus() {
                       {editable && (
                         <Link to={`${base}/applications/${status.id}/edit`} className="btn btn-primary">
                           <Pencil className="ic" aria-hidden="true" />
-                          {status.status === "draft" ? "Continue editing" : "Respond to revision"}
+                          {status.status === "draft" ? t("applicationStatus.continueEditing") : t("applicationStatus.respondToRevision")}
                         </Link>
                       )}
                       {WITHDRAWABLE.includes(status.status) && (
                         <button className="btn btn-danger" type="button" aria-haspopup="dialog" onClick={() => setConfirm(true)}>
-                          Withdraw application
+                          {t("applicationStatus.withdrawApplication")}
                         </button>
                       )}
                     </div>
                   </div>
 
-                  {withdraw.error ? <ErrorBanner error={withdraw.error} title="The application was not withdrawn" /> : null}
+                  {withdraw.error ? <ErrorBanner error={withdraw.error} title={t("applicationStatus.theApplicationWasNotWithdrawn")} /> : null}
 
                   <div className="card">
                     <div className="card-h">
-                      <h2 style={{ fontSize: "18px" }}>Stages</h2>
+                      <h2 style={{ fontSize: "18px" }}>{t("applicationStatus.stages")}</h2>
                     </div>
                     <div className="card-b">
-                      <div className="stp" role="group" aria-label="Competition stages" style={{ flexWrap: "wrap", rowGap: "8px" }}>
+                      <div className="stp" role="group" aria-label={t("applicationStatus.competitionStages")} style={{ flexWrap: "wrap", rowGap: "8px" }}>
                         {status.stages.map((s, i) => (
                           <span key={s.key} style={{ display: "contents" }}>
                             {i > 0 && <span className={s.state === "upcoming" ? "ln" : "ln done"}></span>}
                             <div className={s.state === "done" ? "s done" : s.state === "current" ? "s on" : "s"} aria-current={s.state === "current" ? "step" : undefined}>
                               <span className="n">{i + 1}</span>
                               {s.label}
-                              {s.closes && s.state !== "done" ? <span className="small muted"> · closes {formatDate(s.closes)}</span> : null}
+                              {s.closes && s.state !== "done" ? <span className="small muted"> · {t("applicationStatus.closesOn", { date: formatDate(s.closes) })}</span> : null}
                             </div>
                           </span>
                         ))}
@@ -142,14 +144,14 @@ export default function ApplicationStatus() {
                       <div className="card-h">
                         <div className="row" style={{ gap: "8px" }}>
                           <h2 id="msg-h" style={{ fontSize: "18px" }}>
-                            Messages
+                            {t("applicationStatus.messages")}
                           </h2>
-                          <span className="shared-mark">Shared with {funder}</span>
+                          <span className="shared-mark">{t("applicationStatus.sharedWith", { funder })}</span>
                         </div>
-                        <span className="small muted">Both sides see this thread</span>
+                        <span className="small muted">{t("applicationStatus.bothSidesSeeThisThread")}</span>
                       </div>
                       <div className="card-b th">
-                        {(thread?.messages ?? []).length === 0 && <p className="muted">No messages yet. Write to {funder} here; replies arrive by email too.</p>}
+                        {(thread?.messages ?? []).length === 0 && <p className="muted">{t("applicationStatus.noMessagesYet", { funder })}</p>}
                         {(thread?.messages ?? []).map((m, i) => (
                           <div className="msg" key={m.id}>
                             <Avatar name={m.author} index={m.authorUserId ? 0 : 3 + (i % 1)} />
@@ -164,16 +166,16 @@ export default function ApplicationStatus() {
                         ))}
                         <form className="composer" onSubmit={onSend}>
                           <label className="sr" htmlFor="reply">
-                            Reply
+                            {t("applicationStatus.reply")}
                           </label>
-                          <textarea className="ta" id="reply" style={{ minHeight: "56px", flex: 1 }} placeholder={`Reply to ${funder}…`} value={reply} onChange={(e) => setReply(e.target.value)} />
+                          <textarea className="ta" id="reply" style={{ minHeight: "56px", flex: 1 }} placeholder={t("applicationStatus.replyTo", { funder })} value={reply} onChange={(e) => setReply(e.target.value)} />
                           <button className="btn btn-primary" type="submit" style={{ height: "44px" }} disabled={send.state === "saving" || !reply.trim()}>
                             <Send className="ic" aria-hidden="true" />
-                            Send
+                            {t("applicationStatus.send")}
                           </button>
                         </form>
-                        {send.error ? <ErrorBanner error={send.error} title="The message was not sent" /> : null}
-                        <p className="small muted">Internal notes the funder writes are never shown here.</p>
+                        {send.error ? <ErrorBanner error={send.error} title={t("applicationStatus.theMessageWasNotSent")} /> : null}
+                        <p className="small muted">{t("applicationStatus.internalNotesTheFunderWritesAre")}</p>
                       </div>
                     </section>
 
@@ -182,27 +184,27 @@ export default function ApplicationStatus() {
                         <section className="card" aria-labelledby="rev-h">
                           <div className="card-h">
                             <h2 id="rev-h" style={{ fontSize: "18px" }}>
-                              Revision requests
+                              {t("applicationStatus.revisionRequests")}
                             </h2>
                             {status.status === "revision_requested" ? <StatusBadge kind="application" status="revision_requested" /> : null}
                           </div>
                           <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                             {revisions.map((e) => (
                               <div key={e.id}>
-                                <div className="b">{e.message ?? "The funder asked for changes"}</div>
-                                <div className="small muted">Requested {formatDate(e.at)}</div>
+                                <div className="b">{e.message ?? t("applicationStatus.theFunderAskedForChanges")}</div>
+                                <div className="small muted">{t("applicationStatus.requestedOn", { date: formatDate(e.at) })}</div>
                               </div>
                             ))}
                             {status.status === "revision_requested" && (
                               <Link to={`${base}/applications/${status.id}/edit`} className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
-                                Respond
+                                {t("applicationStatus.respond")}
                               </Link>
                             )}
                             {status.timeline
                               .filter((e) => e.type === "submit" && e.revision)
                               .map((e) => (
                                 <div key={e.id} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                                  <div className="b">Your response · {formatDate(e.at)}</div>
+                                  <div className="b">{t("applicationStatus.yourResponseOn", { date: formatDate(e.at) })}</div>
                                   <RevisionDiff revision={e.revision!} />
                                 </div>
                               ))}
@@ -216,7 +218,7 @@ export default function ApplicationStatus() {
                       <section className="card" aria-labelledby="tl-h">
                         <div className="card-h">
                           <h2 id="tl-h" style={{ fontSize: "18px" }}>
-                            Timeline
+                            {t("applicationStatus.timeline")}
                           </h2>
                         </div>
                         <div className="card-b">
@@ -248,17 +250,17 @@ export default function ApplicationStatus() {
                   <Dialog open={confirm} onClose={() => setConfirm(false)} labelledBy="wd-title">
                     <div className="hd">
                       <h3 id="wd-title" style={{ fontSize: "16px" }}>
-                        Withdraw this application?
+                        {t("applicationStatus.withdrawThisApplication")}
                       </h3>
                     </div>
                     <div className="bd">
                       <p>
-                        {funder} stops considering “{status.title}”. This cannot be undone; you would need to start a new application.
+                        {t("applicationStatus.withdrawBody", { funder, title: status.title })}
                       </p>
                     </div>
                     <div className="ft">
                       <button className="btn btn-secondary" type="button" onClick={() => setConfirm(false)}>
-                        Keep application
+                        {t("applicationStatus.keepApplication")}
                       </button>
                       <button
                         className="btn btn-danger-solid"
@@ -270,7 +272,7 @@ export default function ApplicationStatus() {
                           if (r) query.reload();
                         }}
                       >
-                        Withdraw
+                        {t("applicationStatus.withdraw")}
                       </button>
                     </div>
                   </Dialog>

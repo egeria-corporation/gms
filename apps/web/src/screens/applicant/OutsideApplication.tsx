@@ -18,7 +18,8 @@ import { NotFound } from "../../components/NotFound.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { ErrorBanner, Notice, PageHeader, TabPanel, Tabs } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
-import { canMarkSubmitted, canReopen, decisionOutcomes, MOVE_LABELS, plainMoves, STAGE_LABELS, type OutsideStage } from "../../lib/outside.ts";
+import { canMarkSubmitted, canReopen, decisionOutcomes, plainMoves, type OutsideStage } from "../../lib/outside.ts";
+import { moveLabel, stageLabel } from "./labels.ts";
 import { ChecklistTab } from "./outside/ChecklistTab.tsx";
 import { GoNoGoCard, NextCycleCard } from "./outside/decide.tsx";
 import { ConsultingDialog, DecisionDialog, MarkSubmittedDialog } from "./outside/dialogs.tsx";
@@ -26,6 +27,7 @@ import { QuestionsTab } from "./outside/QuestionsTab.tsx";
 import { SendToFunderButton } from "./outside/SendToFunder.tsx";
 import { DEADLINE_LABELS, DeadlineText, moneyText, StageBadge } from "./outside/shared.tsx";
 import { ActivityTab, EditDetailsDialog, NotesTab, SubmissionTab } from "./outside/tabs.tsx";
+import { t, useApplicantText } from "./i18n.ts";
 
 type Tab = "questions" | "checklist" | "submission" | "notes" | "activity";
 const TABS: Tab[] = ["questions", "checklist", "submission", "notes", "activity"];
@@ -45,6 +47,7 @@ const load = async (api: OutsideApi, applicant: ApplicantApi, wk: WriteKeepApi, 
 };
 
 export default function OutsideApplication() {
+  useApplicantText();
   const ws = useWorkspace("applicant");
   const base = `/w/${ws.handle}`;
   const { outsideId = "" } = useParams();
@@ -79,22 +82,22 @@ export default function OutsideApplication() {
 
   return (
     <>
-      <title>{query.status === "ready" ? `${query.data.detail.title} — ${ws.name}` : `Application — ${ws.name}`}</title>
+      <title>{query.status === "ready" ? `${query.data.detail.title} — ${ws.name}` : t("outsideApplication.pageTitle", { workspace: ws.name })}</title>
       <ApplicantShell active="Applications">
         <main className="main">
-          <Loaded query={query} label="Opening the application">
+          <Loaded query={query} label={t("outsideApplication.openingTheApplication")}>
             {({ detail, record, records, members, answers, org, settings }) => {
               const archived = !!detail.archivedAt;
               const moves = archived ? [] : plainMoves(detail.stage);
               const outcomes = archived ? [] : decisionOutcomes(detail.stage);
-              const owner = detail.owner ? (members.find((m) => m.userId === detail.owner!.userId)?.name ?? detail.owner.name ?? "A teammate") : null;
+              const owner = detail.owner ? (members.find((m) => m.userId === detail.owner!.userId)?.name ?? detail.owner.name ?? t("outsideApplication.aTeammate")) : null;
               const busy = move.state === "saving" || reopen.state === "saving" || archive.state === "saving";
               // A consultant invited into this draft writes its answers; the rest is the team's.
               const cowriter = detail.cowriter === true;
               return (
                 <>
                   <PageHeader
-                    crumbs={[{ label: "Applications", to: `${base}/applications` }, { label: detail.title }]}
+                    crumbs={[{ label: t("outsideApplication.applications"), to: `${base}/applications` }, { label: detail.title }]}
                     title={detail.title}
                     badge={
                       <>
@@ -102,7 +105,7 @@ export default function OutsideApplication() {
                         {archived && (
                           <span className="bdg bdg-neutral bdg-lg">
                             <Archive className="ic" aria-hidden="true" />
-                            Archived
+                            {t("outsideApplication.archived")}
                           </span>
                         )}
                       </>
@@ -120,13 +123,13 @@ export default function OutsideApplication() {
                           {detail.programName ? ` · ${detail.programName}` : ""}
                         </span>
                         <span aria-hidden="true">·</span>
-                        <span>Ask {moneyText(detail.askAmount)}</span>
+                        <span>{t("outsideApplication.askAmount", { amount: moneyText(detail.askAmount) })}</span>
                         <span aria-hidden="true">·</span>
-                        <span>{owner ? `Owner: ${owner}` : "No owner"}</span>
+                        <span>{owner ? t("outsideApplication.ownerName", { name: owner }) : t("outsideApplication.noOwner")}</span>
                         {detail.awardedAmount && (
                           <>
                             <span aria-hidden="true">·</span>
-                            <span className="b">Awarded {moneyText(detail.awardedAmount)}</span>
+                            <span className="b">{t("outsideApplication.awardedAmount", { amount: moneyText(detail.awardedAmount) })}</span>
                           </>
                         )}
                       </>
@@ -137,25 +140,25 @@ export default function OutsideApplication() {
                         {!archived && canMarkSubmitted(detail.stage) && (
                           <button type="button" className="btn btn-primary" aria-haspopup="dialog" onClick={() => setDialog("submit")}>
                             <Send className="ic" aria-hidden="true" />
-                            Mark as submitted
+                            {t("outsideApplication.markAsSubmitted")}
                           </button>
                         )}
                         {outcomes.length > 0 && (
                           <button type="button" className={detail.stage === "submitted" ? "btn btn-primary" : "btn btn-secondary"} aria-haspopup="dialog" onClick={() => setDialog("decide")}>
                             <Scale className="ic" aria-hidden="true" />
-                            Record decision
+                            {t("outsideApplication.recordDecision")}
                           </button>
                         )}
                         {!archived && canReopen(detail.stage) && detail.previousStage && (
-                          <button type="button" className="btn btn-secondary" disabled={busy} onClick={async () => after(await reopen.run(), `Reopened at ${STAGE_LABELS[detail.previousStage!]}`)}>
+                          <button type="button" className="btn btn-secondary" disabled={busy} onClick={async () => after(await reopen.run(), t("outsideApplication.reopenedAt", { stage: stageLabel(detail.previousStage!) }))}>
                             <RotateCcw className="ic" aria-hidden="true" />
-                            Reopen
+                            {t("outsideApplication.reopen")}
                           </button>
                         )}
                         {moves.length > 0 && (
                           <>
                             <label className="sr" htmlFor="oa-move">
-                              Move to another stage
+                              {t("outsideApplication.moveToAnotherStage")}
                             </label>
                             <select
                               id="oa-move"
@@ -165,15 +168,15 @@ export default function OutsideApplication() {
                               disabled={busy}
                               onChange={async (e) => {
                                 const to = e.target.value as OutsideStage;
-                                if (to) after(await move.run(to), `Moved to ${STAGE_LABELS[to]}`);
+                                if (to) after(await move.run(to), t("outsideApplication.movedTo", { stage: stageLabel(to) }));
                               }}
                             >
                               <option value="" disabled>
-                                Move to…
+                                {t("outsideApplication.moveTo")}
                               </option>
                               {moves.map((s) => (
                                 <option key={s} value={s}>
-                                  {MOVE_LABELS[s]}
+                                  {moveLabel(s)}
                                 </option>
                               ))}
                             </select>
@@ -182,23 +185,23 @@ export default function OutsideApplication() {
                         <SendToFunderButton applicationId={detail.id} />
                         <button type="button" className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("help")}>
                           <HandHelping className="ic" aria-hidden="true" />
-                          Get help writing this
+                          {t("outsideApplication.getHelpWritingThis")}
                         </button>
                         {!archived && (
                           <button type="button" className="btn btn-ghost" aria-haspopup="dialog" onClick={() => setDialog("edit")}>
                             <Pencil className="ic" aria-hidden="true" />
-                            Edit details
+                            {t("outsideApplication.editDetails")}
                           </button>
                         )}
-                        <button type="button" className="btn btn-ghost" disabled={busy} onClick={async () => after(await archive.run(!archived), archived ? "Brought back from the archive" : "Archived. It no longer shows in your pipeline or the calendar feed.")}>
+                        <button type="button" className="btn btn-ghost" disabled={busy} onClick={async () => after(await archive.run(!archived), archived ? t("outsideApplication.unarchivedNote") : t("outsideApplication.archivedNote"))}>
                           {archived ? <ArchiveArrowUp className="ic" aria-hidden="true" /> : <Archive className="ic" aria-hidden="true" />}
-                          {archived ? "Unarchive" : "Archive"}
+                          {archived ? t("outsideApplication.unarchive") : t("outsideApplication.archive")}
                         </button>
                       </>
                       )
                     }
                   />
-                  <div className="row" style={{ gap: "24px", flexWrap: "wrap", fontSize: "14px" }} aria-label="Deadlines" role="group">
+                  <div className="row" style={{ gap: "24px", flexWrap: "wrap", fontSize: "14px" }} aria-label={t("outsideApplication.deadlines")} role="group">
                     {(Object.keys(DEADLINE_LABELS) as (keyof typeof DEADLINE_LABELS)[]).map((k) => (
                       <div key={k} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                         <span className="small muted">{DEADLINE_LABELS[k]}</span>
@@ -207,44 +210,44 @@ export default function OutsideApplication() {
                     ))}
                     {detail.rolling && (
                       <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                        <span className="small muted">Timing</span>
-                        <span>Rolling</span>
+                        <span className="small muted">{t("outsideApplication.timing")}</span>
+                        <span>{t("outsideApplication.rolling")}</span>
                       </div>
                     )}
                   </div>
                   {done && <Notice tone="ok" title={done} />}
                   {archived && (
-                    <Notice tone="neu" title="This application is archived">
-                      It is kept for your records. Unarchive it to make changes.
+                    <Notice tone="neu" title={t("outsideApplication.thisApplicationIsArchived")}>
+                      {t("outsideApplication.itIsKeptForYourRecords")}
                     </Notice>
                   )}
-                  {[move.error, reopen.error, archive.error].map((e, i) => (e ? <ErrorBanner key={i} error={e} title="That change was not made" /> : null))}
+                  {[move.error, reopen.error, archive.error].map((e, i) => (e ? <ErrorBanner key={i} error={e} title={t("outsideApplication.thatChangeWasNotMade")} /> : null))}
                   {!cowriter && <NextCycleCard detail={detail} />}
                   {!cowriter && <GoNoGoCard detail={detail} settings={settings} members={members} readOnly={archived} onDone={(a, message) => after(a, message)} />}
                   {detail.stage === "awarded" && !cowriter && (
-                    <div className="bnr bnr-ok" role="region" aria-label="Awarded">
+                    <div className="bnr bnr-ok" role="region" aria-label={t("outsideApplication.awarded")}>
                       <Award className="ic" aria-hidden="true" />
                       <div className="grow">
-                        <div className="t">{detail.closedOutAt ? `Closed out on ${formatDate(detail.closedOutAt)}` : "Awarded. Keep track of what the grant asks of you."}</div>
-                        <div className="d">Reports, conditions and payments received are kept on the award, under Awarded funding.</div>
+                        <div className="t">{detail.closedOutAt ? t("outsideApplication.closedOutOn", { date: formatDate(detail.closedOutAt) }) : t("outsideApplication.awardedKeepTrackOfWhatThe")}</div>
+                        <div className="d">{t("outsideApplication.reportsConditionsAndPaymentsReceivedAre")}</div>
                       </div>
                       <Link to={`${base}/grants/outside/${detail.id}`} className="btn btn-sm btn-secondary act">
-                        Open the award
+                        {t("outsideApplication.openTheAward")}
                       </Link>
                     </div>
                   )}
                   <Tabs<Tab>
-                    label="Application sections"
+                    label={t("outsideApplication.applicationSections")}
                     idPrefix="oa"
                     active={cowriter ? "questions" : tab}
                     onChange={setTab}
                     tabs={[
-                      { key: "questions", label: "Questions", count: detail.questions.filter((q) => !q.obligationId).length },
-                      { key: "checklist", label: "Checklist", count: detail.tasks.filter((t) => !t.doneAt).length || undefined },
-                      { key: "submission", label: "Submission" },
-                      { key: "notes", label: "Notes" },
-                      { key: "activity", label: "Activity" },
-                    ].filter((t) => !cowriter || t.key === "questions").map((t) => (t.count === undefined ? { key: t.key as Tab, label: t.label } : { key: t.key as Tab, label: t.label, count: t.count }))}
+                      { key: "questions", label: t("outsideApplication.tab.questions"), count: detail.questions.filter((q) => !q.obligationId).length },
+                      { key: "checklist", label: t("outsideApplication.tab.checklist"), count: detail.tasks.filter((task) => !task.doneAt).length || undefined },
+                      { key: "submission", label: t("outsideApplication.tab.submission") },
+                      { key: "notes", label: t("outsideApplication.tab.notes") },
+                      { key: "activity", label: t("outsideApplication.tab.activity") },
+                    ].filter((x) => !cowriter || x.key === "questions").map((x) => (x.count === undefined ? { key: x.key as Tab, label: x.label } : { key: x.key as Tab, label: x.label, count: x.count }))}
                   />
                   <TabPanel idPrefix="oa" tab="questions" active={cowriter ? "questions" : tab}>
                     <QuestionsTab detail={detail} members={members} answers={answers} org={org} readOnly={archived} onChanged={query.reload} />
@@ -266,10 +269,10 @@ export default function OutsideApplication() {
                   </>
                   )}
 
-                  {dialog === "submit" && <MarkSubmittedDialog app={detail} onClose={() => setDialog(null)} onDone={(a) => after(a, "Marked as submitted. The “as submitted” copy is on the Submission tab.")} />}
-                  {dialog === "decide" && <DecisionDialog app={detail} onClose={() => setDialog(null)} onDone={(a) => after(a, `Decision recorded: ${STAGE_LABELS[a.stage]}`)} />}
+                  {dialog === "submit" && <MarkSubmittedDialog app={detail} onClose={() => setDialog(null)} onDone={(a) => after(a, t("outsideApplication.markedSubmitted"))} />}
+                  {dialog === "decide" && <DecisionDialog app={detail} onClose={() => setDialog(null)} onDone={(a) => after(a, t("outsideApplication.decisionRecorded", { stage: stageLabel(a.stage) }))} />}
                   {dialog === "help" && <ConsultingDialog app={detail} contact={contact} onClose={() => setDialog(null)} onSent={() => query.reload()} />}
-                  {dialog === "edit" && <EditDetailsDialog app={detail} members={members} records={records} onClose={() => setDialog(null)} onDone={(a) => after(a, "Details saved")} />}
+                  {dialog === "edit" && <EditDetailsDialog app={detail} members={members} records={records} onClose={() => setDialog(null)} onDone={(a) => after(a, t("outsideApplication.detailsSaved"))} />}
                 </>
               );
             }}

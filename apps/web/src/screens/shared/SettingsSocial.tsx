@@ -14,12 +14,17 @@ import { ApplicantShell, FunderShell } from "../../components/shells.tsx";
 import { ErrorBanner, Loading, Notice, PageHeader } from "../../components/ui.tsx";
 import { SettingsNav } from "../funder/SettingsPassport.tsx";
 
-const since = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+import { intlLocale, translator } from "../../i18n/index.tsx";
+
+
+
+const t = translator("shared");
+const since = (iso: string) => new Date(iso).toLocaleDateString(intlLocale(), { month: "long", day: "numeric", year: "numeric" });
 
 function Frame({ children }: { children: ReactNode }) {
   const ws = useCurrentWorkspace()!;
   const base = `/w/${ws.handle}`;
-  const header = <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Settings", to: `${base}/settings` }, { label: "Social accounts" }]} title="Social accounts" meta={<span>{ws.name}</span>} />;
+  const header = <PageHeader crumbs={[{ label: ws.name, to: base }, { label: t("settingsSocial.settings"), to: `${base}/settings` }, { label: t("settingsSocial.socialAccounts") }]} title={t("settingsSocial.socialAccounts")} meta={<span>{ws.name}</span>} />;
   if (ws.kind === "funder") {
     return (
       <FunderShell active="Settings">
@@ -77,56 +82,56 @@ export default function SettingsSocial() {
 
   return (
     <Frame>
-      <title>{`Social accounts — ${ws.name}`}</title>
+      <title>{t("settingsSocial.socialAccounts2", { name: ws.name })}</title>
       <section className="card" aria-labelledby="social-accounts-title">
         <div className="card-h">
           <div>
-            <h2 id="social-accounts-title">Social accounts</h2>
+            <h2 id="social-accounts-title">{t("settingsSocial.socialAccounts")}</h2>
             <p className="small muted">
-              Announce open calls and awards on your organization's own accounts. Connecting signs in at the platform through Zernio; the GMS keeps the account's name and Zernio's id, never a password or a token. Nothing is ever posted without a person pressing Post.
+              {t("settingsSocial.announceOpenCallsAndAwards")}
             </p>
           </div>
         </div>
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {connected && (
-            <Notice tone="ok" title={`${connected.label} account connected`}>
-              {connected.username ? `${connected.username} can now be chosen when you post.` : "It can now be chosen when you post."}
+            <Notice tone="ok" title={t("settingsSocial.accountConnected", { label: connected.label })}>
+              {connected.username ? t("settingsSocial.canNowBeChosenWhen", { username: connected.username }) : t("settingsSocial.itCanNowBeChosen")}
             </Notice>
           )}
-          {finish.error !== null && <ErrorBanner error={finish.error} title="The account was not connected" />}
-          {connect.error !== null && <ErrorBanner error={connect.error} title="Connecting could not start" />}
-          {disconnect.error !== null && <ErrorBanner error={disconnect.error} title="The account was not disconnected" />}
-          {q.status === "loading" && <Loading label="Loading social accounts" />}
+          {finish.error !== null && <ErrorBanner error={finish.error} title={t("settingsSocial.theAccountWasNotConnected")} />}
+          {connect.error !== null && <ErrorBanner error={connect.error} title={t("settingsSocial.connectingCouldNotStart")} />}
+          {disconnect.error !== null && <ErrorBanner error={disconnect.error} title={t("settingsSocial.theAccountWasNotDisconnected")} />}
+          {q.status === "loading" && <Loading label={t("settingsSocial.loadingSocialAccounts")} />}
           {q.status === "error" && <ErrorBanner error={q.error} onRetry={q.reload} />}
           {q.status === "ready" && !q.data && (
-            <Notice tone="neu" title="Social posting is not set up on this server">
-              The person who runs this GMS can turn it on with a Zernio key.
+            <Notice tone="neu" title={t("settingsSocial.socialPostingIsNotSet")}>
+              {t("settingsSocial.thePersonWhoRunsThis")}
             </Notice>
           )}
           {q.status === "ready" && q.data && (
             <>
               <div>
-                <h3 style={{ fontSize: "14px", marginBottom: "8px" }}>Connected</h3>
+                <h3 style={{ fontSize: "14px", marginBottom: "8px" }}>{t("settingsSocial.connected")}</h3>
                 {q.data.accounts.length === 0 ? (
-                  <p className="small muted">No accounts connected yet.</p>
+                  <p className="small muted">{t("settingsSocial.noAccountsConnectedYet")}</p>
                 ) : (
-                  <ul aria-label="Connected accounts" style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <ul aria-label={t("settingsSocial.connectedAccounts")} style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
                     {q.data.accounts.map((a) => (
                       <li key={a.id} className="row wrap" style={{ gap: "10px", alignItems: "center", justifyContent: "space-between" }}>
                         <span className="row wrap" style={{ gap: "8px", alignItems: "center" }}>
                           <span className="bdg bdg-ok">
                             <CircleCheck className="ic" aria-hidden="true" />
-                            Connected
+                            {t("settingsSocial.connected")}
                           </span>
                           <span className="b">{a.label}</span>
                           {a.username && <span>{a.username}</span>}
-                          <span className="small muted">since {since(a.connectedAt)}</span>
+                          <span className="small muted">{t("settingsSocial.since", { connectedAt: since(a.connectedAt) })}</span>
                         </span>
                         {q.data!.canConnect && (
                           <button
                             type="button"
                             className="btn btn-sm btn-secondary"
-                            aria-label={`Disconnect ${a.label}${a.username ? ` ${a.username}` : ""}`}
+                            aria-label={a.username ? t("settingsSocial.disconnectAccount", { label: a.label, username: a.username }) : t("settingsSocial.disconnect", { label: a.label })}
                             disabled={disconnect.state === "saving"}
                             onClick={async () => {
                               if (await disconnect.run(a.id)) {
@@ -136,7 +141,7 @@ export default function SettingsSocial() {
                             }}
                           >
                             <Unplug className="ic" aria-hidden="true" />
-                            Disconnect
+                            {t("settingsSocial.disconnect2")}
                           </button>
                         )}
                       </li>
@@ -145,27 +150,27 @@ export default function SettingsSocial() {
                 )}
               </div>
               <div>
-                <h3 style={{ fontSize: "14px", marginBottom: "8px" }}>Connect an account</h3>
+                <h3 style={{ fontSize: "14px", marginBottom: "8px" }}>{t("settingsSocial.connectAnAccount")}</h3>
                 {q.data.canConnect ? (
                   <div className="row wrap" style={{ gap: "8px" }}>
                     {q.data.platforms.map((p) => (
                       <button key={p.platform} type="button" className="btn btn-secondary" disabled={connect.state === "saving"} onClick={() => startConnect(p.platform)}>
                         <Plug className="ic" aria-hidden="true" />
-                        Connect {p.label}
+                        {t("settingsSocial.connect", { label: p.label })}
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <p className="small muted">Workspace admins connect accounts. You can post to connected accounts from a call or an award{q.data.canPost ? "" : " if you are an admin or an editor"}.</p>
+                  <p className="small muted">{q.data.canPost ? t("settingsSocial.adminsConnect") : t("settingsSocial.adminsConnectIfEditor")}</p>
                 )}
                 <p className="small muted" style={{ marginTop: "8px" }}>
-                  A Facebook page or a LinkedIn organization page is chosen on the platform's own screen. Instagram posts need a picture; the share card is used.
+                  {t("settingsSocial.aFacebookPageOrA")}
                 </p>
               </div>
             </>
           )}
           <p className="small">
-            <Link to={`/w/${ws.handle}`}>Back to the dashboard</Link>
+            <Link to={`/w/${ws.handle}`}>{t("settingsSocial.backToTheDashboard")}</Link>
           </p>
         </div>
       </section>

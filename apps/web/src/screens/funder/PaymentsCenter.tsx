@@ -16,10 +16,11 @@ import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge, VerificationBadge, WorkspaceName } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, ReadinessChecklist } from "../../components/ui.tsx";
 import { useAppConfig, usePassportFlags } from "../../api/launchHooks.ts";
-import { PaymentsOffNotice, RECORD_OUTSIDE_LABEL } from "../../components/launch.tsx";
+import { PaymentsOffNotice, recordOutsideLabel } from "../../components/launch.tsx";
 import { downloadCsv } from "../../lib/browser.ts";
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { dateTime, usePeople } from "./shared.tsx";
+import { t } from "./i18n.ts";
 
 const ALERT_TONE = { warn: "bnr-warn", danger: "bnr-dng", neutral: "bnr-neu" } as const;
 
@@ -32,29 +33,38 @@ function ViewSwitch({ base, view, due, inFlight, unmatched }: { base: string; vi
     </Link>
   );
   return (
-    <nav className="tabs" aria-label="Payments views">
+    <nav className="tabs" aria-label={t("paymentsCenter.paymentsViews")}>
       {tab(
         "due",
         <>
-          Due <span className="n">{due}</span>
+          {t.rich("paymentsCenter.due", { due, span: (chunks) => <span className="n">{chunks}</span> })}
         </>,
       )}
       {tab(
         "in-flight",
         <>
-          In flight &amp; alerts <span className="n">{inFlight}</span>
+          {t.rich("paymentsCenter.inFlightAlerts", { inFlight, span: (chunks) => <span className="n">{chunks}</span> })}
         </>,
       )}
       {tab(
         "reconcile",
         <>
-          Reconcile <span className="n">{unmatched}</span>
+          {t.rich("paymentsCenter.reconcile", { unmatched, span: (chunks) => <span className="n">{chunks}</span> })}
         </>,
       )}
-      {tab("ledger", "Ledger")}
+      {tab("ledger", t("paymentsCenter.ledger"))}
     </nav>
   );
 }
+
+/** Why a tranche is held, by its reason id; an id this screen does not know reads as its words. */
+const HOLD_REASON: Record<string, () => string> = {
+  manual: () => t("paymentsCenter.holdReason.manual"),
+  destination_change_in_flight: () => t("paymentsCenter.holdReason.destinationChangeInFlight"),
+  pending_destination_change: () => t("paymentsCenter.holdReason.pendingDestinationChange"),
+  credential_version_stale: () => t("paymentsCenter.holdReason.credentialVersionStale"),
+};
+const holdReasonLabel = (reason: string) => HOLD_REASON[reason]?.() ?? reason.replace(/_/g, " ");
 
 /** What falls due in the next 30 days, soonest first; tranches waiting on an event have no date. */
 function NextThirtyDays({ rows, now }: { rows: TrancheRow[]; now: Date }) {
@@ -67,21 +77,21 @@ function NextThirtyDays({ rows, now }: { rows: TrancheRow[]; now: Date }) {
   const total = upcoming.reduce((n, r) => n + r.amountMinor, 0);
   const waitsOn = (r: TrancheRow) => {
     const type = (r.condition as { type?: string } | null)?.type;
-    if (r.status === "held") return `held${r.holdReason ? ` · ${r.holdReason.replace(/_/g, " ")}` : ""}`;
-    if (type === "onExecution") return "on execution";
-    if (type === "onReportAccepted") return "when the report is accepted";
-    if (type === "onDate") return "on the scheduled date";
-    return "released manually";
+    if (r.status === "held") return r.holdReason ? t("paymentsCenter.waits.heldBecause", { reason: holdReasonLabel(r.holdReason) }) : t("paymentsCenter.waits.held");
+    if (type === "onExecution") return t("paymentsCenter.waits.onExecution");
+    if (type === "onReportAccepted") return t("paymentsCenter.waits.onReportAccepted");
+    if (type === "onDate") return t("paymentsCenter.waits.onDate");
+    return t("paymentsCenter.waits.manual");
   };
   return (
     <section className="card" aria-labelledby="next30-h">
       <div className="card-h">
-        <h3 id="next30-h">Next 30 days</h3>
-        <span className="small muted">to {formatDate(until.toISOString())}</span>
+        <h3 id="next30-h">{t("paymentsCenter.next30Days")}</h3>
+        <span className="small muted">{t("paymentsCenter.to", { date: formatDate(until.toISOString()) })}</span>
       </div>
       {!upcoming.length && (
         <div className="card-b">
-          <p className="muted small">Nothing is scheduled in the next 30 days.</p>
+          <p className="muted small">{t("paymentsCenter.nothingIsScheduledIn")}</p>
         </div>
       )}
       <ul style={{ display: "flex", flexDirection: "column" }}>
@@ -89,10 +99,10 @@ function NextThirtyDays({ rows, now }: { rows: TrancheRow[]; now: Date }) {
           <li key={r.id} style={{ display: "flex", justifyContent: "space-between", gap: "10px", padding: "10px 20px", borderBottom: i < upcoming.length - 1 ? "1px solid var(--og-gray-100)" : undefined, fontSize: "13px" }}>
             <div>
               <div className="b">
-                {r.dueAt ? formatDate(r.dueAt) : "When its condition is met"} · {r.recipient?.name ?? "Grantee"}
+                {r.dueAt ? formatDate(r.dueAt) : t("paymentsCenter.whenItsConditionIs")} · {r.recipient?.name ?? t("paymentsCenter.grantee")}
               </div>
               <div className="small" style={r.status === "held" ? { color: "var(--s-warn-fg)" } : { color: "var(--og-gray-600)" }}>
-                Tranche {r.seq} · {waitsOn(r)}
+                {t("paymentsCenter.tranche", { seq: r.seq, waitsOn: waitsOn(r) })}
               </div>
             </div>
             <div className="num b">{formatMinor(r.amountMinor, r.currency)}</div>
@@ -100,7 +110,7 @@ function NextThirtyDays({ rows, now }: { rows: TrancheRow[]; now: Date }) {
         ))}
       </ul>
       <div className="card-f" style={{ justifyContent: "space-between" }}>
-        <span className="small muted">Total in window</span>
+        <span className="small muted">{t("paymentsCenter.totalInWindow")}</span>
         <span className="b">{formatMinor(total)}</span>
       </div>
     </section>
@@ -112,90 +122,90 @@ function ReadinessExplained() {
   return (
     <section className="card" aria-labelledby="explained-h">
       <div className="card-h">
-        <h3 id="explained-h">Readiness explained</h3>
+        <h3 id="explained-h">{t("paymentsCenter.readinessExplained")}</h3>
       </div>
       <div className="card-b" style={{ paddingTop: "8px" }}>
         <div className="rc">
           <div className="rc-row rc-pass" style={{ borderTop: 0 }}>
             <CircleCheck className="ic" aria-hidden="true" />
             <div>
-              <div className="l">Pass</div>
-              <div className="r">Checked when this page loaded and true.</div>
+              <div className="l">{t("paymentsCenter.pass")}</div>
+              <div className="r">{t("paymentsCenter.checkedWhenThisPage")}</div>
             </div>
             <span></span>
           </div>
           <div className="rc-row rc-fail">
             <CircleX className="ic" aria-hidden="true" />
             <div>
-              <div className="l">Fail</div>
-              <div className="r">{facilitatedPayments ? "Blocks release." : "Something to settle with the grantee before you pay."} The row says what clears it and when.</div>
+              <div className="l">{t("paymentsCenter.fail")}</div>
+              <div className="r">{facilitatedPayments ? t("paymentsCenter.blocksRelease") : t("paymentsCenter.somethingToSettleWith")} {t("paymentsCenter.theRowSaysWhat")}</div>
             </div>
             <span></span>
           </div>
           <div className="rc-row rc-unk">
             <CircleDashed className="ic" aria-hidden="true" />
             <div>
-              <div className="l">Unknown</div>
-              <div className="r">Could not be checked (Passport unreachable). {facilitatedPayments ? "Treated as blocking, never as pass." : "Never shown as a pass."}</div>
+              <div className="l">{t("paymentsCenter.unknown")}</div>
+              <div className="r">{t("paymentsCenter.couldNotBeChecked")} {facilitatedPayments ? t("paymentsCenter.treatedAsBlockingNever") : t("paymentsCenter.neverShownAsA")}</div>
             </div>
             <span></span>
           </div>
         </div>
         <div className="divider" style={{ margin: "10px 0" }}></div>
-        <p className="small muted">Seven checks run per tranche: agreement executed · tranche condition met · your Passport link and funding source · payee credential at L3 with an active destination and no pending change or freeze · award headroom at Passport · no duplicate release · recipient organization active.</p>
+        <p className="small muted">{t("paymentsCenter.sevenChecksRunPer")}</p>
       </div>
     </section>
   );
 }
 
-const ALERT_GROUPS: { title: string; kinds: string[]; empty: string }[] = [
-  { title: "Destination change pending", kinds: ["destination_change_pending"], empty: "No destination changes are cooling off." },
-  { title: "Level downgrade", kinds: ["level_below_l3"], empty: "Every payee is at L3." },
-  { title: "Inactive organizations", kinds: ["organization_inactive"], empty: "No inactive grantees." },
+const ALERT_GROUPS = (): { title: string; kinds: string[]; empty: string }[] => [
+  { title: t("paymentsCenter.alerts.destination"), kinds: ["destination_change_pending"], empty: t("paymentsCenter.alerts.destinationEmpty") },
+  { title: t("paymentsCenter.alerts.level"), kinds: ["level_below_l3"], empty: t("paymentsCenter.alerts.levelEmpty") },
+  { title: t("paymentsCenter.alerts.inactive"), kinds: ["organization_inactive"], empty: t("paymentsCenter.alerts.inactiveEmpty") },
 ];
 
 function DueItem({ item, row, base, onChanged }: { item: PaymentsCenterItem; row: TrancheRow | undefined; base: string; onChanged: (note: string) => void }) {
   const [dialog, setDialog] = useState<"release" | "external" | null>(null);
-  const t = item.tranche;
-  const name = row?.recipient?.name ?? "Grantee";
+  const tr = item.tranche;
+  const name = row?.recipient?.name ?? t("paymentsCenter.grantee");
   const { facilitatedPayments } = useAppConfig();
   const blocked = releaseBlockedReason(item);
   return (
-    <section className="card" aria-labelledby={`due-${t.id}`}>
+    <section className="card" aria-labelledby={`due-${tr.id}`}>
       <div className="card-h">
         <div className="col" style={{ gap: "4px" }}>
           <div className="row wrap">
-            <h3 id={`due-${t.id}`}>{name}</h3>
+            <h3 id={`due-${tr.id}`}>{name}</h3>
             <VerificationBadge verification={row?.recipient?.verification} level={row?.recipient?.verificationLevel} />
             <WorkspaceName name={row?.recipient?.workspaceName} />
-            <StatusBadge kind="tranche" status={t.status} />
+            <StatusBadge kind="tranche" status={tr.status} />
           </div>
           <p className="small muted">
-            <Link to={`${base}/awards/${item.award.id}/payments`}>{item.award.title}</Link> · tranche {t.seq}
-            {t.dueAt ? ` · due ${formatDate(t.dueAt)}` : ""}
+            {t.rich("paymentsCenter.tranche2", { title: item.award.title, seq: tr.seq, link: (chunks) => <Link to={`${base}/awards/${item.award.id}/payments`}>{chunks}</Link> })}
+            {tr.dueAt ? t("paymentsCenter.due2", { date: formatDate(tr.dueAt) }) : ""}
           </p>
         </div>
         <div className="col" style={{ alignItems: "flex-end", gap: "4px" }}>
           <span className="stat-v" style={{ fontSize: "22px" }}>
-            {formatMinor(t.amountMinor, t.currency)}
+            {formatMinor(tr.amountMinor, tr.currency)}
           </span>
-          <span className="small muted userback-block">To {destinationLabel(item.destination)}</span>
+          <span className="small muted userback-block">{t("paymentsCenter.to2", { destinationLabel: destinationLabel(item.destination) })}</span>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-        {item.banner && <HoldBanner banner={item.banner} action={<Link to={`${base}/awards/${item.award.id}/payments`}>Open tranche</Link>} />}
-        <ReadinessChecklist checklist={checklistOf(item)} title="Readiness" />
+        {item.banner && <HoldBanner banner={item.banner} action={<Link to={`${base}/awards/${item.award.id}/payments`}>{t("paymentsCenter.openTranche")}</Link>} />}
+        <ReadinessChecklist checklist={checklistOf(item)} title={t("paymentsCenter.readiness")} />
       </div>
       <div className="card-f">
         {facilitatedPayments && (
           <button type="button" className="btn btn-primary" disabled={blocked !== null} onClick={() => setDialog("release")}>
             <Send className="ic" aria-hidden="true" />
-            Release
+            {t("paymentsCenter.release")}
           </button>
         )}
-        <button type="button" className={facilitatedPayments ? "btn btn-secondary" : "btn btn-primary"} disabled={t.status === "held"} onClick={() => setDialog("external")}>
+        <button type="button" className={facilitatedPayments ? "btn btn-secondary" : "btn btn-primary"} disabled={tr.status === "held"} onClick={() => setDialog("external")}>
           <Banknote className="ic" aria-hidden="true" />
-          {facilitatedPayments ? "Record external payment" : RECORD_OUTSIDE_LABEL}
+          {facilitatedPayments ? t("paymentsCenter.recordExternalPayment") : recordOutsideLabel()}
         </button>
         {facilitatedPayments && blocked && <span className="help">{blocked}</span>}
       </div>
@@ -207,18 +217,18 @@ function DueItem({ item, row, base, onChanged }: { item: PaymentsCenterItem; row
           onClose={() => setDialog(null)}
           onDone={() => {
             setDialog(null);
-            onChanged(`Released ${formatMinor(t.amountMinor, t.currency)} to ${name}. It is now in flight.`);
+            onChanged(t("paymentsCenter.done.released", { amount: formatMinor(tr.amountMinor, tr.currency), name }));
           }}
         />
       )}
       {dialog === "external" && (
         <RecordExternalDialog
-          tranche={t}
+          tranche={tr}
           recipientName={name}
           onClose={() => setDialog(null)}
           onDone={(unverified) => {
             setDialog(null);
-            onChanged(unverified ? `Recorded for ${name} as unverified: Passport could not match the destination.` : `Recorded as paid to ${name}.`);
+            onChanged(unverified ? t("paymentsCenter.done.unverified", { name }) : t("paymentsCenter.done.recorded", { name }));
           }}
         />
       )}
@@ -233,7 +243,7 @@ function MatchDialog({ txn, rows, onClose, onDone }: { txn: BankTransaction; row
   const match = useApiMutation((api) => api.matchBankTransaction(txn.id, { trancheId, destinationLast4: last4 }));
   const label = (id: string) => {
     const r = rows.find((x) => x.id === id);
-    return r ? `${r.recipient?.name ?? "Grantee"} · tranche ${r.seq} · ${formatMinor(r.amountMinor, r.currency)}` : id;
+    return r ? t("paymentsCenter.trancheAmountLabel", { name: r.recipient?.name ?? t("paymentsCenter.grantee"), seq: r.seq, amount: formatMinor(r.amountMinor, r.currency) }) : id;
   };
   return (
     <Dialog open onClose={onClose} labelledBy="match-title">
@@ -245,34 +255,34 @@ function MatchDialog({ txn, rows, onClose, onDone }: { txn: BankTransaction; row
       >
         <div className="hd">
           <div>
-            <h2 id="match-title">Match this bank transaction</h2>
+            <h2 id="match-title">{t("paymentsCenter.matchThisBankTransaction")}</h2>
             <p className="small muted">
-              {txn.counterpartyName} · {formatMinor(txn.amountMinor, txn.currency)} · posted {formatDate(txn.postedAt)}
+              {t("paymentsCenter.posted", { counterpartyName: txn.counterpartyName, amount: formatMinor(txn.amountMinor, txn.currency), date: formatDate(txn.postedAt) })}
             </p>
           </div>
         </div>
         <div className="bd">
           {match.error !== null && <ErrorBanner error={match.error} />}
-          <Field id="match-tranche" label="Tranche this paid" required help="Confirming records the tranche as paid outside Passport.">
+          <Field id="match-tranche" label={t("paymentsCenter.trancheThisPaid")} required help={t("paymentsCenter.confirmingRecordsTheTranche")}>
             <select className="sel" id="match-tranche" value={trancheId} onChange={(e) => setTrancheId(e.target.value)} required>
-              <option value="">Choose a tranche</option>
+              <option value="">{t("paymentsCenter.chooseATranche")}</option>
               {proposals.map((p) => (
                 <option key={p.trancheId} value={p.trancheId}>
-                  {label(p.trancheId)} · {Math.round(p.score * 100)}% match
+                  {t("paymentsCenter.match", { label: label(p.trancheId), round: Math.round(p.score * 100) })}
                 </option>
               ))}
             </select>
           </Field>
-          <Field id="match-last4" label="Destination, last four digits" required help="From your bank’s record of the payment. Never enter a full number.">
+          <Field id="match-last4" label={t("paymentsCenter.destinationLastFourDigits")} required help={t("paymentsCenter.fromYourBanksRecord")}>
             <input className="inp userback-block" id="match-last4" inputMode="numeric" maxLength={4} value={last4} onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))} style={{ maxWidth: "160px" }} required />
           </Field>
         </div>
         <div className="ft">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t("paymentsCenter.cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={!trancheId || !/^\d{4}$/.test(last4) || match.state === "saving"}>
-            Confirm match
+            {t("paymentsCenter.confirmMatch")}
           </button>
         </div>
       </form>
@@ -292,12 +302,12 @@ function AlertRows({ alerts, base }: { alerts: PaymentAlert[]; base: string }) {
           </div>
           {a.awardId && (
             <Link to={`${base}/awards/${a.awardId}/payments`} className="act small b">
-              Open tranche
+              {t("paymentsCenter.openTranche")}
             </Link>
           )}
           {!a.awardId && a.recipientWorkspaceId && (
             <Link to={`${base}/grantees/${a.recipientWorkspaceId}`} className="act small b">
-              Grantee record
+              {t("paymentsCenter.granteeRecord")}
             </Link>
           )}
         </div>
@@ -308,11 +318,12 @@ function AlertRows({ alerts, base }: { alerts: PaymentAlert[]; base: string }) {
 
 /** Alerts by cause, as Passport reports them; each group says so when it is empty. */
 function Alerts({ alerts, base }: { alerts: PaymentAlert[]; base: string }) {
-  const grouped = new Set(ALERT_GROUPS.flatMap((g) => g.kinds));
+  const groups = ALERT_GROUPS();
+  const grouped = new Set(groups.flatMap((g) => g.kinds));
   const other = alerts.filter((a) => !grouped.has(a.kind));
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-      {ALERT_GROUPS.map((g) => {
+      {groups.map((g) => {
         const rows = alerts.filter((a) => g.kinds.includes(a.kind));
         return (
           <div key={g.title} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -326,7 +337,7 @@ function Alerts({ alerts, base }: { alerts: PaymentAlert[]; base: string }) {
       {other.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <h3 style={{ fontSize: "13px" }}>
-            Payments needing attention <span className="muted">· {other.length}</span>
+            {t.rich("paymentsCenter.paymentsNeedingAttention", { count: other.length, span: (chunks) => <span className="muted">{chunks}</span> })}
           </h3>
           <AlertRows alerts={other} base={base} />
         </div>
@@ -335,10 +346,10 @@ function Alerts({ alerts, base }: { alerts: PaymentAlert[]; base: string }) {
   );
 }
 
-function Reconcile({ unmatched, matched, rows, feed, base, onMatch }: { unmatched: BankTransaction[]; matched: BankTransaction[]; rows: TrancheRow[]; feed: { connected: boolean; lastSyncAt: string | null }; base: string; onMatch: (t: BankTransaction) => void }) {
+function Reconcile({ unmatched, matched, rows, feed, base, onMatch }: { unmatched: BankTransaction[]; matched: BankTransaction[]; rows: TrancheRow[]; feed: { connected: boolean; lastSyncAt: string | null }; base: string; onMatch: (item: BankTransaction) => void }) {
   const label = (id: string | null | undefined) => {
     const r = rows.find((x) => x.id === id);
-    return r ? `${r.recipient?.name ?? "Grantee"} · tranche ${r.seq}` : "—";
+    return r ? t("paymentsCenter.trancheLabel", { name: r.recipient?.name ?? t("paymentsCenter.grantee"), seq: r.seq }) : "—";
   };
   const proposed = new Set(unmatched.flatMap((b) => (b.proposals ?? []).map((p) => p.trancheId)));
   const waiting = rows.filter((r) => ["due", "ready"].includes(r.status) && !proposed.has(r.id));
@@ -347,14 +358,14 @@ function Reconcile({ unmatched, matched, rows, feed, base, onMatch }: { unmatche
       <div className="card">
         <EmptyState
           icon={Landmark}
-          title="Bank feed not connected"
+          title={t("paymentsCenter.bankFeedNotConnected")}
           actions={
             <Link to={`${base}/settings/mcp#connectors`} className="btn btn-secondary">
-              Connect Mercury (read-only)
+              {t("paymentsCenter.connectMercuryReadOnly")}
             </Link>
           }
         >
-          Reconciliation matches payments you made outside Passport to tranches. It reads outbound transactions from Mercury and never moves money. You can still record an external payment by hand on the tranche.
+          {t("paymentsCenter.reconciliationMatchesPaymentsYou")}
         </EmptyState>
       </div>
     );
@@ -364,18 +375,18 @@ function Reconcile({ unmatched, matched, rows, feed, base, onMatch }: { unmatche
       <section className="card" aria-labelledby="mercury-h">
         <div className="card-h">
           <h2 id="mercury-h" style={{ fontSize: "16px" }}>
-            Mercury outbound transactions
+            {t("paymentsCenter.mercuryOutboundTransactions")}
           </h2>
-          <span className="small muted">Read-only{feed.lastSyncAt ? ` · synced ${dateTime(feed.lastSyncAt)}` : ""}</span>
+          <span className="small muted">{feed.lastSyncAt ? t("paymentsCenter.readOnlySynced", { date: dateTime(feed.lastSyncAt) }) : t("paymentsCenter.readOnly")}</span>
         </div>
-        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Mercury outbound transactions, scrollable">
-          <table className="tbl" aria-label="Mercury outbound transactions">
+        <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label={t("paymentsCenter.mercuryOutboundTransactionsScrollable")}>
+          <table className="tbl" aria-label={t("paymentsCenter.mercuryOutboundTransactions")}>
             <thead>
               <tr>
-                <th>Mercury transaction</th>
-                <th className="num">Amount</th>
-                <th>Proposed match</th>
-                <th>Confidence</th>
+                <th>{t("paymentsCenter.mercuryTransaction")}</th>
+                <th className="num">{t("paymentsCenter.amount")}</th>
+                <th>{t("paymentsCenter.proposedMatch")}</th>
+                <th>{t("paymentsCenter.confidence")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -386,19 +397,19 @@ function Reconcile({ unmatched, matched, rows, feed, base, onMatch }: { unmatche
                   <tr key={b.id}>
                     <td>
                       <div className="ent">
-                        <span className="nm">{b.counterpartyName ?? "Unknown counterparty"}</span>
+                        <span className="nm">{b.counterpartyName ?? t("paymentsCenter.unknownCounterparty")}</span>
                         <span className="small muted">
-                          Posted {formatDate(b.postedAt)}
+                          {t("paymentsCenter.posted2", { date: formatDate(b.postedAt) })}
                           {b.memo ? ` · ${b.memo}` : ""}
                         </span>
                       </div>
                     </td>
                     <td className="num">{formatMinor(b.amountMinor, b.currency)}</td>
-                    <td>{best ? label(best.trancheId) : <span className="muted">No match proposed</span>}</td>
-                    <td>{best ? `${Math.round(best.score * 100)}%${best.ambiguous ? " · ambiguous" : ""}` : "—"}</td>
+                    <td>{best ? label(best.trancheId) : <span className="muted">{t("paymentsCenter.noMatchProposed")}</span>}</td>
+                    <td>{best ? (best.ambiguous ? t("paymentsCenter.scoreAmbiguous", { score: Math.round(best.score * 100) }) : `${Math.round(best.score * 100)}%`) : "—"}</td>
                     <td>
                       <button type="button" className="btn btn-sm btn-secondary" disabled={!b.proposals?.length} onClick={() => onMatch(b)}>
-                        Match
+                        {t("paymentsCenter.match2")}
                       </button>
                     </td>
                   </tr>
@@ -408,8 +419,8 @@ function Reconcile({ unmatched, matched, rows, feed, base, onMatch }: { unmatche
                 <tr key={b.id}>
                   <td>
                     <div className="ent">
-                      <span className="nm">{b.counterpartyName ?? "Unknown counterparty"}</span>
-                      <span className="small muted">Posted {formatDate(b.postedAt)}</span>
+                      <span className="nm">{b.counterpartyName ?? t("paymentsCenter.unknownCounterparty")}</span>
+                      <span className="small muted">{t("paymentsCenter.posted2", { date: formatDate(b.postedAt) })}</span>
                     </div>
                   </td>
                   <td className="num">{formatMinor(b.amountMinor, b.currency)}</td>
@@ -417,7 +428,7 @@ function Reconcile({ unmatched, matched, rows, feed, base, onMatch }: { unmatche
                   <td>
                     <span className="bdg bdg-ok">
                       <CircleCheck className="ic" aria-hidden="true" />
-                      Matched
+                      {t("paymentsCenter.matched")}
                     </span>
                   </td>
                   <td className="small muted">{b.matchedAt ? formatDate(b.matchedAt) : ""}</td>
@@ -426,7 +437,7 @@ function Reconcile({ unmatched, matched, rows, feed, base, onMatch }: { unmatche
               {!unmatched.length && !matched.length && (
                 <tr>
                   <td colSpan={5} className="muted">
-                    No outbound transactions yet.
+                    {t("paymentsCenter.noOutboundTransactionsYet")}
                   </td>
                 </tr>
               )}
@@ -436,24 +447,24 @@ function Reconcile({ unmatched, matched, rows, feed, base, onMatch }: { unmatche
       </section>
       <section className="card" aria-labelledby="unmatched-h">
         <div className="card-h">
-          <h3 id="unmatched-h">Unmatched tranches · {waiting.length}</h3>
+          <h3 id="unmatched-h">{t("paymentsCenter.unmatchedTranches", { count: waiting.length })}</h3>
         </div>
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {!waiting.length && <p className="muted small">Every tranche that is due has a proposed bank match or is paid through Passport.</p>}
+          {!waiting.length && <p className="muted small">{t("paymentsCenter.everyTrancheThatIs")}</p>}
           {waiting.map((r) => (
             <div key={r.id} className="row" style={{ justifyContent: "space-between", gap: "10px" }}>
               <div>
                 <Link to={`${base}/awards/${r.awardId}/payments`} className="b">
-                  {r.recipient?.name ?? "Grantee"}
+                  {r.recipient?.name ?? t("paymentsCenter.grantee")}
                 </Link>
                 <div className="small muted">
-                  Tranche {r.seq} · {formatMinor(r.amountMinor, r.currency)}
+                  {t("paymentsCenter.tranche3", { seq: r.seq, amount: formatMinor(r.amountMinor, r.currency) })}
                 </div>
               </div>
               <StatusBadge kind="tranche" status={r.status} />
             </div>
           ))}
-          <p className="small muted">A match records the tranche as paid outside Passport. Passport checks the last four digits against the payee’s verified destination.</p>
+          <p className="small muted">{t("paymentsCenter.aMatchRecordsThe")}</p>
         </div>
       </section>
     </div>
@@ -465,7 +476,7 @@ const PAYMENT_SUBJECTS = ["tranche", "award", "disbursement", "payee"];
 function PaymentsLedger({ events, personName }: { events: LedgerEvent[]; personName: (id: string) => string | undefined }) {
   const exportCsv = () =>
     downloadCsv(
-      [["When (UTC)", "Who", "What", "Subject", "Subject id"], ...events.map((e) => [e.occurredAt, actorOf(e.actor, personName).name, describeEvent(e.eventType), e.subjectType, e.subjectId])],
+      [[t("paymentsCenter.csv.when"), t("paymentsCenter.csv.who"), t("paymentsCenter.csv.what"), t("paymentsCenter.csv.subject"), t("paymentsCenter.csv.subjectId")], ...events.map((e) => [e.occurredAt, actorOf(e.actor, personName).name, describeEvent(e.eventType), e.subjectType, e.subjectId])],
       "payments-ledger.csv",
     );
   return (
@@ -473,17 +484,17 @@ function PaymentsLedger({ events, personName }: { events: LedgerEvent[]; personN
       <div className="card-h">
         <div>
           <h2 id="ledger-h" style={{ fontSize: "16px" }}>
-            Payments ledger
+            {t("paymentsCenter.paymentsLedger")}
           </h2>
-          <p className="small muted">Every release, hold, external payment and Passport event, append-only.</p>
+          <p className="small muted">{t("paymentsCenter.everyReleaseHoldExternal")}</p>
         </div>
         <button type="button" className="btn btn-sm btn-secondary" onClick={exportCsv} disabled={!events.length}>
           <Download className="ic" aria-hidden="true" />
-          Export CSV
+          {t("paymentsCenter.exportCsv")}
         </button>
       </div>
       <div className="card-b">
-        <ActivityTimeline events={events} personName={personName} when={(iso) => dateTime(iso)} compact={false} empty="No payment events yet." />
+        <ActivityTimeline events={events} personName={personName} when={(iso) => dateTime(iso)} compact={false} empty={t("paymentsCenter.ledgerEmpty")} />
       </div>
     </section>
   );
@@ -521,31 +532,31 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
 
   return (
     <>
-      <title>{`Payments — ${ws.name}`}</title>
+      <title>{t("paymentsCenter.payments", { name: ws.name })}</title>
       <FunderShell active="Payments">
         <main className="main">
           <PageHeader
-            crumbs={[{ label: ws.name, to: base }, { label: "Payments" }]}
-            title="Payments"
+            crumbs={[{ label: ws.name, to: base }, { label: t("paymentsCenter.payments2") }]}
+            title={t("paymentsCenter.payments2")}
             meta={
               d ? (
                 <>
-                  <span>{formatMinor(d.center.totals.dueMinor)} due</span>
+                  <span>{t("paymentsCenter.due3", { amount: formatMinor(d.center.totals.dueMinor) })}</span>
                   <span>·</span>
                   {facilitatedPayments ? (
                     <>
-                      <span>{d.center.totals.releasable} ready to release</span>
+                      <span>{t("paymentsCenter.readyToRelease", { releasable: d.center.totals.releasable })}</span>
                       <span>·</span>
-                      <span>{d.center.totals.blocked} blocked</span>
+                      <span>{t("paymentsCenter.blocked", { blocked: d.center.totals.blocked })}</span>
                     </>
                   ) : (
-                    <span>{d.center.totals.blocked} with a readiness check to fix</span>
+                    <span>{t("paymentsCenter.withAReadinessCheck", { blocked: d.center.totals.blocked })}</span>
                   )}
                 </>
               ) : undefined
             }
           />
-          {page.status === "loading" && <Loading label="Loading payments" />}
+          {page.status === "loading" && <Loading label={t("paymentsCenter.loadingPayments")} />}
           {page.status === "error" && <ErrorBanner error={page.error} onRetry={page.reload} />}
           {d && (
             <>
@@ -554,25 +565,25 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
               {!facilitatedPayments && <PaymentsOffNotice />}
               {!d.link.linked && (
                 <HoldBanner
-                  banner={{ cause: "passport_not_linked", tone: "neutral", title: "Connect Passport to pay", detail: "Awards, agreements and reporting work without it, but no payment can be released or recorded until this workspace is linked to Passport.", clears: "Clears when an admin connects Passport." }}
+                  banner={{ cause: "passport_not_linked", tone: "neutral", title: t("paymentsCenter.connectPassportToPay"), detail: t("paymentsCenter.notLinked.detail"), clears: t("paymentsCenter.notLinked.clears") }}
                   action={
                     passportFlags.linking ? (
                       <Link to={`${base}/settings/passport`} className="btn btn-secondary">
-                        Connect Passport
+                        {t("paymentsCenter.connectPassport")}
                       </Link>
                     ) : undefined
                   }
                 />
               )}
-              {d.link.linked && unreachable && <HoldBanner banner={{ cause: "passport_unavailable", tone: "neutral", title: "Passport can’t be reached", detail: "Readiness shows Unknown until Passport is reachable; nothing is released in the meantime.", clears: "Retrying automatically." }} />}
+              {d.link.linked && unreachable && <HoldBanner banner={{ cause: "passport_unavailable", tone: "neutral", title: t("paymentsCenter.passportCantBeReached"), detail: t("paymentsCenter.unreachable.detail"), clears: t("paymentsCenter.unreachable.clears") }} />}
 
               {view === "due" && (
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.9fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                     {!d.center.items.length && (
                       <div className="card">
-                        <EmptyState icon={CircleCheck} title="Nothing is due">
-                          Tranches appear here when an agreement is executed, a report is accepted or a scheduled date arrives.
+                        <EmptyState icon={CircleCheck} title={t("paymentsCenter.nothingIsDue")}>
+                          {t("paymentsCenter.tranchesAppearHereWhen")}
                         </EmptyState>
                       </div>
                     )}
@@ -581,11 +592,11 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                     ))}
                     <p className="notice">
                       {facilitatedPayments
-                        ? "Payments are released one at a time. Each release is confirmed by a person and paid through OpenGrants Passport to the payee’s verified destination."
-                        : "Payments are recorded one at a time, by a person. Passport checks the last four digits you enter against the payee’s verified destination; a payment it cannot verify is kept as unverified."}
+                        ? t("paymentsCenter.paymentsAreReleasedOne")
+                        : t("paymentsCenter.paymentsAreRecordedOne")}
                     </p>
                   </div>
-                  <aside style={{ display: "flex", flexDirection: "column", gap: "16px" }} aria-label="Upcoming payments and how readiness works">
+                  <aside style={{ display: "flex", flexDirection: "column", gap: "16px" }} aria-label={t("paymentsCenter.upcomingPaymentsAndHow")}>
                     <NextThirtyDays rows={d.rows} now={new Date()} />
                     <ReadinessExplained />
                   </aside>
@@ -601,25 +612,25 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                     <section className="card" aria-labelledby="flight-h">
                       <div className="card-h">
                         <h2 id="flight-h" style={{ fontSize: "16px" }}>
-                          In flight
+                          {t("paymentsCenter.inFlight")}
                         </h2>
                         <div className="row" style={{ gap: "10px" }}>
-                          <span className="small muted">{flying.length} with Passport</span>
+                          <span className="small muted">{t("paymentsCenter.withPassport", { count: flying.length })}</span>
                           <button type="button" className="btn btn-sm btn-secondary" onClick={page.reload}>
                             <RefreshCw className="ic" aria-hidden="true" />
-                            Refresh
+                            {t("paymentsCenter.refresh")}
                           </button>
                         </div>
                       </div>
-                      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Payments in flight, scrollable">
-                        <table className="tbl" aria-label="Payments in flight">
+                      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label={t("paymentsCenter.paymentsInFlightScrollable")}>
+                        <table className="tbl" aria-label={t("paymentsCenter.paymentsInFlight")}>
                           <thead>
                             <tr>
-                              <th>Grantee</th>
-                              <th>Tranche</th>
-                              <th className="num">Amount</th>
-                              <th>Released</th>
-                              <th>Status</th>
+                              <th>{t("paymentsCenter.grantee")}</th>
+                              <th>{t("paymentsCenter.tranche4")}</th>
+                              <th className="num">{t("paymentsCenter.amount")}</th>
+                              <th>{t("paymentsCenter.released")}</th>
+                              <th>{t("paymentsCenter.status")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -630,7 +641,7 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                                     {r.recipient?.name}
                                   </Link>
                                 </td>
-                                <td>Tranche {r.seq}</td>
+                                <td>{t("paymentsCenter.tranche5", { seq: r.seq })}</td>
                                 <td className="num">{formatMinor(r.amountMinor, r.currency)}</td>
                                 <td>{dateTime(r.releasedAt)}</td>
                                 <td>
@@ -641,7 +652,7 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                             {!flying.length && (
                               <tr>
                                 <td colSpan={5} className="muted">
-                                  Nothing is in flight.
+                                  {t("paymentsCenter.nothingIsInFlight")}
                                 </td>
                               </tr>
                             )}
@@ -652,18 +663,18 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                     <section className="card" aria-labelledby="settled-h">
                       <div className="card-h">
                         <h2 id="settled-h" style={{ fontSize: "16px" }}>
-                          Settled
+                          {t("paymentsCenter.settled")}
                         </h2>
                       </div>
-                      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label="Settled payments, scrollable">
-                        <table className="tbl" aria-label="Settled payments">
+                      <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label={t("paymentsCenter.settledPaymentsScrollable")}>
+                        <table className="tbl" aria-label={t("paymentsCenter.settledPayments")}>
                           <thead>
                             <tr>
-                              <th>Grantee</th>
-                              <th>Tranche</th>
-                              <th className="num">Amount</th>
-                              <th>How</th>
-                              <th>Status</th>
+                              <th>{t("paymentsCenter.grantee")}</th>
+                              <th>{t("paymentsCenter.tranche4")}</th>
+                              <th className="num">{t("paymentsCenter.amount")}</th>
+                              <th>{t("paymentsCenter.how")}</th>
+                              <th>{t("paymentsCenter.status")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -674,16 +685,16 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                                     {r.recipient?.name}
                                   </Link>
                                 </td>
-                                <td>Tranche {r.seq}</td>
+                                <td>{t("paymentsCenter.tranche5", { seq: r.seq })}</td>
                                 <td className="num">{formatMinor(r.amountMinor, r.currency)}</td>
-                                <td>{r.mode === "resolve" ? "Paid outside Passport" : "Through Passport"}</td>
-                                <td>{r.passportStatus === "unverified" ? <span className="pill-warn">Settled · unverified</span> : <StatusBadge kind="tranche" status={r.status} />}</td>
+                                <td>{r.mode === "resolve" ? t("paymentsCenter.paidOutsidePassport") : t("paymentsCenter.throughPassport")}</td>
+                                <td>{r.passportStatus === "unverified" ? <span className="pill-warn">{t("paymentsCenter.settledUnverified")}</span> : <StatusBadge kind="tranche" status={r.status} />}</td>
                               </tr>
                             ))}
                             {!settled.length && (
                               <tr>
                                 <td colSpan={5} className="muted">
-                                  No settled payments yet.
+                                  {t("paymentsCenter.noSettledPaymentsYet")}
                                 </td>
                               </tr>
                             )}
@@ -696,7 +707,7 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                     <section className="card" aria-labelledby="alerts-h">
                       <div className="card-h">
                         <h2 id="alerts-h" style={{ fontSize: "16px" }}>
-                          Alerts
+                          {t("paymentsCenter.alerts")}
                         </h2>
                         <span className="small muted">{d.alerts.length}</span>
                       </div>
@@ -707,21 +718,21 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                     <section className="card" aria-labelledby="bank-h">
                       <div className="card-h">
                         <h2 id="bank-h" style={{ fontSize: "16px" }}>
-                          Bank transactions to match
+                          {t("paymentsCenter.bankTransactionsToMatch")}
                         </h2>
-                        <span className="small muted">Read-only from Mercury</span>
+                        <span className="small muted">{t("paymentsCenter.readOnlyFromMercury")}</span>
                       </div>
                       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                        {!d.bank.length && <p className="muted small">No unmatched outbound transactions.</p>}
+                        {!d.bank.length && <p className="muted small">{t("paymentsCenter.noUnmatchedOutboundTransactions")}</p>}
                         {d.bank.map((b) => (
                           <div key={b.id} className="doc">
-                            <span className="ft">TXN</span>
+                            <span className="ft">{t("paymentsCenter.txn")}</span>
                             <div className="grow">
                               <div className="nm">
-                                {b.counterpartyName ?? "Unknown counterparty"} · {formatMinor(b.amountMinor, b.currency)}
+                                {b.counterpartyName ?? t("paymentsCenter.unknownCounterparty")} · {formatMinor(b.amountMinor, b.currency)}
                               </div>
                               <div className="mt">
-                                <span>Posted {formatDate(b.postedAt)}</span>
+                                <span>{t("paymentsCenter.posted2", { date: formatDate(b.postedAt) })}</span>
                                 {b.memo && (
                                   <>
                                     <span>·</span>
@@ -731,13 +742,13 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                                 {b.proposals?.length ? (
                                   <>
                                     <span>·</span>
-                                    <span>{b.proposals.length === 1 ? "1 proposed match" : `${b.proposals.length} proposed matches`}</span>
+                                    <span>{t("paymentsCenter.proposedMatchCount", { count: b.proposals.length })}</span>
                                   </>
                                 ) : null}
                               </div>
                             </div>
                             <button type="button" className="btn btn-sm btn-secondary" disabled={!b.proposals?.length} onClick={() => setMatching(b)}>
-                              Match
+                              {t("paymentsCenter.match2")}
                             </button>
                           </div>
                         ))}
@@ -753,7 +764,7 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                   onClose={() => setMatching(null)}
                   onDone={() => {
                     setMatching(null);
-                    changed("Matched. The tranche is recorded as paid outside Passport.");
+                    changed(t("paymentsCenter.done.matched"));
                   }}
                 />
               )}

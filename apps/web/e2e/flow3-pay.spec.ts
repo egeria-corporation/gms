@@ -5,12 +5,12 @@
 // information and the funder records a payment it made elsewhere. With the switch on (second
 // test): a tranche whose readiness is all green → release → in flight → settled; a second tranche
 // stays blocked by a pending destination change, with the banner that says what clears it.
-import { expect, rail, start, test } from "./helpers.ts";
+import { expect, rail, shown, start, test } from "./helpers.ts";
 
 test("record a payment made outside the GMS (payments through Passport off)", async ({ app: page }) => {
   await start(page, "/w/riverbend/payments/due");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(page.getByText("Payments through Passport are not switched on yet")).toBeVisible();
+  await expect(shown(page, "Payments through Passport are not switched on yet")).toBeVisible();
 
   const alder = page.getByRole("region", { name: "Alder Creek Family Services" });
   await test.step("readiness is shown, release is not offered", async () => {
@@ -56,7 +56,7 @@ test("pay a tranche (payments through Passport on)", async ({ app: page }) => {
   });
   await rail(page, "Payments").click();
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await expect(page.getByText("Payments through Passport are not switched on yet")).toHaveCount(0);
+  await expect(shown(page, "Payments through Passport are not switched on yet")).toHaveCount(0);
 
   await test.step("release a tranche whose readiness is all green", async () => {
     const alder = page.getByRole("region", { name: "Alder Creek Family Services" });

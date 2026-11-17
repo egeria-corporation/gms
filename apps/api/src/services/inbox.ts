@@ -6,13 +6,15 @@
 import type { JsonObject } from "@gms/forms";
 import { readPassportFields } from "@gms/protocol";
 import { advanceStage, type StageDef } from "@gms/workflow";
+import { DEFAULT_LOCALE } from "@gms/i18n";
+import { emailT } from "@gms/notify";
 import { fanOut } from "@gms/webhooks";
 import { scoreReview, type Rubric, type Scores } from "@gms/review";
 import { z } from "zod";
 import { toRubric } from "./reviews.ts";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
-import { type App, REVIEWER_ROLES, access, createStageResponses, eventPayload, recipientEmails, recordEvent, renderLetter, responsesOf, reviewerApplicationIds, reviewerResponse, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
+import { type App, REVIEWER_ROLES, access, createStageResponses, eventPayload, recipientEmails, letterLocales, recordEvent, renderLetter, responsesOf, reviewerApplicationIds, reviewerResponse, revisionOf, revisionSnapshot, runRules, sendLetter, stagesOf, transitionApp } from "./apply.ts";
 import { audit, authorize, requireApproval, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { namesShared, orgFacts, selfDeclaredOf, verificationOf, verificationShared } from "./profile.ts";
 import { anonymizeDetail, anonymizeItems, rowsAsSeen } from "./review-privacy.ts";
@@ -285,7 +287,7 @@ export async function requestRevision(ctx: ServiceContext, appId: string, input:
   const applicant = await applicantOf(ctx, app);
   const funder = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
   const opp = required(await ctx.repos.table("opportunities").one({ id: app.opportunity_id }), "Opportunity");
-  const letter = await sendLetter(ctx, "revision_request", await recipientEmails(ctx, applicant), { ...letterFields(ctx, app, applicant, funder, opp.title), revision: { message: input.message, dueDate: input.dueAt?.slice(0, 10) ?? "the date agreed with your program officer" } }, { type: "application", id: app.id, workspaceId: ws.id });
+  const letter = await sendLetter(ctx, "revision_request", await recipientEmails(ctx, applicant), (locale) => ({ ...letterFields(ctx, app, applicant, funder, opp.title), revision: { message: input.message, dueDate: input.dueAt?.slice(0, 10) ?? emailT(locale)("letter.revisionRequest.agreedDate") } }), { type: "application", id: app.id, workspaceId: ws.id }, { recipientWorkspaceId: applicant.id });
   return { id: apiId("application", app.id), status: updated.status, letter };
 }
 
@@ -316,7 +318,7 @@ export async function declineApplication(ctx: ServiceContext, appId: string, inp
     const applicant = await applicantOf(ctx, app);
     const funder = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
     const opp = required(await ctx.repos.table("opportunities").one({ id: app.opportunity_id }), "Opportunity");
-    letter = await sendLetter(ctx, "decline", await recipientEmails(ctx, applicant), { ...letterFields(ctx, app, applicant, funder, opp.title), decision: { message: input.rationale ?? "" } }, { type: "application", id: app.id, workspaceId: ws.id });
+    letter = await sendLetter(ctx, "decline", await recipientEmails(ctx, applicant), { ...letterFields(ctx, app, applicant, funder, opp.title), decision: { message: input.rationale ?? "" } }, { type: "application", id: app.id, workspaceId: ws.id }, { recipientWorkspaceId: applicant.id });
   }
   return { id: apiId("application", app.id), status: updated.status, decisionId: decision.id, letter };
 }
@@ -328,8 +330,11 @@ export async function declineLetterPreview(ctx: ServiceContext, appId: string, r
   const funder = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
   const opp = required(await ctx.repos.table("opportunities").one({ id: app.opportunity_id }), "Opportunity");
   const consented = !!(await ctx.repos.table("consents").one({ funder_workspace_id: ws.id, applicant_workspace_id: applicant.id, revoked_at: null }));
-  const rendered = await renderLetter(ctx, "decline", { ...letterFields(ctx, app, applicant, funder, opp.title), decision: { message: rationale ?? "" } }, ws.id);
-  return { applicationId: apiId("application", app.id), title: app.title, applicant: applicant.display_name, hasRecipientEmail: consented && (await recipientEmails(ctx, applicant)).length > 0, subject: rendered.subject, html: rendered.html, text: rendered.text };
+  const emails = await recipientEmails(ctx, applicant);
+  // The letter as the organization will read it: in its people's language when they all share one, English otherwise.
+  const groups = await letterLocales(ctx, emails, applicant.id);
+  const rendered = await renderLetter(ctx, "decline", { ...letterFields(ctx, app, applicant, funder, opp.title), decision: { message: rationale ?? "" } }, ws.id, groups.length === 1 ? groups[0]![0] : DEFAULT_LOCALE);
+  return { applicationId: apiId("application", app.id), title: app.title, applicant: applicant.display_name, hasRecipientEmail: consented && emails.length > 0, subject: rendered.subject, html: rendered.html, text: rendered.text };
 }
 
 const TAG = z.string().trim().min(1).max(40).regex(/^[\w .:/-]+$/u, "Use letters, digits, spaces and . : / - _");

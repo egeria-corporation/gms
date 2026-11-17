@@ -10,8 +10,12 @@ import { CopyButton } from "../../components/CopyButton.tsx";
 import { ErrorBanner, Loading, Notice } from "../../components/ui.tsx";
 import { EMBED_HEIGHT, embedSnippet } from "../../lib/embed.ts";
 import { EmbedCard } from "../public/EmbedWidget.tsx";
+import { t } from "./i18n.ts";
+import { usePublicMessages } from "../../i18n/index.tsx";
 
 export function EmbedPanel({ handle, funderName, opportunity, listed, taking }: { handle: string; funderName: string; opportunity: Opportunity | undefined; listed: boolean; taking: boolean }) {
+  // The preview is the public widget's card (screens/public/EmbedWidget.tsx); OpportunityBuilder loads its messages with the screen.
+  usePublicMessages();
   const [resize, setResize] = useState(false);
   const live = !!opportunity?.published && listed;
   const slug = opportunity?.slug ?? "";
@@ -25,42 +29,42 @@ export function EmbedPanel({ handle, funderName, opportunity, listed, taking }: 
         <div>
           <h3 id="embed-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <Code className="ic" aria-hidden="true" />
-            Embed on your website
+            {t("embedPanel.embedOnYourWebsite")}
           </h3>
-          <p className="small muted">A small card with this call, its deadline or status, who can apply and an Apply button that opens your public page in a new tab. It needs no sign-in and sets no cookies.</p>
+          <p className="small muted">{t("embedPanel.aSmallCardWith")}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {!live ? (
-          <Notice tone="neu" title="Publish to embed">
-            The widget shows what your public page shows, so it works once this opportunity is published with Public page on.
+          <Notice tone="neu" title={t("embedPanel.publishToEmbed")}>
+            {t("embedPanel.theWidgetShowsWhat")}
           </Notice>
         ) : (
           <>
             <label className="lbl" htmlFor="embed-code">
-              Embed code
+              {t("embedPanel.embedCode")}
             </label>
             <textarea id="embed-code" className="ta embed-code" readOnly value={snippet} rows={resize ? 14 : 4} onFocus={(e) => e.currentTarget.select()} />
             <div className="row wrap" style={{ gap: "12px", alignItems: "center", justifyContent: "space-between" }}>
               <label className="cb" htmlFor="embed-resize">
                 <input type="checkbox" id="embed-resize" checked={resize} onChange={(e) => setResize(e.target.checked)} style={{ marginTop: "3px" }} />
                 <span>
-                  <span className="b">Resize to fit</span>
+                  <span className="b">{t("embedPanel.resizeToFit")}</span>
                   <span className="help" style={{ display: "block" }}>
-                    Adds a short script that sets the height from the widget. Without it the frame is {EMBED_HEIGHT} pixels tall.
+                    {t("embedPanel.addsAShortScript", { EMBED_HEIGHT })}
                   </span>
                 </span>
               </label>
-              <CopyButton value={snippet} what="the embed code" label="Copy embed code" />
+              <CopyButton value={snippet} what={t("embedPanel.theEmbedCode")} label={t("embedPanel.copyEmbedCode")} />
             </div>
             <div>
               <div className="lbl" style={{ marginBottom: "8px" }}>
-                Preview
+                {t("embedPanel.preview")}
               </div>
-              {preview.status === "loading" && <Loading label="Loading the preview" />}
-              {preview.status === "error" && <ErrorBanner error={preview.error} onRetry={preview.reload} title="The preview could not be loaded" />}
+              {preview.status === "loading" && <Loading label={t("embedPanel.loadingThePreview")} />}
+              {preview.status === "error" && <ErrorBanner error={preview.error} onRetry={preview.reload} title={t("embedPanel.thePreviewCouldNot")} />}
               {preview.status === "ready" && preview.data && (
-                <div className="embed" role="region" aria-label="Widget preview">
+                <div className="embed" role="region" aria-label={t("embedPanel.widgetPreview")}>
                   <EmbedCard data={preview.data} headingLevel={4} />
                 </div>
               )}

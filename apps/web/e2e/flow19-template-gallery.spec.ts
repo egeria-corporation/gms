@@ -4,7 +4,7 @@
 // Riverbend funder workspace → the copy opens in the form builder as a draft of its own → the
 // gallery counts the use. A second flow previews the program kit's rubric and emails.
 import type { Page } from "@playwright/test";
-import { dialog, expect, start, test } from "./helpers.ts";
+import { dialog, expect, shown, start, test } from "./helpers.ts";
 
 test("browse the gallery, preview a template and copy it into a funder workspace", async ({ app: page }) => {
   await start(page, "/templates");
@@ -43,7 +43,7 @@ test("browse the gallery, preview a template and copy it into a funder workspace
 
   await test.step("the copy is the workspace's own draft", async () => {
     await expect(page.getByRole("heading", { name: /Common application · v1/ })).toBeVisible();
-    await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible();
+    await expect(shown(page, "Draft", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Publish v1" })).toBeVisible();
   });
 

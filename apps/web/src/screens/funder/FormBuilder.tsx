@@ -26,9 +26,7 @@ import {
   compileForm,
   conditionSources,
   countForm,
-  describeCondition,
   FIELD_KINDS,
-  kindLabel,
   localProblems,
   moveField,
   newField,
@@ -40,15 +38,11 @@ import {
   type FieldModel,
   type FormModel,
 } from "../../lib/form-model.ts";
+import { PURPOSE_LABEL } from "./shared.tsx";
+import { conditionText, fieldKindLabel, prefillLabel } from "./formWords.ts";
+import { t, useFunderMessages } from "./i18n.ts";
 
-const PURPOSES: { value: FormPurpose; label: string }[] = [
-  { value: "application", label: "Application" },
-  { value: "loi", label: "Letter of intent" },
-  { value: "report", label: "Report" },
-  { value: "amendment", label: "Amendment" },
-  { value: "site_visit", label: "Site visit" },
-  { value: "other", label: "Other" },
-];
+const PURPOSES = (Object.keys(PURPOSE_LABEL) as FormPurpose[]).map((value) => ({ value, get label() { return PURPOSE_LABEL[value](); } }));
 
 function Toggle({ id, label, checked, onChange, help }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void; help?: string }) {
   return (
@@ -68,20 +62,20 @@ function Toggle({ id, label, checked, onChange, help }: { id: string; label: str
 export function PrefillPicker({ value, inUse, onChange }: { value: string | null; inUse: Set<string>; onChange: (path: string | null) => void }) {
   const [filter, setFilter] = useState("");
   const [open, setOpen] = useState(false);
-  const shown = PREFILL_PATHS.filter((p) => `${p.label} ${p.path}`.toLowerCase().includes(filter.trim().toLowerCase()));
+  const shown = PREFILL_PATHS.filter((p) => `${prefillLabel(p)} ${p.path}`.toLowerCase().includes(filter.trim().toLowerCase()));
   const current = PREFILL_PATHS.find((p) => p.path === value);
   return (
     <div className="fld">
       <span className="lbl" id="p-prefill-label">
-        Prefill from Passport
+        {t("formBuilder.prefillFromPassport")}
       </span>
       <div className="row" style={{ gap: "6px" }}>
         <button type="button" className="inp" style={{ textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} aria-expanded={open} aria-controls="p-prefill-list" id="p-prefill-button" aria-labelledby="p-prefill-label p-prefill-button" onClick={() => setOpen((o) => !o)}>
-          {current ? <span>{current.label}</span> : <span className="muted">Choose a Passport field…</span>}
+          {current ? <span>{prefillLabel(current)}</span> : <span className="muted">{t("formBuilder.chooseAPassportField")}</span>}
         </button>
         {value && (
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => onChange(null)}>
-            Clear
+            {t("formBuilder.clear")}
           </button>
         )}
       </div>
@@ -89,9 +83,9 @@ export function PrefillPicker({ value, inUse, onChange }: { value: string | null
         <div id="p-prefill-list" style={{ border: "1px solid #D6DEDE", borderRadius: "8px", background: "#fff", overflow: "hidden" }}>
           <div className="inp-icon" style={{ padding: "8px", borderBottom: "1px solid #EEF3F3" }}>
             <Search className="ic" aria-hidden="true" style={{ left: "18px" }} />
-            <input className="inp" style={{ height: "32px", fontSize: "13px" }} aria-label="Filter Passport fields" placeholder="Filter fields" value={filter} onChange={(e) => setFilter(e.target.value)} />
+            <input className="inp" style={{ height: "32px", fontSize: "13px" }} aria-label={t("formBuilder.filterPassportFields")} placeholder={t("formBuilder.filterFields")} value={filter} onChange={(e) => setFilter(e.target.value)} />
           </div>
-          <ul style={{ display: "flex", flexDirection: "column", maxHeight: "260px", overflowY: "auto", fontSize: "13px" }} aria-label="Passport fields">
+          <ul style={{ display: "flex", flexDirection: "column", maxHeight: "260px", overflowY: "auto", fontSize: "13px" }} aria-label={t("formBuilder.passportFields")}>
             {shown.map((p) => (
               <li key={p.path} style={{ borderBottom: "1px solid #EEF3F3" }}>
                 <button
@@ -105,26 +99,26 @@ export function PrefillPicker({ value, inUse, onChange }: { value: string | null
                 >
                   <span>
                     <span className="b" style={{ color: "#0D2A43", display: "block" }}>
-                      {p.label}
+                      {prefillLabel(p)}
                     </span>
                     <span className="mono muted">{p.path}</span>
                   </span>
-                  {inUse.has(p.path) && p.path !== value && <span className="tag">in use</span>}
+                  {inUse.has(p.path) && p.path !== value && <span className="tag">{t("formBuilder.inUse")}</span>}
                 </button>
               </li>
             ))}
-            {shown.length === 0 && <li className="muted" style={{ padding: "10px 12px" }}>No Passport field matches.</li>}
+            {shown.length === 0 && <li className="muted" style={{ padding: "10px 12px" }}>{t("formBuilder.noPassportFieldMatches")}</li>}
           </ul>
         </div>
       )}
-      <span className="help">The value arrives from the organization's Passport record, marked “From Passport”. Applicants do not retype it.</span>
+      <span className="help">{t("formBuilder.theValueArrivesFrom")}</span>
     </div>
   );
 }
 
 function ListEditor({ id, label, values, onChange }: { id: string; label: string; values: string[]; onChange: (v: string[]) => void }) {
   return (
-    <Field id={id} label={label} help="One per line.">
+    <Field id={id} label={label} help={t("formBuilder.onePerLine")}>
       <textarea className="ta" id={id} style={{ minHeight: "72px" }} value={values.join("\n")} onChange={(e) => onChange(e.target.value.split("\n"))} />
     </Field>
   );
@@ -136,28 +130,28 @@ function Properties({ model, field, readOnly, onChange }: { model: FormModel; fi
   const inUse = new Set(model.sections.flatMap((s) => s.fields.map((f) => f.prefill)).filter((p): p is string => !!p));
   return (
     <fieldset disabled={readOnly} style={{ border: 0, padding: "16px", margin: 0, display: "flex", flexDirection: "column", gap: "14px", minWidth: 0 }}>
-      <legend className="sr">Properties of {field.label}</legend>
-      <Field id="p-label" label="Label">
+      <legend className="sr">{t("formBuilder.propertiesOf", { label: field.label })}</legend>
+      <Field id="p-label" label={t("formBuilder.label")}>
         <input className="inp" id="p-label" value={field.label} onChange={(e) => onChange({ label: e.target.value })} />
       </Field>
-      <Field id="p-help" label="Help text">
+      <Field id="p-help" label={t("formBuilder.helpText")}>
         <textarea className="ta" id="p-help" style={{ minHeight: "56px" }} value={field.help} onChange={(e) => onChange({ help: e.target.value })} />
       </Field>
-      <Toggle id="p-req" label="Required" checked={field.required} onChange={(required) => onChange({ required })} />
+      <Toggle id="p-req" label={t("formBuilder.required")} checked={field.required} onChange={(required) => onChange({ required })} />
       {field.kind === "longText" && (
-        <Field id="p-limit" label="Word limit" help="Leave empty for no limit.">
+        <Field id="p-limit" label={t("formBuilder.wordLimit")} help={t("formBuilder.leaveEmptyForNo")}>
           <input className="inp" id="p-limit" inputMode="numeric" value={field.wordMax ?? ""} onChange={(e) => onChange({ wordMax: Number(e.target.value.replace(/[^\d]/g, "")) || null })} />
         </Field>
       )}
-      {(field.kind === "select" || field.kind === "multiSelect") && <ListEditor id="p-choices" label="Choices" values={field.choices} onChange={(choices) => onChange({ choices })} />}
-      {field.kind === "budgetTable" && <ListEditor id="p-categories" label="Budget categories" values={field.categories} onChange={(categories) => onChange({ categories })} />}
-      <Toggle id="p-rev" label="Reviewers can see this field" checked={field.reviewerVisible} onChange={(reviewerVisible) => onChange({ reviewerVisible })} />
-      <Toggle id="p-pii" label="Contains PII" help="Masked for external reviewers and in exports" checked={field.pii} onChange={(pii) => onChange({ pii })} />
-      <Toggle id="p-identifying" label="Says who applied" help="Hidden from reviewers in a stage with anonymized review" checked={field.identifying} onChange={(identifying) => onChange({ identifying })} />
+      {(field.kind === "select" || field.kind === "multiSelect") && <ListEditor id="p-choices" label={t("formBuilder.choices")} values={field.choices} onChange={(choices) => onChange({ choices })} />}
+      {field.kind === "budgetTable" && <ListEditor id="p-categories" label={t("formBuilder.budgetCategories")} values={field.categories} onChange={(categories) => onChange({ categories })} />}
+      <Toggle id="p-rev" label={t("formBuilder.reviewersCanSeeThis")} checked={field.reviewerVisible} onChange={(reviewerVisible) => onChange({ reviewerVisible })} />
+      <Toggle id="p-pii" label={t("formBuilder.containsPii")} help={t("formBuilder.maskedForExternalReviewers")} checked={field.pii} onChange={(pii) => onChange({ pii })} />
+      <Toggle id="p-identifying" label={t("formBuilder.saysWhoApplied")} help={t("formBuilder.hiddenFromReviewersIn")} checked={field.identifying} onChange={(identifying) => onChange({ identifying })} />
 
       <div className="fld">
         <label className="lbl" htmlFor="p-when-field">
-          Show only when
+          {t("formBuilder.showOnlyWhen")}
         </label>
         <select
           className="sel"
@@ -168,7 +162,7 @@ function Properties({ model, field, readOnly, onChange }: { model: FormModel; fi
             onChange({ showWhen: s ? { field: s.key, equals: s.kind === "boolean" ? true : (s.choices[0] ?? "") } : null });
           }}
         >
-          <option value="">Always shown</option>
+          <option value="">{t("formBuilder.alwaysShown")}</option>
           {sources.map((s) => (
             <option key={s.key} value={s.key}>
               {s.label}
@@ -178,7 +172,7 @@ function Properties({ model, field, readOnly, onChange }: { model: FormModel; fi
         {source && field.showWhen && (
           <>
             <label className="sr" htmlFor="p-when-value">
-              equals
+              {t("formBuilder.equals")}
             </label>
             <select
               className="sel"
@@ -188,28 +182,28 @@ function Properties({ model, field, readOnly, onChange }: { model: FormModel; fi
             >
               {source.kind === "boolean" ? (
                 <>
-                  <option value="true">is Yes</option>
-                  <option value="false">is No</option>
+                  <option value="true">{t("formBuilder.isYes")}</option>
+                  <option value="false">{t("formBuilder.isNo")}</option>
                 </>
               ) : (
                 source.choices.map((c) => (
                   <option key={c} value={c}>
-                    is {c}
+                    {t("formBuilder.is", { c })}
                   </option>
                 ))
               )}
             </select>
           </>
         )}
-        <span className="help">{sources.length ? "Depends on a select or yes/no question earlier in the form. A hidden field is never required." : "Add a select or yes/no question above this field to make it conditional."}</span>
+        <span className="help">{sources.length ? t("formBuilder.dependsOnASelect") : t("formBuilder.addASelectOr")}</span>
       </div>
 
-      <Field id="p-cg" label="Maps to CommonGrants" help="Supplies this application property at submit.">
+      <Field id="p-cg" label={t("formBuilder.mapsToCommongrants")} help={t("formBuilder.suppliesThisApplicationProperty")}>
         <select className="sel" id="p-cg" value={field.mapsTo ?? ""} onChange={(e) => onChange({ mapsTo: e.target.value || null })}>
-          <option value="">None</option>
-          {CG_TARGETS.map((t) => (
-            <option key={t.key} value={t.key}>
-              {t.label}
+          <option value="">{t("formBuilder.none")}</option>
+          {CG_TARGETS.map((item) => (
+            <option key={item.key} value={item.key}>
+              {item.label}
             </option>
           ))}
         </select>
@@ -226,28 +220,28 @@ function FieldCard({ model, field, selected, problem, readOnly, onSelect, onMove
       <div className="grow">
         <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
           <button type="button" className="b" onClick={onSelect} aria-pressed={selected} style={{ color: "#0D2A43", border: 0, background: "transparent", padding: 0, font: "inherit", fontWeight: 700, cursor: "pointer", textAlign: "left" }}>
-            {field.label || "Untitled field"}
+            {field.label || t("formBuilder.untitledField")}
           </button>
           {field.required && (
-            <span className="req" title="Required">
-              *<span className="sr">required</span>
+            <span className="req" title={t("formBuilder.required")}>
+              *<span className="sr">{t("formBuilder.required2")}</span>
             </span>
           )}
           {field.prefill && (
             <span className="prov prov-passport">
               <BadgeCheck className="ic" aria-hidden="true" />
-              From Passport · {prefill?.label ?? field.prefill}
+              {t("formBuilder.fromPassport", { label: prefill ? prefillLabel(prefill) : field.prefill })}
             </span>
           )}
           {field.mapsTo && (
             <span className="tag" style={{ background: "var(--og-blue-light)", color: "var(--s-info-fg)" }}>
-              maps to CommonGrants · {field.mapsTo}
+              {t("formBuilder.mapsToCommongrants2", { mapsTo: field.mapsTo })}
             </span>
           )}
-          {field.wordMax && <span className="tag">{field.wordMax} words</span>}
-          {!field.reviewerVisible && <span className="tag">Hidden from reviewers</span>}
-          {field.pii && <span className="tag">PII</span>}
-          {field.identifying && <span className="tag">Says who applied</span>}
+          {field.wordMax && <span className="tag">{t("formBuilder.words", { wordMax: field.wordMax })}</span>}
+          {!field.reviewerVisible && <span className="tag">{t("formBuilder.hiddenFromReviewers")}</span>}
+          {field.pii && <span className="tag">{t("formBuilder.pii")}</span>}
+          {field.identifying && <span className="tag">{t("formBuilder.saysWhoApplied")}</span>}
         </div>
         {field.help && (
           <div className="small muted" style={{ marginTop: "2px" }}>
@@ -257,7 +251,7 @@ function FieldCard({ model, field, selected, problem, readOnly, onSelect, onMove
         {field.showWhen && (
           <div className="row small" style={{ gap: "6px", marginTop: "6px", color: "#4A5C5A" }}>
             <Eye className="ic ic-sm" aria-hidden="true" />
-            Shown when <span className="b">{describeCondition(model, field.showWhen)}</span>
+            {t.rich("formBuilder.shownWhen", { condition: conditionText(model, field.showWhen), span: (chunks) => <span className="b">{chunks}</span> })}
           </div>
         )}
         {problem && (
@@ -266,16 +260,16 @@ function FieldCard({ model, field, selected, problem, readOnly, onSelect, onMove
           </span>
         )}
       </div>
-      <span className="tag">{kindLabel(field.kind)}</span>
+      <span className="tag">{fieldKindLabel(field.kind)}</span>
       {!readOnly && (
         <span className="row" style={{ gap: "2px" }}>
-          <button type="button" className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label={`Move ${field.label} up`} disabled={!canMove(model, field.key, -1)} onClick={() => onMove(-1)}>
+          <button type="button" className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label={t("formBuilder.moveUp", { label: field.label })} disabled={!canMove(model, field.key, -1)} onClick={() => onMove(-1)}>
             <ArrowUp className="ic" aria-hidden="true" />
           </button>
-          <button type="button" className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label={`Move ${field.label} down`} disabled={!canMove(model, field.key, 1)} onClick={() => onMove(1)}>
+          <button type="button" className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label={t("formBuilder.moveDown", { label: field.label })} disabled={!canMove(model, field.key, 1)} onClick={() => onMove(1)}>
             <ArrowDown className="ic" aria-hidden="true" />
           </button>
-          <button type="button" className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label={`Remove ${field.label}`} onClick={onRemove}>
+          <button type="button" className="iconbtn" style={{ width: "28px", height: "28px" }} aria-label={t("formBuilder.remove", { label: field.label })} onClick={onRemove}>
             <Trash2 className="ic" aria-hidden="true" />
           </button>
         </span>
@@ -290,19 +284,19 @@ function VersionsDialog({ form, onClose }: { form: FormRecord; onClose: () => vo
     <Dialog open onClose={onClose} labelledBy="versions-title">
       <div className="hd">
         <h2 id="versions-title" style={{ fontSize: "16px" }}>
-          Version history
+          {t("formBuilder.versionHistory")}
         </h2>
       </div>
       <div className="bd">
-        {versions.status === "loading" && <Loading label="Loading versions" />}
+        {versions.status === "loading" && <Loading label={t("formBuilder.loadingVersions")} />}
         {versions.status === "error" && <ErrorBanner error={versions.error} onRetry={versions.reload} />}
         {versions.status === "ready" && (
           <ul style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {versions.data.map((v) => (
               <li key={v.version} className="row" style={{ justifyContent: "space-between" }}>
-                <span className="b">Version {v.version}</span>
+                <span className="b">{t("formBuilder.version", { version: v.version })}</span>
                 <span className="row" style={{ gap: "8px" }}>
-                  <span className="muted small">{v.publishedAt ? `Published ${formatDate(v.publishedAt)}` : `Edited ${formatDate(v.updatedAt)}`}</span>
+                  <span className="muted small">{v.publishedAt ? t("formBuilder.published", { date: formatDate(v.publishedAt) }) : t("formBuilder.edited", { date: formatDate(v.updatedAt) })}</span>
                   <StatusBadge kind="form" status={v.status} />
                 </span>
               </li>
@@ -312,7 +306,7 @@ function VersionsDialog({ form, onClose }: { form: FormRecord; onClose: () => vo
       </div>
       <div className="ft">
         <button type="button" className="btn btn-secondary" onClick={onClose}>
-          Close
+          {t("formBuilder.close")}
         </button>
       </div>
     </Dialog>
@@ -357,7 +351,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
   };
   async function saveDraft(): Promise<boolean> {
     if (Object.keys(problems).length) return false;
-    const saved = await save.run({ title: title.trim() || "Untitled form", purpose, ...parts });
+    const saved = await save.run({ title: title.trim() || t("formBuilder.untitledForm"), purpose, ...parts });
     if (saved) accept(saved);
     return !!saved;
   }
@@ -395,19 +389,19 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
   return (
     <main className="main" style={{ gap: "16px" }}>
       <PageHeader
-        crumbs={[{ label: ws.name, to: base }, { label: "Forms", to: `${base}/forms` }, { label: `${title || "Untitled form"} v${form.version}` }]}
-        title={`${title || "Untitled form"} · v${form.version}`}
+        crumbs={[{ label: ws.name, to: base }, { label: t("formBuilder.forms"), to: `${base}/forms` }, { label: t("formBuilder.v", { title: title || t("formBuilder.untitledForm"), version: form.version }) }]}
+        title={t("formBuilder.v2", { title: title || t("formBuilder.untitledForm"), version: form.version })}
         badge={<StatusBadge kind="form" status={form.status} />}
         meta={
           <>
             <span>
-              {counts.sections} section{counts.sections === 1 ? "" : "s"} · {counts.fields} field{counts.fields === 1 ? "" : "s"} · {counts.prefills} Passport prefill{counts.prefills === 1 ? "" : "s"}
-              {counts.conditionals ? ` · ${counts.conditionals} conditional` : ""}
+              {t("formBuilder.counts", { sections: counts.sections, fields: counts.fields, prefills: counts.prefills })}
+              {counts.conditionals ? ` · ${t("formBuilder.conditionalCount", { count: counts.conditionals })}` : ""}
             </span>
             {dirty ? (
               <span className="pill-warn">
                 <Clock className="ic ic-sm" aria-hidden="true" />
-                Unsaved changes
+                {t("formBuilder.unsavedChanges")}
               </span>
             ) : (
               <SaveNote state={save.state} />
@@ -418,27 +412,27 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
           <>
             <button type="button" className="btn btn-secondary" onClick={testFill} disabled={fill.state === "saving" || blocked}>
               <Zap className="ic" aria-hidden="true" />
-              Test-fill
+              {t("formBuilder.testFill")}
             </button>
             <button type="button" className="btn btn-secondary" onClick={() => setShowVersions(true)}>
               <Clock className="ic" aria-hidden="true" />
-              Version history
+              {t("formBuilder.versionHistory")}
             </button>
-            {!form.shared && <ShareToGalleryButton source={{ type: "form", id: form.id }} name={title || form.title} disabledReason={readOnly || form.version > 1 ? undefined : "Publish the form first: the gallery shares a published version"} />}
+            {!form.shared && <ShareToGalleryButton source={{ type: "form", id: form.id }} name={title || form.title} disabledReason={readOnly || form.version > 1 ? undefined : t("formBuilder.publishBeforeSharing")} />}
             {readOnly ? (
               // A shared library form is copied from the Forms list, never versioned in place.
               !form.shared && (
                 <button type="button" className="btn btn-primary" onClick={startNext} disabled={nextVersion.state === "saving"}>
-                  Create v{form.version + 1} to edit
+                  {t("formBuilder.createVToEdit", { version: form.version + 1 })}
                 </button>
               )
             ) : (
               <>
                 <button type="button" className="btn btn-secondary" onClick={saveDraft} disabled={save.state === "saving" || blocked}>
-                  Save draft
+                  {t("formBuilder.saveDraft")}
                 </button>
                 <button type="button" className="btn btn-primary" onClick={publishNow} disabled={publish.state === "saving" || blocked || counts.fields === 0}>
-                  Publish v{form.version}
+                  {t("formBuilder.publishV", { version: form.version })}
                 </button>
               </>
             )}
@@ -447,14 +441,14 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
       />
 
       {writeError !== null && (
-        <ErrorBanner error={writeError} title={writeError instanceof ApiError && writeError.status === 422 ? "This form definition is not valid" : "That did not work"} />
+        <ErrorBanner error={writeError} title={writeError instanceof ApiError && writeError.status === 422 ? t("formBuilder.thisFormDefinitionIs") : t("formBuilder.thatDidNotWork")} />
       )}
       {readOnly ? (
         <div className="bnr bnr-neu" role="status">
           <Info className="ic" aria-hidden="true" />
           <div className="grow">
-            <div className="t">Version {form.version} is published and cannot change</div>
-            <div className="d">Competitions pin a published version, so applicants never see a form change under them. Create version {form.version + 1} to edit; it stays a draft until you publish it.</div>
+            <div className="t">{t("formBuilder.versionIsPublishedAnd", { version: form.version })}</div>
+            <div className="d">{t("formBuilder.competitionsPinAPublished", { version: form.version + 1 })}</div>
           </div>
         </div>
       ) : (
@@ -462,9 +456,9 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
           <div className="bnr bnr-info" role="status">
             <Info className="ic" aria-hidden="true" />
             <div className="grow">
-              <div className="t">You are editing a draft of v{form.version}</div>
+              <div className="t">{t("formBuilder.youAreEditingA", { version: form.version })}</div>
               <div className="d">
-                v{form.supersedesFormVersion ?? form.version - 1} stays pinned wherever it is used until you publish and re-pin. Publishing does not change forms already submitted.
+                {t("formBuilder.vStaysPinnedWherever", { supersedesFormVersion: form.supersedesFormVersion ?? form.version - 1 })}
               </div>
             </div>
           </div>
@@ -474,15 +468,15 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
       <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr) 360px", gap: "20px", alignItems: "start" }}>
         <aside className="card" style={{ padding: "14px 12px" }} aria-labelledby="palette-title">
           <div className="eyebrow" id="palette-title" style={{ padding: "0 4px 10px" }}>
-            Field palette
+            {t("formBuilder.fieldPalette")}
           </div>
           <ul className="pal" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {FIELD_KINDS.map(({ kind, label }) => (
+            {FIELD_KINDS.map(({ kind }) => ({ kind, label: fieldKindLabel(kind) })).map(({ kind, label }) => (
               <li key={kind} style={{ padding: 0, cursor: "default", ...(kind === "passportField" ? { borderColor: "var(--og-teal-light)", background: "var(--og-teal-soft)", color: "var(--og-teal-dark)" } : {}) }}>
                 <button
                   type="button"
                   disabled={readOnly || model.sections.length === 0}
-                  aria-label={`Add ${label}`}
+                  aria-label={t("formBuilder.add", { label })}
                   style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", height: "100%", padding: "0 10px", border: 0, background: "transparent", font: "inherit", color: "inherit", cursor: readOnly ? "not-allowed" : "pointer", textAlign: "left" }}
                   onClick={() => {
                     const section = model.sections.find((s) => s.fields.some((f) => f.key === selected)) ?? model.sections[model.sections.length - 1]!;
@@ -499,14 +493,14 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
             ))}
           </ul>
           <p className="help" style={{ padding: "10px 4px 0" }}>
-            A field is added to the section of the selected field.
+            {t("formBuilder.aFieldIsAdded")}
           </p>
         </aside>
 
-        <section style={{ display: "flex", flexDirection: "column", gap: "14px", minWidth: "0" }} aria-label="Form canvas">
+        <section style={{ display: "flex", flexDirection: "column", gap: "14px", minWidth: "0" }} aria-label={t("formBuilder.formCanvas")}>
           <div className="card" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "12px" }}>
             <div className="fld-row">
-              <Field id="form-title" label="Form title">
+              <Field id="form-title" label={t("formBuilder.formTitle")}>
                 <input
                   className="inp"
                   id="form-title"
@@ -518,7 +512,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
                   }}
                 />
               </Field>
-              <Field id="form-purpose" label="Used for">
+              <Field id="form-purpose" label={t("formBuilder.usedFor")}>
                 <select
                   className="sel"
                   id="form-purpose"
@@ -537,20 +531,20 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
                 </select>
               </Field>
             </div>
-            <div className="seg" role="group" aria-label="Canvas view" style={{ alignSelf: "flex-start" }}>
+            <div className="seg" role="group" aria-label={t("formBuilder.canvasView")} style={{ alignSelf: "flex-start" }}>
               <button type="button" className={view === "build" ? "on" : ""} aria-pressed={view === "build"} onClick={() => setView("build")}>
-                Build
+                {t("formBuilder.build")}
               </button>
               <button type="button" className={view === "preview" ? "on" : ""} aria-pressed={view === "preview"} onClick={() => setView("preview")}>
                 <Eye className="ic ic-sm" aria-hidden="true" />
-                Preview as applicant
+                {t("formBuilder.previewAsApplicant")}
               </button>
             </div>
           </div>
 
           {view === "preview" && (
-            <div className="card gms-applicant" style={{ padding: "20px" }} role="region" aria-label="Applicant preview">
-              {counts.fields === 0 ? <p className="muted">Add a field to see the preview.</p> : <FormView form={definition} response={response} mode="edit" onChange={setResponse} />}
+            <div className="card gms-applicant" style={{ padding: "20px" }} role="region" aria-label={t("formBuilder.applicantPreview")}>
+              {counts.fields === 0 ? <p className="muted">{t("formBuilder.addAFieldTo")}</p> : <FormView form={definition} response={response} mode="edit" onChange={setResponse} />}
             </div>
           )}
 
@@ -561,23 +555,23 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
                   <div className="card-h" style={{ padding: "12px 16px" }}>
                     <div className="row grow" style={{ gap: "10px" }}>
                       <label className="sr" htmlFor={`section-${s.id}`}>
-                        Section {i + 1} name
+                        {t("formBuilder.sectionName", { i: i + 1 })}
                       </label>
-                      <span className="b muted small">Section {i + 1}</span>
+                      <span className="b muted small">{t("formBuilder.section", { i: i + 1 })}</span>
                       <input className="inp" id={`section-${s.id}`} style={{ height: "32px", fontWeight: 700, maxWidth: "320px" }} value={s.label} disabled={readOnly} onChange={(e) => edit(renameSection(model, s.id, e.target.value))} />
                     </div>
                     <span className="row" style={{ gap: "8px" }}>
                       <span className="small muted">
-                        {s.fields.length} field{s.fields.length === 1 ? "" : "s"}
+                        {t("formBuilder.fieldCount", { count: s.fields.length })}
                       </span>
                       {!readOnly && (
-                        <button type="button" className="btn btn-sm btn-ghost" aria-label={`Remove section ${i + 1}, ${s.label}`} onClick={() => edit(removeSection(model, s.id))}>
-                          Remove
+                        <button type="button" className="btn btn-sm btn-ghost" aria-label={t("formBuilder.removeSection", { i: i + 1, label: s.label })} onClick={() => edit(removeSection(model, s.id))}>
+                          {t("formBuilder.remove2")}
                         </button>
                       )}
                     </span>
                   </div>
-                  <ul className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "14px 16px" }} aria-label={`Fields in ${s.label}`}>
+                  <ul className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "14px 16px" }} aria-label={t("formBuilder.fieldsIn", { label: s.label })}>
                     {s.fields.map((f) => (
                       <FieldCard
                         key={f.key}
@@ -594,7 +588,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
                         }}
                       />
                     ))}
-                    {s.fields.length === 0 && <li className="muted small">No fields yet. Pick one from the palette.</li>}
+                    {s.fields.length === 0 && <li className="muted small">{t("formBuilder.noFieldsYetPick")}</li>}
                   </ul>
                 </div>
               ))}
@@ -609,7 +603,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
                   }}
                 >
                   <Plus className="ic" aria-hidden="true" />
-                  Add section
+                  {t("formBuilder.addSection")}
                 </button>
               )}
             </>
@@ -619,15 +613,15 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
         <aside className="card" style={{ minWidth: "0" }} aria-labelledby="props-title">
           <div className="card-h" style={{ padding: "12px 16px" }}>
             <h3 id="props-title" style={{ fontSize: "14px" }}>
-              {field ? `Field properties · ${field.label || "Untitled field"}` : "Field properties"}
+              {field ? t("formBuilder.fieldProperties", { label: field.label || t("formBuilder.untitledField") }) : t("formBuilder.fieldProperties2")}
             </h3>
-            {field && <span className="tag">{kindLabel(field.kind)}</span>}
+            {field && <span className="tag">{fieldKindLabel(field.kind)}</span>}
           </div>
           {field ? (
             <Properties key={field.key} model={model} field={field} readOnly={readOnly} onChange={(change) => edit(updateField(model, field.key, change))} />
           ) : (
             <p className="muted" style={{ padding: "16px" }}>
-              Select a field on the canvas to edit its label, help text, conditions and Passport prefill.
+              {t("formBuilder.selectAFieldOn")}
             </p>
           )}
         </aside>
@@ -635,13 +629,14 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
 
       {showVersions && <VersionsDialog form={form} onClose={() => setShowVersions(false)} />}
       <p className="small muted">
-        Pin a published version to a stage from the <Link to={`${base}/opportunities`}>competition</Link> of an opportunity.
+        {t.rich("formBuilder.pinAPublishedVersion", { link: (chunks) => <Link to={`${base}/opportunities`}>{chunks}</Link> })}
       </p>
     </main>
   );
 }
 
 export default function FormBuilder() {
+  useFunderMessages();
   const ws = useWorkspace("funder");
   const { formId = "" } = useParams();
   const data = useApiQuery((api) => api.getForm(formId), [ws.id, formId]);
@@ -650,15 +645,15 @@ export default function FormBuilder() {
 
   return (
     <FunderShell active="Opportunities">
-      <title>{`${data.status === "ready" ? data.data.title : "Form"} — Form builder`}</title>
+      <title>{t("formBuilder.formBuilder", { title: data.status === "ready" ? data.data.title : t("formBuilder.form") })}</title>
       {data.status === "loading" && (
         <main className="main">
-          <Loading label="Loading the form" />
+          <Loading label={t("formBuilder.loadingTheForm")} />
         </main>
       )}
       {data.status === "error" && (
         <main className="main">
-          <ErrorBanner error={data.error} onRetry={data.reload} title="The form could not be loaded" />
+          <ErrorBanner error={data.error} onRetry={data.reload} title={t("formBuilder.theFormCouldNot")} />
         </main>
       )}
       {data.status === "ready" && <Builder key={`${data.data.id}`} initial={data.data} onSaved={() => undefined} />}

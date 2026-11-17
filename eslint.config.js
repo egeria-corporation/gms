@@ -1,5 +1,6 @@
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
+import { NOT_TRANSLATED, TRANSLATED, i18nPlugin } from "./eslint.i18n.js";
 
 export default tseslint.config(
   {
@@ -13,6 +14,13 @@ export default tseslint.config(
       "@typescript-eslint/consistent-type-imports": "error",
       "no-console": ["error", { allow: ["warn", "error"] }],
     },
+  },
+  {
+    // No literal user-visible strings in the screens that are translated (eslint.i18n.js, docs/i18n.md).
+    files: TRANSLATED,
+    ignores: NOT_TRANSLATED,
+    plugins: { i18n: i18nPlugin },
+    rules: { "i18n/no-literal-strings": "error" },
   },
   {
     files: ["scripts/**", "**/scripts/**"],

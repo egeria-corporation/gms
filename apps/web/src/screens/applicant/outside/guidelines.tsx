@@ -11,6 +11,7 @@ import { useWKMutation } from "../../../api/writeKeepHooks.ts";
 import { quotaSpent, QuotaSpentNote } from "../../../components/launch.tsx";
 import { ErrorBanner, Field } from "../../../components/ui.tsx";
 import { MAX_UPLOAD_BYTES, toBase64 } from "./shared.tsx";
+import { t } from "../i18n.ts";
 
 /** As the API: pasted guidelines up to this many characters. */
 export const GUIDELINES_MAX_CHARS = 60_000;
@@ -30,32 +31,32 @@ export function GuidelinesReader({ applicationId, assist, onRead }: { applicatio
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
       <Field
         id="gl-text"
-        label="The funder’s guidelines"
+        label={t("outsideGuidelines.theFundersGuidelines")}
         help={
           <span className={tooLong ? "err-msg" : undefined}>
-            {text.length.toLocaleString("en-US")} of {GUIDELINES_MAX_CHARS.toLocaleString("en-US")} characters
+            {t("outsideGuidelines.charCount", { count: text.length, max: GUIDELINES_MAX_CHARS })}
           </span>
         }
       >
-        <textarea id="gl-text" className={tooLong ? "ta err" : "ta"} style={{ minHeight: "180px" }} disabled={!!file} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste the request for proposals, the guidelines page or the portal’s instructions." />
+        <textarea id="gl-text" className={tooLong ? "ta err" : "ta"} style={{ minHeight: "180px" }} disabled={!!file} value={text} onChange={(e) => setText(e.target.value)} placeholder={t("outsideGuidelines.pasteTheRequestForProposalsThe")} />
       </Field>
       <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
-        <span className="small muted">Or upload them:</span>
+        <span className="small muted">{t("outsideGuidelines.orUploadThem")}</span>
         <label className="btn btn-sm btn-secondary" style={{ cursor: "pointer" }}>
           <FileUp className="ic" aria-hidden="true" />
-          {file ? "Choose another file" : "Upload a PDF or text file"}
+          {file ? t("outsideGuidelines.chooseAnotherFile") : t("outsideGuidelines.uploadAPdfOrTextFile")}
           <input
             type="file"
             className="sr"
             accept=".pdf,.txt,application/pdf,text/plain"
-            aria-label="Upload the funder’s guidelines"
+            aria-label={t("outsideGuidelines.uploadTheFundersGuidelines")}
             onChange={(e) => {
               const f = e.target.files?.[0] ?? null;
               e.target.value = "";
               setProblem(null);
               if (!f) return;
-              if (!READABLE.test(f.name)) return setProblem("Upload the guidelines as a PDF or a plain text (.txt) file.");
-              if (f.size > MAX_UPLOAD_BYTES) return setProblem(`${f.name} is larger than 10 MB. Upload a smaller file, or paste the text.`);
+              if (!READABLE.test(f.name)) return setProblem(t("outsideGuidelines.wrongType"));
+              if (f.size > MAX_UPLOAD_BYTES) return setProblem(t("outsideGuidelines.tooLarge", { name: f.name }));
               setFile(f);
             }}
           />
@@ -64,7 +65,7 @@ export function GuidelinesReader({ applicationId, assist, onRead }: { applicatio
           <span className="row small" style={{ gap: "6px" }}>
             <span className="b">{file.name}</span>
             <button type="button" className="btn btn-sm btn-ghost" onClick={() => setFile(null)}>
-              Remove
+              {t("outsideGuidelines.remove")}
             </button>
           </span>
         )}
@@ -76,10 +77,10 @@ export function GuidelinesReader({ applicationId, assist, onRead }: { applicatio
       )}
       <p className="small muted row" style={{ gap: "6px", alignItems: "flex-start" }}>
         <Lock className="ic ic-sm" aria-hidden="true" style={{ marginTop: "2px" }} />
-        <span>Only the guidelines you paste or upload here are read by AI, never your document vault. It looks for questions, limits, deadlines and required documents, and ignores anything personal. An uploaded file (up to 50 pages) is kept with this application. Each reading uses one AI draft.</span>
+        <span>{t("outsideGuidelines.onlyTheGuidelinesYouPasteOr")}</span>
       </p>
       {spent ? <QuotaSpentNote resetsAt={assist.quota?.resetsAt} /> : null}
-      {read.error ? <ErrorBanner error={read.error} title="The guidelines could not be read" /> : null}
+      {read.error ? <ErrorBanner error={read.error} title={t("outsideGuidelines.theGuidelinesCouldNotBeRead")} /> : null}
       <button
         type="button"
         className="btn btn-primary"
@@ -91,7 +92,7 @@ export function GuidelinesReader({ applicationId, assist, onRead }: { applicatio
         }}
       >
         <Sparkles className="ic" aria-hidden="true" />
-        {read.state === "saving" ? "Reading…" : "Read the guidelines"}
+        {read.state === "saving" ? t("outsideGuidelines.reading") : t("outsideGuidelines.readTheGuidelines")}
       </button>
     </div>
   );

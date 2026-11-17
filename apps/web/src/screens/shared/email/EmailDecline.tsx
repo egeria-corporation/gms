@@ -3,10 +3,13 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router";
 import { ExternalLink, File } from "lucide-react";
 
+import { translator } from "../../../i18n/index.tsx";
+
+const t = translator("shared");
 export default function EmailDecline() {
   return (
     <>
-      <title>{"Email — decision on your LOI"}</title>
+      <title>{t("emailDecline.emailDecisionOnYourLoi")}</title>
       <div
         className="gms email"
         style={
@@ -34,24 +37,14 @@ export default function EmailDecline() {
           }}
         >
           <div>
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              Subject:
-            </span>{" "}
-            Decision on your LOI — Community Health Grants 2027
+            {t.rich("emailDecline.subjectDecisionOnYourLoi", { span: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span> })}
           </div>
           <div>
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              To:
-            </span>{" "}
-            Pine Ridge Literacy Project {"<"}director@pineridgeliteracy.example{">"} ·{" "}
-            <span className="b" style={{ color: "#1E2D2B" }}>
-              From:
-            </span>{" "}
-            Riverbend Community Foundation via OpenGrants GMS
+            {t.rich("emailDecline.toPineRidgeLiteracyProject", { span: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span>, span2: (chunks) => <span className="b" style={{ color: "#1E2D2B" }}>{chunks}</span> })}
           </div>
         </div>
         <div className="hd">
-          <span
+          {t.rich("emailDecline.rcfRiverbendCommunityFoundation", { span: (chunks) => <span
             style={{
               width: "36px",
               height: "36px",
@@ -65,55 +58,47 @@ export default function EmailDecline() {
               fontSize: "12px",
               letterSpacing: ".04em",
             }}
-          >
-            RCF
-          </span>
-          Riverbend Community Foundation
+          >{chunks}</span> })}
         </div>
         <div className="bd">
-          <p style={{ fontSize: "14px", color: "#4A5C5A" }}>May 25, 2027</p>
-          <p>Dear Pine Ridge Literacy Project,</p>
+          <p style={{ fontSize: "14px", color: "#4A5C5A" }}>{t("emailDecline.may252027")}</p>
+          <p>{t("emailDecline.dearPineRidgeLiteracyProject")}</p>
           <p>
-            Thank you for submitting <span className="b">Health Literacy Workshops</span> to Community Health Grants 2027. After review,
-            Riverbend Community Foundation will not be advancing this letter of intent to the full proposal stage.
+            {t.rich("emailDecline.thankYouForSubmittingHealth", { span: (chunks) => <span className="b">{chunks}</span> })}
           </p>
           <p>
-            The proposed service area is outside Riverbend County, which this opportunity requires. Eligibility for Community Health Grants
-            is limited to programs serving residents of the county.
+            {t("emailDecline.theProposedServiceAreaIs")}
           </p>
           <p>
-            We encourage you to check eligibility for <span className="b">Housing Stability Grants 2027</span>, which accepts applications
-            from organizations serving the wider region and opens on June 1, and to apply again in a future Community Health cycle if your
-            service area changes.
+            {t.rich("emailDecline.weEncourageYouToCheck", { span: (chunks) => <span className="b">{chunks}</span> })}
           </p>
-          <p>Questions about this decision can be sent to grants@riverbendcf.example.</p>
+          <p>{t("emailDecline.questionsAboutThisDecisionCan")}</p>
           <p>
-            Sincerely,
+            {t("emailDecline.sincerely")}
             <br />
-            Dana Ortiz
+            {t("emailDecline.danaOrtiz")}
             <br />
-            Program Officer, Riverbend Community Foundation
+            {t("emailDecline.programOfficerRiverbendCommunityFoundation")}
           </p>
           <div className="divider"></div>
           <div className="row" style={{ gap: "18px", flexWrap: "wrap", fontSize: "14px" }}>
             <Link to="/f/riverbend" className="b row" style={{ gap: "6px" }}>
               <ExternalLink className="ic" aria-hidden="true" />
-              Other open opportunities
+              {t("emailDecline.otherOpenOpportunities")}
             </Link>
             <Link to="/w/alder-creek/applications/app_01HZX4" className="b row" style={{ gap: "6px" }}>
               <File className="ic" aria-hidden="true" />
-              View the decision letter (PDF)
+              {t("emailDecline.viewTheDecisionLetterPdf")}
             </Link>
           </div>
           <p style={{ fontSize: "13px", color: "#4A5C5A" }}>
-            This letter was prepared from Riverbend's “Standard decline v3” template and approved by Dana Ortiz before sending. A copy is
-            attached to your application record.
+            {t("emailDecline.thisLetterWasPreparedFrom")}
           </p>
         </div>
         <div className="ft" style={{ marginTop: "auto" }}>
-          <span>Sent by OpenGrants GMS on behalf of Riverbend Community Foundation</span>
+          <span>{t("emailDecline.sentByOpengrantsGmsOn")}</span>
           <span>
-            <Link to="/notifications">Manage notifications</Link> · gms.opengrants.io
+            {t.rich("emailDecline.manageNotificationsGmsOpengrantsIo", { link: (chunks) => <Link to="/notifications">{chunks}</Link> })}
           </span>
         </div>
       </div>

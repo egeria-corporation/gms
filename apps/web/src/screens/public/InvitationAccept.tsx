@@ -9,20 +9,24 @@ import { landingPath } from "../../api/invites.ts";
 import { useServices } from "../../app/services.tsx";
 import { isReviewOnly } from "../../lib/roles.ts";
 
+import { translator } from "../../i18n/index.tsx";
+
+
+const t = translator("public");
 type State = { status: "joining" } | { status: "failed"; title: string; detail: string };
 
 /** Why joining did not work, in words the invited person can act on. */
 export function invitationProblem(error: unknown): { title: string; detail: string } {
   if (error instanceof ApiError && (error.status === 404 || error.status === 410)) {
     return {
-      title: "This invitation can't be used",
-      detail: "It has already been used, has expired, or the link is incomplete. Ask the person who invited you to send a new one.",
+      title: t("invitationAccept.thisInvitationCanTBe"),
+      detail: t("invitationAccept.itHasAlreadyBeenUsed"),
     };
   }
   if (error instanceof ApiError && (error.status === 400 || error.status === 422)) {
-    return { title: "This invitation link is incomplete", detail: "Open the link from your invitation email again, or paste the whole link." };
+    return { title: t("invitationAccept.thisInvitationLinkIsIncomplete"), detail: t("invitationAccept.openTheLinkFromYour") };
   }
-  return { title: "You could not be added just now", detail: "Nothing was changed. Try the link again in a moment." };
+  return { title: t("invitationAccept.youCouldNotBeAdded"), detail: t("invitationAccept.nothingWasChangedTryThe") };
 }
 
 export default function InvitationAccept() {
@@ -38,7 +42,7 @@ export default function InvitationAccept() {
     if (sent.current) return;
     sent.current = true;
     if (!token) {
-      setState({ status: "failed", ...invitationProblem(new ApiError(400, "Missing token")) });
+      setState({ status: "failed", ...invitationProblem(new ApiError(400, t("invitationAccept.missingToken"))) });
       return;
     }
     api.acceptInvitation(token).then(
@@ -54,12 +58,12 @@ export default function InvitationAccept() {
 
   return (
     <div className="gms gms-frame" style={{ alignItems: "center", justifyContent: "center" }}>
-      <title>Join a workspace — OpenGrants GMS</title>
+      <title>{t("invitationAccept.joinAWorkspaceOpengrantsGms")}</title>
       {state.status === "joining" ? (
         <div className="empty" role="status" aria-busy="true">
           <MailCheck className="ic" aria-hidden="true" />
-          <h3>Adding you to the workspace</h3>
-          <p>One moment.</p>
+          <h3>{t("invitationAccept.addingYouToTheWorkspace")}</h3>
+          <p>{t("invitationAccept.oneMoment")}</p>
         </div>
       ) : (
         <div className="empty" role="alert">
@@ -68,7 +72,7 @@ export default function InvitationAccept() {
           <p>{state.detail}</p>
           <div className="acts">
             <Link to="/workspaces" className="btn btn-primary">
-              Go to your workspaces
+              {t("invitationAccept.goToYourWorkspaces")}
             </Link>
           </div>
         </div>

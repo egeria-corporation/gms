@@ -10,15 +10,16 @@ import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import { Dialog } from "../../components/Dialog.tsx";
 import { STATUS } from "../../components/status.tsx";
 import { ErrorBanner, Field, Notice } from "../../components/ui.tsx";
+import { t } from "./i18n.ts";
 
 type Audience = { kind: "application"; status: string } | { kind: "award"; status: string };
 const AUDIENCES: { value: string; label: string; audience: Audience }[] = [
-  ...["submitted", "under_review", "revision_requested", "waitlisted", "declined"].map((status) => ({ value: `application:${status}`, label: `Applicants · ${STATUS.application[status as keyof typeof STATUS.application]?.label ?? status}`, audience: { kind: "application" as const, status } })),
-  ...["offered", "active", "completed"].map((status) => ({ value: `award:${status}`, label: `Grantees · award ${STATUS.award[status as keyof typeof STATUS.award]?.label ?? status}`, audience: { kind: "award" as const, status } })),
+  ...["submitted", "under_review", "revision_requested", "waitlisted", "declined"].map((status) => ({ value: `application:${status}`, label: t("bulkSend.applicants", { label: STATUS.application[status as keyof typeof STATUS.application]?.label ?? status }), audience: { kind: "application" as const, status } })),
+  ...["offered", "active", "completed"].map((status) => ({ value: `award:${status}`, label: t("bulkSend.granteesAward", { label: STATUS.award[status as keyof typeof STATUS.award]?.label ?? status }), audience: { kind: "award" as const, status } })),
 ];
 
 export function BulkSend({ templates, onSent }: { templates: Template[]; onSent: () => void }) {
-  const emails = templates.filter((t) => t.kind === "email");
+  const emails = templates.filter((item) => item.kind === "email");
   const [templateId, setTemplateId] = useState("");
   const [audienceKey, setAudienceKey] = useState(AUDIENCES[0]!.value);
   const [confirming, setConfirming] = useState(false);
@@ -34,35 +35,35 @@ export function BulkSend({ templates, onSent }: { templates: Template[]; onSent:
   );
   const send = useApiMutation((api) => api.sendCommunication({ templateId: chosen, recipients: (recipients.data ?? []).map((r) => r.recipient) }));
   const count = recipients.data?.length ?? 0;
-  const template = emails.find((t) => t.id === chosen);
+  const template = emails.find((item) => item.id === chosen);
 
   return (
     <section className="card" aria-labelledby="bulk-h">
       <div className="card-h">
         <div>
-          <h3 id="bulk-h">Bulk send</h3>
-          <p className="small muted">One message to everyone in a group. Review the count before it goes out.</p>
+          <h3 id="bulk-h">{t("bulkSend.bulkSend")}</h3>
+          <p className="small muted">{t("bulkSend.oneMessageToEveryone")}</p>
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         {result && (
-          <Notice tone={result.sent === result.requested ? "ok" : "warn"} title={`${result.sent} of ${result.requested} sent`}>
-            {result.sent < result.requested ? result.results.filter((r) => !r.sent).map((r) => r.reason ?? "Not sent").join("; ") : "Each send is in the log below."}
+          <Notice tone={result.sent === result.requested ? "ok" : "warn"} title={t("bulkSend.ofSent", { sent: result.sent, requested: result.requested })}>
+            {result.sent < result.requested ? result.results.filter((r) => !r.sent).map((r) => r.reason ?? t("bulkSend.notSent")).join("; ") : t("bulkSend.eachSendIsIn")}
           </Notice>
         )}
         {recipients.status === "error" && <ErrorBanner error={recipients.error} onRetry={recipients.reload} />}
         <div className="fld-row">
-          <Field id="bulk-template" label="Template" help={emails.length ? undefined : "Add an email template first."}>
+          <Field id="bulk-template" label={t("bulkSend.template")} help={emails.length ? undefined : t("bulkSend.addAnEmailTemplate")}>
             <select className="sel" id="bulk-template" value={chosen} onChange={(e) => setTemplateId(e.target.value)} disabled={!emails.length}>
-              {emails.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                  {t.builtIn ? " (built in)" : ` v${t.version}`}
+              {emails.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>
+                  {tpl.name}
+                  {tpl.builtIn ? t("bulkSend.builtIn") : t("bulkSend.v", { version: tpl.version })}
                 </option>
               ))}
             </select>
           </Field>
-          <Field id="bulk-audience" label="Recipients">
+          <Field id="bulk-audience" label={t("bulkSend.recipients")}>
             <select
               className="sel"
               id="bulk-audience"
@@ -82,11 +83,11 @@ export function BulkSend({ templates, onSent }: { templates: Template[]; onSent:
         </div>
         <div className="row wrap" style={{ justifyContent: "space-between", gap: "12px" }}>
           <span className="small muted" role="status">
-            {recipients.status === "loading" ? "Counting recipients…" : count === 0 ? "Nobody is in this group right now." : `${count} ${count === 1 ? "recipient" : "recipients"}: ${(recipients.data ?? []).slice(0, 3).map((r) => r.name).join(", ")}${count > 3 ? ` and ${count - 3} more` : ""}`}
+            {recipients.status === "loading" ? t("bulkSend.countingRecipients") : count === 0 ? t("bulkSend.nobodyIsInThis") : t(count > 3 ? "bulkSend.recipientsListMore" : "bulkSend.recipientsList", { count, names: (recipients.data ?? []).slice(0, 3).map((r) => r.name).join(", "), more: count - 3 })}
           </span>
           <button type="button" className="btn btn-primary" disabled={!chosen || count === 0} aria-haspopup="dialog" onClick={() => setConfirming(true)}>
             <Send className="ic" aria-hidden="true" />
-            Send to {count}
+            {t("bulkSend.sendTo", { count })}
           </button>
         </div>
       </div>
@@ -95,17 +96,17 @@ export function BulkSend({ templates, onSent }: { templates: Template[]; onSent:
           <div className="hd">
             <div>
               <h2 id="bulk-confirm-title" style={{ fontSize: "16px" }}>
-                Send “{template?.name}” to {count} {count === 1 ? "recipient" : "recipients"}?
+                {t("bulkSend.sendToRecipients", { name: template?.name, count })}
               </h2>
               <p className="small muted" style={{ marginTop: "4px" }}>
-                Each person gets their own copy with their own merge fields. A recipient whose fields are incomplete is skipped and listed afterwards.
+                {t("bulkSend.eachPersonGetsTheir")}
               </p>
             </div>
           </div>
           <div className="bd">{send.error !== null && <ErrorBanner error={send.error} />}</div>
           <div className="ft">
             <button type="button" className="btn btn-secondary" onClick={() => setConfirming(false)}>
-              Cancel
+              {t("bulkSend.cancel")}
             </button>
             <button
               type="button"
@@ -121,7 +122,7 @@ export function BulkSend({ templates, onSent }: { templates: Template[]; onSent:
               }}
             >
               <Send className="ic" aria-hidden="true" />
-              Send {count}
+              {t("bulkSend.send", { count })}
             </button>
           </div>
         </Dialog>

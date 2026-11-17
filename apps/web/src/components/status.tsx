@@ -40,6 +40,9 @@ import type { Verification } from "../api/types.ts";
 import type { InvitationStatus } from "../api/directAwards.ts";
 import type { AgreementStatus, ApplicationStatus, AwardStatus, RequirementStatus, SubmissionStatus, TrancheStatus } from "@gms/workflow";
 
+import { translator, type Key } from "../i18n/index.tsx";
+
+const t = translator("shared");
 export type Tone = "neutral" | "info" | "prog" | "ok" | "warn" | "dng" | "done" | "agent";
 export interface StatusLook {
   icon: LucideIcon;
@@ -47,122 +50,129 @@ export interface StatusLook {
   tone: Tone;
 }
 
-const look = (icon: LucideIcon, label: string, tone: Tone): StatusLook => ({ icon, label, tone });
+/** A status's look; the label is read in the current language each time (shared catalog, `status.*`). */
+const look = (icon: LucideIcon, key: Key<"shared">, tone: Tone): StatusLook => ({
+  icon,
+  get label() {
+    return t(key);
+  },
+  tone,
+});
 
 export const STATUS = {
   application: {
-    draft: look(Pencil, "Draft", "neutral"),
-    submitted: look(Send, "Submitted", "info"),
-    screening: look(Search, "Screening", "info"),
-    under_review: look(Eye, "Under review", "prog"),
-    revision_requested: look(RotateCcw, "Revision requested", "warn"),
-    interview: look(Calendar, "Interview", "info"),
-    recommended: look(Star, "Recommended", "prog"),
-    accepted: look(CircleCheck, "Accepted", "ok"),
-    declined: look(CircleX, "Declined", "dng"),
-    waitlisted: look(Hourglass, "Waitlisted", "neutral"),
-    withdrawn: look(LogOut, "Withdrawn", "neutral"),
+    draft: look(Pencil, "status.application.draft", "neutral"),
+    submitted: look(Send, "status.application.submitted", "info"),
+    screening: look(Search, "status.application.screening", "info"),
+    under_review: look(Eye, "status.application.under_review", "prog"),
+    revision_requested: look(RotateCcw, "status.application.revision_requested", "warn"),
+    interview: look(Calendar, "status.application.interview", "info"),
+    recommended: look(Star, "status.application.recommended", "prog"),
+    accepted: look(CircleCheck, "status.application.accepted", "ok"),
+    declined: look(CircleX, "status.application.declined", "dng"),
+    waitlisted: look(Hourglass, "status.application.waitlisted", "neutral"),
+    withdrawn: look(LogOut, "status.application.withdrawn", "neutral"),
   } satisfies Record<ApplicationStatus, StatusLook>,
   award: {
-    offered: look(Mail, "Offered", "info"),
-    accepted: look(Check, "Accepted", "prog"),
-    active: look(BadgeCheck, "Active", "ok"),
-    suspended: look(CirclePause, "Suspended", "warn"),
-    completed: look(CircleCheck, "Completed", "done"),
-    cancelled: look(Ban, "Cancelled", "dng"),
+    offered: look(Mail, "status.award.offered", "info"),
+    accepted: look(Check, "status.award.accepted", "prog"),
+    active: look(BadgeCheck, "status.award.active", "ok"),
+    suspended: look(CirclePause, "status.award.suspended", "warn"),
+    completed: look(CircleCheck, "status.award.completed", "done"),
+    cancelled: look(Ban, "status.award.cancelled", "dng"),
   } satisfies Record<AwardStatus, StatusLook>,
   // The invitation on an award given directly: where the organization's answer stands.
   invitation: {
-    sent: look(Mail, "Invitation sent", "info"),
-    accepted: look(CircleCheck, "Accepted", "ok"),
-    declined: look(CircleX, "Declined", "dng"),
-    expired: look(Clock, "Expired", "warn"),
-    revoked: look(Ban, "Withdrawn", "neutral"),
+    sent: look(Mail, "status.invitation.sent", "info"),
+    accepted: look(CircleCheck, "status.invitation.accepted", "ok"),
+    declined: look(CircleX, "status.invitation.declined", "dng"),
+    expired: look(Clock, "status.invitation.expired", "warn"),
+    revoked: look(Ban, "status.invitation.revoked", "neutral"),
   } satisfies Record<InvitationStatus, StatusLook>,
   agreement: {
-    draft: look(Pencil, "Draft", "neutral"),
-    sent: look(Send, "Sent", "info"),
-    signed_by_grantee: look(PenLine, "Signed by grantee", "prog"),
-    countersigned: look(ClipboardCheck, "Countersigned", "prog"),
-    executed: look(ShieldCheck, "Executed", "ok"),
-    voided: look(Ban, "Voided", "dng"),
+    draft: look(Pencil, "status.agreement.draft", "neutral"),
+    sent: look(Send, "status.agreement.sent", "info"),
+    signed_by_grantee: look(PenLine, "status.agreement.signed_by_grantee", "prog"),
+    countersigned: look(ClipboardCheck, "status.agreement.countersigned", "prog"),
+    executed: look(ShieldCheck, "status.agreement.executed", "ok"),
+    voided: look(Ban, "status.agreement.voided", "dng"),
   } satisfies Record<AgreementStatus, StatusLook>,
   tranche: {
-    scheduled: look(Calendar, "Scheduled", "neutral"),
-    due: look(Clock, "Due", "warn"),
-    ready: look(CircleCheck, "Ready", "ok"),
-    held: look(Lock, "Held", "warn"),
-    releasing: look(Loader, "Releasing", "prog"),
-    initiated: look(Send, "Initiated", "info"),
-    settled: look(BadgeCheck, "Settled", "ok"),
-    failed: look(CircleX, "Failed", "dng"),
-    returned: look(RotateCcw, "Returned", "dng"),
-    cancelled: look(Ban, "Cancelled", "neutral"),
+    scheduled: look(Calendar, "status.tranche.scheduled", "neutral"),
+    due: look(Clock, "status.tranche.due", "warn"),
+    ready: look(CircleCheck, "status.tranche.ready", "ok"),
+    held: look(Lock, "status.tranche.held", "warn"),
+    releasing: look(Loader, "status.tranche.releasing", "prog"),
+    initiated: look(Send, "status.tranche.initiated", "info"),
+    settled: look(BadgeCheck, "status.tranche.settled", "ok"),
+    failed: look(CircleX, "status.tranche.failed", "dng"),
+    returned: look(RotateCcw, "status.tranche.returned", "dng"),
+    cancelled: look(Ban, "status.tranche.cancelled", "neutral"),
   } satisfies Record<TrancheStatus, StatusLook>,
   requirement: {
-    scheduled: look(Calendar, "Scheduled", "neutral"),
-    due: look(Clock, "Due", "warn"),
-    overdue: look(TriangleExclamationPoint, "Overdue", "dng"),
-    submitted: look(Send, "Submitted", "info"),
-    under_review: look(Eye, "Under review", "prog"),
-    accepted: look(CircleCheck, "Accepted", "ok"),
-    returned: look(RotateCcw, "Returned", "warn"),
-    waived: look(CircleMinus, "Waived", "neutral"),
+    scheduled: look(Calendar, "status.requirement.scheduled", "neutral"),
+    due: look(Clock, "status.requirement.due", "warn"),
+    overdue: look(TriangleExclamationPoint, "status.requirement.overdue", "dng"),
+    submitted: look(Send, "status.requirement.submitted", "info"),
+    under_review: look(Eye, "status.requirement.under_review", "prog"),
+    accepted: look(CircleCheck, "status.requirement.accepted", "ok"),
+    returned: look(RotateCcw, "status.requirement.returned", "warn"),
+    waived: look(CircleMinus, "status.requirement.waived", "neutral"),
   } satisfies Record<RequirementStatus, StatusLook>,
   submission: {
-    draft: look(Pencil, "Draft", "neutral"),
-    submitted: look(Send, "Submitted", "info"),
-    under_review: look(Eye, "Under review", "prog"),
-    accepted: look(CircleCheck, "Accepted", "ok"),
-    returned: look(RotateCcw, "Returned", "warn"),
+    draft: look(Pencil, "status.submission.draft", "neutral"),
+    submitted: look(Send, "status.submission.submitted", "info"),
+    under_review: look(Eye, "status.submission.under_review", "prog"),
+    accepted: look(CircleCheck, "status.submission.accepted", "ok"),
+    returned: look(RotateCcw, "status.submission.returned", "warn"),
   } satisfies Record<SubmissionStatus, StatusLook>,
   opportunity: {
-    forecasted: look(Calendar, "Forecasted", "neutral"),
-    open: look(CircleCheck, "Open", "ok"),
-    closed: look(CircleMinus, "Closed", "done"),
+    forecasted: look(Calendar, "status.opportunity.forecasted", "neutral"),
+    open: look(CircleCheck, "status.opportunity.open", "ok"),
+    closed: look(CircleMinus, "status.opportunity.closed", "done"),
   },
   competition: {
-    draft: look(Pencil, "Draft", "neutral"),
-    open: look(CircleCheck, "Open", "ok"),
-    closed: look(CircleMinus, "Closed", "done"),
+    draft: look(Pencil, "status.competition.draft", "neutral"),
+    open: look(CircleCheck, "status.competition.open", "ok"),
+    closed: look(CircleMinus, "status.competition.closed", "done"),
   },
   form: {
-    draft: look(Pencil, "Draft", "neutral"),
-    published: look(Lock, "Published", "ok"),
+    draft: look(Pencil, "status.form.draft", "neutral"),
+    published: look(Lock, "status.form.published", "ok"),
   },
   // An application to a funder outside this GMS: the applicant's own record of where it stands.
   outside: {
-    prospect: look(Bookmark, "Prospect", "neutral"),
-    deciding: look(CircleQuestionMark, "Deciding", "neutral"),
-    loi: look(Mail, "Letter of inquiry", "info"),
-    invited: look(MailOpen, "Invited to apply", "prog"),
-    drafting: look(Pencil, "Drafting", "info"),
-    submitted: look(Send, "Submitted", "prog"),
-    awarded: look(Award, "Awarded", "ok"),
-    declined: look(CircleX, "Declined", "dng"),
-    withdrawn: look(LogOut, "Withdrawn", "neutral"),
-    not_pursuing: look(CircleMinus, "Not pursuing", "neutral"),
+    prospect: look(Bookmark, "status.outside.prospect", "neutral"),
+    deciding: look(CircleQuestionMark, "status.outside.deciding", "neutral"),
+    loi: look(Mail, "status.outside.loi", "info"),
+    invited: look(MailOpen, "status.outside.invited", "prog"),
+    drafting: look(Pencil, "status.outside.drafting", "info"),
+    submitted: look(Send, "status.outside.submitted", "prog"),
+    awarded: look(Award, "status.outside.awarded", "ok"),
+    declined: look(CircleX, "status.outside.declined", "dng"),
+    withdrawn: look(LogOut, "status.outside.withdrawn", "neutral"),
+    not_pursuing: look(CircleMinus, "status.outside.not_pursuing", "neutral"),
   },
   outsideQuestion: {
-    empty: look(CircleDashed, "Not started", "neutral"),
-    draft: look(Pencil, "Draft", "info"),
-    ready: look(Eye, "Ready for review", "prog"),
-    approved: look(CircleCheck, "Approved", "ok"),
+    empty: look(CircleDashed, "status.outsideQuestion.empty", "neutral"),
+    draft: look(Pencil, "status.outsideQuestion.draft", "info"),
+    ready: look(Eye, "status.outsideQuestion.ready", "prog"),
+    approved: look(CircleCheck, "status.outsideQuestion.approved", "ok"),
   },
   // A document the funder asks for, on an outside application's checklist.
   requiredDocument: {
-    needed: look(CircleDashed, "Needed", "warn"),
-    attached: look(CircleCheck, "Ready", "ok"),
-    not_needed: look(CircleMinus, "Not needed", "neutral"),
+    needed: look(CircleDashed, "status.requiredDocument.needed", "warn"),
+    attached: look(CircleCheck, "status.requiredDocument.attached", "ok"),
+    not_needed: look(CircleMinus, "status.requiredDocument.not_needed", "neutral"),
   },
   // What an outside award asks of the organization: reports, conditions, payments.
   obligation: {
-    upcoming: look(Clock, "Upcoming", "neutral"),
-    due: look(Hourglass, "Due", "warn"),
-    submitted: look(Send, "Submitted", "prog"),
-    received: look(CircleCheck, "Received", "ok"),
-    done: look(Check, "Done", "done"),
-    missed: look(TriangleExclamationPoint, "Missed", "dng"),
+    upcoming: look(Clock, "status.obligation.upcoming", "neutral"),
+    due: look(Hourglass, "status.obligation.due", "warn"),
+    submitted: look(Send, "status.obligation.submitted", "prog"),
+    received: look(CircleCheck, "status.obligation.received", "ok"),
+    done: look(Check, "status.obligation.done", "done"),
+    missed: look(TriangleExclamationPoint, "status.obligation.missed", "dng"),
   },
 } as const;
 
@@ -171,7 +181,7 @@ export type StatusKind = keyof typeof STATUS;
 export function statusLook(kind: StatusKind, status: string): StatusLook {
   const found = (STATUS[kind] as Record<string, StatusLook>)[status];
   // An unknown value is shown as written, neutrally, never dropped.
-  return found ?? look(CircleMinus, status.replace(/_/g, " "), "neutral");
+  return found ?? { icon: CircleMinus, label: status.replace(/_/g, " "), tone: "neutral" };
 }
 
 export function StatusBadge({ kind, status, large = false, label }: { kind: StatusKind; status: string; large?: boolean; label?: string }) {
@@ -189,14 +199,14 @@ export function LevelBadge({ level }: { level: string | null | undefined }) {
   const n = level && /^L[0-3]$/.test(level) ? level.slice(1) : null;
   if (n === null) {
     return (
-      <span className="lvl lvl-na" title="Passport level not available">
-        L?
+      <span className="lvl lvl-na" title={t("status.passportLevelNotAvailable")}>
+        {t("status.l")}
       </span>
     );
   }
   return (
-    <span className={`lvl lvl-${n}`} title={`Passport verification level ${n}`}>
-      <Shield className="ic" aria-hidden="true" />L{n}
+    <span className={`lvl lvl-${n}`} title={t("status.passportVerificationLevel", { n })}>
+      <Shield className="ic" aria-hidden="true" />{t("status.l2", { n })}
     </span>
   );
 }
@@ -205,9 +215,9 @@ export function LevelBadge({ level }: { level: string | null | undefined }) {
 export function SelfReportedTag({ result }: { result: unknown }) {
   if (!result || typeof result !== "object" || (result as { selfReported?: unknown }).selfReported !== true) return null;
   return (
-    <span className="prov prov-entered" title="This rule was checked against details the organization entered itself">
+    <span className="prov prov-entered" title={t("status.thisRuleWasCheckedAgainst")}>
       <Pencil className="ic" aria-hidden="true" />
-      Self-reported
+      {t("status.selfReported")}
     </span>
   );
 }
@@ -221,9 +231,9 @@ export function VerificationBadge({ verification, level }: { verification?: Veri
   if (!verification) return <LevelBadge level={level} />;
   if (verification.source === "passport") return <LevelBadge level={verification.level ?? level} />;
   return (
-    <span className="lvl lvl-na" title="This organization has not been verified with OpenGrants Passport">
+    <span className="lvl lvl-na" title={t("status.thisOrganizationHasNotBeen")}>
       <ShieldOff className="ic" aria-hidden="true" />
-      Not verified
+      {t("status.notVerified")}
     </span>
   );
 }
@@ -234,5 +244,5 @@ export function VerificationBadge({ verification, level }: { verification?: Veri
  */
 export function WorkspaceName({ name }: { name?: string | null | undefined }) {
   if (!name) return null;
-  return <span className="small muted">Workspace name: {name}</span>;
+  return <span className="small muted">{t("status.workspaceName", { name })}</span>;
 }

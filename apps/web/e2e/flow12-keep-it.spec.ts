@@ -5,7 +5,7 @@
 // fingerprint) and done → the payment arrives → close out → Awarded funding lists it as an outside
 // award → the Funding summary counts it and exports → a declined application sets an alert for
 // its next cycle.
-import { dialog, expect, rail, start, test } from "./helpers.ts";
+import { dialog, expect, rail, shown, start, test } from "./helpers.ts";
 
 const PINECREST = "oap_d1000000-0000-7000-8000-000000000003";
 const iso = (offsetDays: number) => new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
@@ -80,7 +80,7 @@ test("win and keep an outside award", async ({ app: page }) => {
     const received = page.getByRole("region", { name: "Payments received" });
     await expect(received).toContainText("Received $40,000");
     await page.getByRole("region", { name: "Close out" }).getByRole("button", { name: "Close out this award" }).click();
-    await expect(page.getByText(/^Closed out on /).first()).toBeVisible();
+    await expect(shown(page, /^Closed out on /).first()).toBeVisible();
   });
 
   await test.step("Awarded funding lists it as an outside award", async () => {

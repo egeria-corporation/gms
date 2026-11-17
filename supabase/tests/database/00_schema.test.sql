@@ -31,7 +31,8 @@ select tables_are(
     'social_profiles', 'social_accounts', 'social_posts',
     'funds',
     'package_sends',
-    'digest_subscriptions', 'digest_sends'
+    'digest_subscriptions', 'digest_sends',
+    'user_preferences'
   ],
   'public schema has exactly the GMS tables'
 );

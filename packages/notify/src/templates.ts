@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The built-in template kinds and their default copy. Workspaces store edited copies in `templates`;
-// these are the shared-library defaults and the list of fields each kind must be given.
+// these are the shared-library defaults and the list of fields each kind must be given. The default
+// copy is in the `email` catalog, in every language; an edited copy is sent as the funder wrote it.
+import { DEFAULT_LOCALE, emailDate, emailT, type EmailKey, type Locale } from "./i18n.ts";
 import { renderTemplate, templateFields, type MergeFields, type RenderedEmail } from "./render.ts";
 
 export const TEMPLATE_KINDS = ["acknowledgment", "revision_request", "decline", "award_agreement", "report_reminder", "payment_sent"] as const;
@@ -14,44 +16,53 @@ export interface EmailTemplate {
   body: string;
 }
 
-export const DEFAULT_TEMPLATES: Record<TemplateKind, EmailTemplate> = {
-  acknowledgment: {
-    kind: "acknowledgment",
-    name: "Application received",
-    subject: "We received your application: {{application.title}}",
-    body: "Hello {{recipient.name}},\n\n{{funder.name}} received **{{application.title}}** for {{opportunity.title}} on {{application.submittedAt}}.\n\nYou can follow its status at any time: [View application status]({{links.status}})\n\nThank you,\n{{funder.name}}",
-  },
-  revision_request: {
-    kind: "revision_request",
-    name: "Revision requested",
-    subject: "Revision requested: {{application.title}}",
-    body: "Hello {{recipient.name}},\n\n{{funder.name}} has asked for a revision to **{{application.title}}**.\n\n{{revision.message}}\n\nPlease respond by {{revision.dueDate}}: [Open the application]({{links.application}})\n\nThank you,\n{{funder.name}}",
-  },
-  decline: {
-    kind: "decline",
-    name: "Decline",
-    subject: "An update on your application to {{funder.name}}",
-    body: "Hello {{recipient.name}},\n\nThank you for applying to {{opportunity.title}}. After review, {{funder.name}} is not able to fund **{{application.title}}** in this cycle.\n\n{{decision.message}}\n\nYour application and its record stay available to you: [View application]({{links.status}})\n\nSincerely,\n{{funder.name}}",
-  },
-  award_agreement: {
-    kind: "award_agreement",
-    name: "Award and agreement",
-    subject: "Award offered: {{award.title}}",
-    body: "Hello {{recipient.name}},\n\n{{funder.name}} is pleased to offer **{{award.amount}}** for **{{award.title}}**.\n\nTo accept, review the offer and sign the grant agreement: [Review and sign]({{links.award}})\n\nThe first payment is scheduled once the agreement is signed by both parties.\n\nCongratulations,\n{{funder.name}}",
-  },
-  report_reminder: {
-    kind: "report_reminder",
-    name: "Report reminder",
-    subject: "{{requirement.title}} is due {{requirement.dueDate}}",
-    body: "Hello {{recipient.name}},\n\n**{{requirement.title}}** for {{award.title}} is due {{requirement.dueDate}} ({{requirement.timing}}).\n\nMuch of the report is already filled in from your application and earlier reports: [Open the report]({{links.requirement}})\n\nThank you,\n{{funder.name}}",
-  },
-  payment_sent: {
-    kind: "payment_sent",
-    name: "Payment sent",
-    subject: "Payment sent: {{payment.amount}} from {{funder.name}}",
-    body: "Hello {{recipient.name}},\n\n{{funder.name}} sent **{{payment.amount}}** for {{award.title}} (payment {{payment.sequence}}).\n\n- Destination: {{payment.bankName}} ending in {{payment.last4}}\n- Sent: {{payment.sentAt}}\n\nThe destination is the one your organization verified in OpenGrants Passport. If you do not recognize it, contact {{funder.name}} at once.\n\n[View payments]({{links.award}})",
-  },
+/** The catalog messages of each kind's default copy (docs/i18n.md). Names stay English: a workspace overrides a built-in letter by saving a template under its name. */
+const LETTER: Record<TemplateKind, { name: string; subject: EmailKey; body: EmailKey }> = {
+  acknowledgment: { name: "Application received", subject: "letter.acknowledgment.subject", body: "letter.acknowledgment.body" },
+  revision_request: { name: "Revision requested", subject: "letter.revisionRequest.subject", body: "letter.revisionRequest.body" },
+  decline: { name: "Decline", subject: "letter.decline.subject", body: "letter.decline.body" },
+  award_agreement: { name: "Award and agreement", subject: "letter.awardAgreement.subject", body: "letter.awardAgreement.body" },
+  report_reminder: { name: "Report reminder", subject: "letter.reportReminder.subject", body: "letter.reportReminder.body" },
+  payment_sent: { name: "Payment sent", subject: "letter.paymentSent.subject", body: "letter.paymentSent.body" },
 };
+
+/**
+ * Every merge field the default copy uses. The catalog writes `{{recipient.name}}` as
+ * `{recipient_name}`, so a translator sees an ordinary placeholder; it becomes the merge field again here.
+ */
+const MERGE_FIELDS = [
+  "recipient.name", "funder.name", "application.title", "application.submittedAt", "opportunity.title", "links.status", "links.application", "links.award", "links.requirement",
+  "revision.message", "revision.dueDate", "decision.message", "award.title", "award.amount", "requirement.title", "requirement.dueDate", "requirement.timing",
+  "payment.amount", "payment.sequence", "payment.bankName", "payment.last4", "payment.sentAt",
+] as const;
+const AS_MERGE_FIELDS = Object.fromEntries(MERGE_FIELDS.map((f) => [f.replace(/\./g, "_"), `{{${f}}}`]));
+
+/** A kind's default copy in a language: the built-in letter a recipient gets unless the funder edited it. */
+export function defaultTemplate(kind: TemplateKind, locale: Locale = DEFAULT_LOCALE): EmailTemplate {
+  const t = emailT(locale);
+  const l = LETTER[kind];
+  return { kind, name: l.name, subject: t(l.subject, AS_MERGE_FIELDS), body: t(l.body, AS_MERGE_FIELDS) };
+}
+
+/** The default copy in English: the shared library's defaults, and the fields each kind must be given. */
+export const DEFAULT_TEMPLATES: Record<TemplateKind, EmailTemplate> = Object.fromEntries(TEMPLATE_KINDS.map((k) => [k, defaultTemplate(k)])) as Record<TemplateKind, EmailTemplate>;
+
+/**
+ * Merge values written for the recipient's language: a plain date (`YYYY-MM-DD`) reads as the
+ * language writes dates. English is returned unchanged. Only for the GMS's own copy: a funder's
+ * edited template gets its values as given.
+ */
+export function localizeFields(fields: MergeFields, locale: Locale): MergeFields {
+  if (locale === DEFAULT_LOCALE) return fields;
+  const walk = (v: MergeFields): MergeFields => Object.fromEntries(Object.entries(v).map(([k, x]) => [k, typeof x === "string" ? emailDate(locale, x) : x && typeof x === "object" ? walk(x) : x]));
+  return walk(fields);
+}
+
+/** How far a report's due date is from the reminder, for `requirement.timing`: negative before, positive after. */
+export function reminderTiming(offsetDays: number, locale: Locale = DEFAULT_LOCALE): string {
+  const days = Math.abs(offsetDays);
+  return emailT(locale)("letter.reportReminder.timing", { when: offsetDays < 0 ? "future" : offsetDays === 0 ? "today" : "past", days });
+}
 
 export class BankDataError extends Error {}
 

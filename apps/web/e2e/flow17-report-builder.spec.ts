@@ -3,7 +3,7 @@
 // with a total → preview → save the view shared with the workspace → download the CSV (formula-
 // safe, money in dollars) → schedule it monthly to a colleague → a starter view runs.
 import { readFile } from "node:fs/promises";
-import { dialog, expect, rail, start, test } from "./helpers.ts";
+import { dialog, expect, rail, shown, start, test } from "./helpers.ts";
 
 test("funder builds, saves, downloads and schedules a report", async ({ app: page }) => {
   await start(page, "/w/riverbend");
@@ -25,7 +25,7 @@ test("funder builds, saves, downloads and schedules a report", async ({ app: pag
     await expect(table.getByRole("columnheader", { name: "Total awarded amount" })).toBeVisible();
     await expect(table.getByRole("row").nth(1)).toContainText("Community Health 2027");
     await expect(table.getByRole("row").nth(1)).toContainText("$290,000");
-    await expect(page.getByText("2 groups")).toBeVisible();
+    await expect(shown(page, "2 groups")).toBeVisible();
   });
 
   await test.step("save the view, shared with the workspace", async () => {
@@ -57,7 +57,7 @@ test("funder builds, saves, downloads and schedules a report", async ({ app: pag
     await sched.getByLabel(/Marcus Lee/).check();
     await sched.getByRole("button", { name: "Save schedule" }).click();
     await expect(sched).toBeHidden();
-    await expect(page.getByText("On the 3rd of every month to 1 person")).toBeVisible();
+    await expect(shown(page, "On the 3rd of every month to 1 person")).toBeVisible();
   });
 
   await test.step("a starter view runs", async () => {
@@ -65,6 +65,6 @@ test("funder builds, saves, downloads and schedules a report", async ({ app: pag
     const table = page.getByRole("table", { name: "Report preview" });
     await expect(table.getByRole("cell", { name: "Harbor Light Shelter" })).toBeVisible();
     await expect(table.getByText("Held").first()).toBeVisible();
-    await expect(page.getByText("Starter view · read only")).toBeVisible();
+    await expect(shown(page, "Starter view · read only")).toBeVisible();
   });
 });

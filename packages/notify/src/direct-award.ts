@@ -2,10 +2,12 @@
 // The email that offers a directly given award (contract: direct awards). Everything in it except
 // the two links is typed by the funder, so every value is plain text: escaped in the HTML part,
 // never turned into markup or a link. The only links are the claim link and the GMS home.
+import { DEFAULT_LOCALE, emailDate, emailT, type Locale } from "./i18n.ts";
 import { escapeHtml, type RenderedEmail } from "./render.ts";
 
-/** Shown unless the funder is verified with Passport (linked at L1 or above). */
-export const FUNDER_NOT_VERIFIED_LINE = "This funder's organization is not verified with OpenGrants Passport.";
+/** Shown unless the funder is verified with Passport (linked at L1 or above); `funderNotVerifiedLine` in another language. */
+export const FUNDER_NOT_VERIFIED_LINE = emailT()("directAward.notVerified");
+export const funderNotVerifiedLine = (locale: Locale = DEFAULT_LOCALE): string => emailT(locale)("directAward.notVerified");
 
 /** The funder's note is plain text, at most this long. */
 export const DIRECT_AWARD_MESSAGE_MAX = 2000;
@@ -64,6 +66,8 @@ export interface DirectAwardInvitationFields {
   homeUrl: string;
   /** YYYY-MM-DD. */
   expiresOn: string;
+  /** The recipient's language (English when absent). What the funder typed stays as written. */
+  locale?: Locale;
 }
 
 /**
@@ -110,33 +114,37 @@ export function directAwardInvitationEmail(f: DirectAwardInvitationFields): Rend
   const amount = oneLine(f.amount);
   const email = oneLine(f.invitedEmail);
   const message = f.message ? plain(f.message).slice(0, DIRECT_AWARD_MESSAGE_MAX) : "";
-  const period = f.period ? `${oneLine(f.period.startDate)} to ${oneLine(f.period.endDate)}` : null;
+  const locale = f.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
+  const date = (v: string) => emailDate(locale, oneLine(v));
 
-  const subject = oneLine(`${funder} has offered ${org} a grant`);
-  const facts = [`Award: ${title}`, `Amount: ${amount}`, ...(period ? [`Grant period: ${period}`] : [])];
-  const intro = `${funder} has offered ${org} a grant through OpenGrants GMS.`;
-  const how = `To review and accept it, open the link below and sign in with ${email}. You can set up your organization there; OpenGrants Passport is not needed. Accepting shares your organization's record with ${funder}.`;
-  const expiry = `The link expires on ${oneLine(f.expiresOn)} and works once. If you were not expecting this, you can ignore this email.`;
+  const subject = oneLine(t("directAward.subject", { funder, organization: org }));
+  const facts = [t("directAward.award", { title }), t("directAward.amount", { amount }), ...(f.period ? [t("directAward.period", { start: date(f.period.startDate), end: date(f.period.endDate) })] : [])];
+  const intro = t("directAward.intro", { funder, organization: org });
+  const how = t("directAward.how", { email, funder });
+  const expiry = t("directAward.expiry", { date: date(f.expiresOn) });
+  const notVerified = funderNotVerifiedLine(locale);
+  const messageFrom = t("directAward.messageFrom", { funder });
 
   const text = [
-    "Hello,",
+    t("common.hello"),
     intro,
     facts.join("\n"),
-    ...(f.funderVerified ? [] : [FUNDER_NOT_VERIFIED_LINE]),
-    ...(message ? [`Message from ${funder}:\n${message}`] : []),
+    ...(f.funderVerified ? [] : [notVerified]),
+    ...(message ? [`${messageFrom}\n${message}`] : []),
     `${how}\n${f.claimUrl}`,
     expiry,
     `OpenGrants GMS: ${f.homeUrl}`,
   ].join("\n\n");
 
   const html = [
-    paragraphs("Hello,"),
+    paragraphs(t("common.hello")),
     paragraphs(intro),
     `<p>${facts.map(escapeHtml).join("<br>")}</p>`,
-    ...(f.funderVerified ? [] : [`<p><strong>${escapeHtml(FUNDER_NOT_VERIFIED_LINE)}</strong></p>`]),
-    ...(message ? [`<p>${escapeHtml(`Message from ${funder}:`)}</p><blockquote>${paragraphs(message)}</blockquote>`] : []),
+    ...(f.funderVerified ? [] : [`<p><strong>${escapeHtml(notVerified)}</strong></p>`]),
+    ...(message ? [`<p>${escapeHtml(messageFrom)}</p><blockquote>${paragraphs(message)}</blockquote>`] : []),
     paragraphs(how),
-    `<p><a href="${escapeHtml(f.claimUrl)}">Review and accept the award</a></p>`,
+    `<p><a href="${escapeHtml(f.claimUrl)}">${escapeHtml(t("directAward.link"))}</a></p>`,
     paragraphs(expiry),
     `<p><a href="${escapeHtml(f.homeUrl)}">OpenGrants GMS</a></p>`,
   ].join("\n");

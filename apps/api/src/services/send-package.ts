@@ -20,7 +20,8 @@
 // application per UTC day, counted in Postgres (`package_sends`, migration 0040).
 import { renderPdf, sha256Hex, type Block } from "@gms/documents";
 import { sensitiveValue, type DropReason } from "@gms/importers";
-import { base64Of, cleanLine, cleanText, fromWithName, PACKAGE_FOOTER, PACKAGE_MESSAGE_MAX, sendPackageEmail, sendsAttachments, type EmailAttachment, type OutboundEmailWithAttachments } from "@gms/notify";
+import { DEFAULT_LOCALE, INTL_LOCALE, type Locale } from "@gms/i18n";
+import { base64Of, cleanLine, cleanText, emailDate, emailT, fromWithName, PACKAGE_FOOTER, PACKAGE_MESSAGE_MAX, packageFooter, sendPackageEmail, sendsAttachments, type EmailAttachment, type EmailKey, type OutboundEmailWithAttachments } from "@gms/notify";
 import { toMoney } from "@gms/protocol";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
@@ -48,7 +49,16 @@ export const PACKAGE_MAX_BYTES = 60 * 1024 * 1024;
 export const PACKAGE_EXCLUDED_DOC_TYPES: readonly string[] = ["funder_guidelines", "award_letter"];
 
 const DEADLINE_LABEL = { loi: "Letter of inquiry due", full: "Application due" } as const;
-const PHASE_LABEL: Record<string, string> = { loi: "Letter of inquiry", full: "Full application", report: "Report" };
+// The package's fixed words in the sender's language (the PDF, answers.txt and the email); the
+// summary the dialog reads (`packageSummary`) is the API's and stays English.
+const DEADLINE_KEY = { loi: "pdf.package.loiDue", full: "pdf.package.applicationDue" } as const satisfies Record<string, EmailKey>;
+const PHASE_KEY: Record<string, EmailKey> = { loi: "pdf.package.phase.loi", full: "pdf.package.phase.full", report: "pdf.package.phase.report" };
+type Deadline = { kind: "loi" | "full"; label: string; date: string; rolling?: boolean };
+/** A deadline's label and date as the package prints them in a language. */
+const deadlineIn = (d: Deadline, locale: Locale): [string, string] => {
+  const t = emailT(locale);
+  return d.rolling ? [t("pdf.package.deadline"), t("pdf.package.rolling")] : [t(DEADLINE_KEY[d.kind]), emailDate(locale, d.date)];
+};
 
 // ------------------------------------------------------------------------------------ the sensitive screen
 
@@ -156,11 +166,11 @@ async function gather(ctx: ServiceContext, row: Oa, opts: { screen: boolean }) {
     ...refusedNames.map((c) => ({ documentId: c.d.id, name: c.d.name, reason: "sensitive_name" as const, message: "Its name says it is a bank or tax form, which is never sent from the GMS." })),
   ];
 
-  const deadlines: { kind: "loi" | "full"; label: string; date: string }[] = (["loi", "full"] as const).flatMap((k) => {
+  const deadlines: Deadline[] = (["loi", "full"] as const).flatMap((k) => {
     const date = k === "loi" ? row.loi_due : row.full_due;
     return date ? [{ kind: k, label: DEADLINE_LABEL[k], date }] : [];
   });
-  if (row.rolling && !deadlines.length) deadlines.push({ kind: "full", label: "Deadline", date: "Rolling" });
+  if (row.rolling && !deadlines.length) deadlines.push({ kind: "full", label: "Deadline", date: "Rolling", rolling: true });
   const byYear = (Array.isArray(row.ask_by_year) ? (row.ask_by_year as { year: number; amountMinor: number }[]) : []).filter((y) => Number.isInteger(y.year) && Number.isInteger(y.amountMinor)).sort((a, b) => a.year - b.year);
   const budget = byYear.length ? { byYear: byYear.map((y) => ({ year: y.year, amount: toMoney(y.amountMinor, row.currency), printed: printMoney(y.amountMinor, row.currency) })), total: printMoney(byYear.reduce((n, y) => n + y.amountMinor, 0), row.currency) } : null;
   // The answers' date: the latest change to anything in the package, so the same content gives the same bytes.
@@ -185,45 +195,47 @@ type Gathered = Awaited<ReturnType<typeof gather>>;
 const paragraphsOf = (text: string) => text.split(/\n{2,}/).map((p) => p.replace(/\n/g, " ").trim()).filter(Boolean);
 const dateOnly = (iso: string) => iso.slice(0, 10);
 
-/** The package PDF: cover, questions and answers, budget summary, attachments. Deterministic for the same content. */
-async function packagePdf(row: Oa, g: Gathered): Promise<Uint8Array> {
+/** The package PDF: cover, questions and answers, budget summary, attachments, in the sender's language. Deterministic for the same content. */
+async function packagePdf(row: Oa, g: Gathered, locale: Locale = DEFAULT_LOCALE): Promise<Uint8Array> {
+  const t = emailT(locale);
   const cover: [string, string][] = [
-    ["Organization", g.organization],
-    ["Funder", row.funder_name ?? "Not stated"],
-    ...(row.program_name ? [["Program", row.program_name] as [string, string]] : []),
-    ["Amount requested", g.ask ?? "Not stated"],
-    ...(g.deadlines.length ? g.deadlines.map((d) => [d.label, d.date] as [string, string]) : [["Deadline", "Not stated"] as [string, string]]),
-    ["Answers as of", dateOnly(g.asOf)],
+    [t("pdf.package.organization"), g.organization],
+    [t("pdf.package.funder"), row.funder_name ?? t("pdf.package.notStated")],
+    ...(row.program_name ? [[t("pdf.package.program"), row.program_name] as [string, string]] : []),
+    [t("pdf.package.amountRequested"), g.ask ?? t("pdf.package.notStated")],
+    ...(g.deadlines.length ? g.deadlines.map((d) => deadlineIn(d, locale)) : [[t("pdf.package.deadline"), t("pdf.package.notStated")] as [string, string]]),
+    [t("pdf.package.answersAsOf"), emailDate(locale, dateOnly(g.asOf))],
   ];
-  const blocks: Block[] = [{ type: "heading", level: 1, text: row.title }, { type: "fields", rows: cover }, { type: "paragraph", text: `${g.questions.length} question${g.questions.length === 1 ? "" : "s"}, ${g.files.length} attached file${g.files.length === 1 ? "" : "s"}.` }];
+  const blocks: Block[] = [{ type: "heading", level: 1, text: row.title }, { type: "fields", rows: cover }, { type: "paragraph", text: t("pdf.package.counts", { questions: g.questions.length, files: g.files.length }) }];
   // The questions start on a page of their own (a space taller than the page).
-  blocks.push({ type: "space", height: 1000 }, { type: "heading", level: 2, text: "Questions and answers" });
+  blocks.push({ type: "space", height: 1000 }, { type: "heading", level: 2, text: t("pdf.package.questions") });
   const phases = new Set(g.questions.map((q) => q.phase));
   let phase: string | null = null;
   for (const q of g.questions) {
     if (phases.size > 1 && q.phase !== phase) {
       phase = q.phase;
-      blocks.push({ type: "heading", level: 2, text: PHASE_LABEL[q.phase] ?? q.phase });
+      blocks.push({ type: "heading", level: 2, text: PHASE_KEY[q.phase] ? t(PHASE_KEY[q.phase]!) : q.phase });
     }
     blocks.push({ type: "heading", level: 3, text: `${q.number}. ${q.prompt}` });
     const body = paragraphsOf(cleanText(q.answer));
-    if (!body.length) blocks.push({ type: "paragraph", text: "No answer given." });
+    if (!body.length) blocks.push({ type: "paragraph", text: t("pdf.package.noAnswer") });
     for (const p of body) blocks.push({ type: "paragraph", text: p });
   }
-  if (!g.questions.length) blocks.push({ type: "paragraph", text: "This application has no questions." });
+  if (!g.questions.length) blocks.push({ type: "paragraph", text: t("pdf.package.noQuestions") });
   if (g.budget) {
-    blocks.push({ type: "heading", level: 2, text: "Budget summary" }, { type: "fields", rows: [...g.budget.byYear.map((y) => [String(y.year), y.printed] as [string, string]), ["Total", g.budget.total]] });
+    blocks.push({ type: "heading", level: 2, text: t("pdf.package.budget") }, { type: "fields", rows: [...g.budget.byYear.map((y) => [String(y.year), y.printed] as [string, string]), [t("pdf.package.total"), g.budget.total]] });
   }
-  blocks.push({ type: "heading", level: 2, text: "Attachments" });
-  blocks.push(g.files.length ? { type: "list", ordered: true, items: g.files.map((f) => (f.requiredFor ? `${f.name} (${f.requiredFor})` : f.name)) } : { type: "paragraph", text: "No files are attached." });
-  return renderPdf({ title: row.title, header: g.organization, ...(g.footer ? { footer: PACKAGE_FOOTER } : {}), createdAt: g.asOf, blocks, lang: "en-US" });
+  blocks.push({ type: "heading", level: 2, text: t("pdf.package.attachments") });
+  blocks.push(g.files.length ? { type: "list", ordered: true, items: g.files.map((f) => (f.requiredFor ? `${f.name} (${f.requiredFor})` : f.name)) } : { type: "paragraph", text: t("pdf.package.noFiles") });
+  return renderPdf({ title: row.title, header: g.organization, ...(g.footer ? { footer: packageFooter(locale) } : {}), createdAt: g.asOf, blocks, lang: INTL_LOCALE[locale], pageLabel: (page, total) => t("pdf.page", { page, total }) });
 }
 
 /** `answers.txt`: the questions and answers as plain text, to paste into a funder's portal. */
-function answersText(row: Oa, g: Gathered): string {
-  const head = [row.title, `Organization: ${g.organization}`, ...(row.funder_name ? [`Funder: ${row.funder_name}`] : []), ...(row.program_name ? [`Program: ${row.program_name}`] : [])].join("\n");
-  const body = g.questions.map((q) => `${q.number}. ${cleanLine(q.prompt)}\n\n${cleanText(q.answer) || "(no answer given)"}`);
-  return [head, ...body, ...(g.footer ? [`--\n${PACKAGE_FOOTER}`] : [])].join("\n\n") + "\n";
+function answersText(row: Oa, g: Gathered, locale: Locale = DEFAULT_LOCALE): string {
+  const t = emailT(locale);
+  const head = [row.title, t("pdf.package.answersOrganization", { value: g.organization }), ...(row.funder_name ? [t("pdf.package.answersFunder", { value: row.funder_name })] : []), ...(row.program_name ? [t("pdf.package.answersProgram", { value: row.program_name })] : [])].join("\n");
+  const body = g.questions.map((q) => `${q.number}. ${cleanLine(q.prompt)}\n\n${cleanText(q.answer) || t("pdf.package.answersNoAnswer")}`);
+  return [head, ...body, ...(g.footer ? [`--\n${packageFooter(locale)}`] : [])].join("\n\n") + "\n";
 }
 
 async function fileBytes(ctx: ServiceContext, f: PackageFile): Promise<Uint8Array> {
@@ -285,7 +297,7 @@ export async function packageSummary(ctx: ServiceContext, id: string) {
 export async function packagePdfFile(ctx: ServiceContext, id: string) {
   const { row } = await loadOutside(ctx, id, "applications:read");
   const g = await gather(ctx, row, { screen: true });
-  const bytes = await packagePdf(row, g);
+  const bytes = await packagePdf(row, g, ctx.locale);
   return { bytes, filename: g.filenames.pdf, sha256: await sha256Hex(bytes) };
 }
 
@@ -294,10 +306,10 @@ export async function packageZipFile(ctx: ServiceContext, id: string) {
   const { row } = await loadOutside(ctx, id, "applications:read");
   const g = await gather(ctx, row, { screen: true });
   assertSize(g, PACKAGE_MAX_BYTES, "package_too_large", "A package holds");
-  const pdf = await packagePdf(row, g);
+  const pdf = await packagePdf(row, g, ctx.locale);
   const entries = [{ name: g.filenames.pdf, bytes: pdf }];
   for (const f of g.files) entries.push({ name: f.name, bytes: await fileBytes(ctx, f) });
-  entries.push({ name: "answers.txt", bytes: new TextEncoder().encode(answersText(row, g)) });
+  entries.push({ name: "answers.txt", bytes: new TextEncoder().encode(answersText(row, g, ctx.locale)) });
   const bytes = zipStored(entries, g.asOf);
   return { bytes, filename: g.filenames.zip, sha256: await sha256Hex(bytes) };
 }
@@ -340,12 +352,14 @@ async function composeEmail(ctx: ServiceContext, id: string, input: z.output<typ
   if (!mailer || !mailFrom) throw new ApiError(503, "mail_not_configured", "This server cannot send email. Download the package and send it from your own email");
   if (!sendsAttachments(mailer)) throw new ApiError(503, "mail_attachments_unavailable", "This server cannot email files yet. Download the package and send it from your own email");
   const sender = await senderOf(ctx);
-  const pdf = await packagePdf(row, g);
+  // The package goes out in the sender's language (the one they read the preview in); their own words as written.
+  const locale = ctx.locale ?? DEFAULT_LOCALE;
+  const pdf = await packagePdf(row, g, locale);
   const attachments: (EmailAttachment & { sha256: string })[] = [{ filename: g.filenames.pdf, content: base64Of(pdf), contentType: "application/pdf", sha256: await sha256Hex(pdf) }];
   for (const f of g.files) attachments.push({ filename: f.name, content: base64Of(await fileBytes(ctx, f)), contentType: f.mime, sha256: f.sha256 });
-  const deadline = g.deadlines.length ? g.deadlines.map((d) => `${d.label} ${d.date}`).join("; ") : null;
-  const mail = sendPackageEmail({ sender, organization: g.organization, title: row.title, funder: row.funder_name, program: row.program_name, ask: g.ask, deadline, message: input.message || null, attachments: attachments.map((a) => a.filename), footer: g.footer });
-  const email = { from: fromWithName(sender.name, mailFrom), to: input.to.toLowerCase(), replyTo: sender.email, subject: mail.subject, text: mail.text, html: mail.html };
+  const deadline = g.deadlines.length ? g.deadlines.map((d) => deadlineIn(d, locale).join(" ")).join("; ") : null;
+  const mail = sendPackageEmail({ sender, organization: g.organization, title: row.title, funder: row.funder_name, program: row.program_name, ask: g.ask, deadline, message: input.message || null, attachments: attachments.map((a) => a.filename), footer: g.footer, locale });
+  const email = { from: fromWithName(sender.name, mailFrom), to: input.to.toLowerCase(), replyTo: sender.email, subject: mail.subject, text: mail.text, html: mail.html, ...(locale === DEFAULT_LOCALE ? {} : { locale }) };
   const digest = await sha256Hex(new TextEncoder().encode(JSON.stringify({ ...email, attachments: attachments.map((a) => [a.filename, a.contentType, a.sha256]) })));
   return { ws, row, g, email, attachments, digest, sender };
 }
@@ -385,6 +399,7 @@ export async function sendPackageEmailFor(ctx: ServiceContext, id: string, input
     subject: email.subject,
     text: email.text,
     html: email.html,
+    ...(email.locale ? { locale: email.locale } : {}),
     attachments: attachments.map(({ filename, content, contentType }) => ({ filename, content, contentType })),
     idempotencyKey: `package:${claim.id}`,
     tags: [{ name: "kind", value: "send_package" }],

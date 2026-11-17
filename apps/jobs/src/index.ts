@@ -3,7 +3,7 @@
 // each handler builds the same stores the API Worker uses and calls a function exported by
 // `@gms/api/jobs`, so scheduled work goes through the same services, state machines and ledger.
 import { MercuryBankFeed } from "@gms/connectors";
-import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, reconcileStuckReleases, sendDigests, sendKeepReminders, sendOutsideReminders, syncPassport, SupabaseRepos, SupabaseUserDirectory, type BaseContext, type QueueMessage } from "@gms/api/jobs";
+import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, reconcileStuckReleases, sendDigests, sendKeepReminders, sendOutsideReminders, syncPassport, SupabasePreferences, SupabaseRepos, SupabaseUserDirectory, type BaseContext, type QueueMessage } from "@gms/api/jobs";
 import type { DbClient } from "@gms/db";
 import { SupabaseLedgerStore } from "@gms/ledger";
 import { ResendMailer } from "@gms/notify";
@@ -65,6 +65,8 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
       ...openGrantsPort(env),
       // Member addresses for notification email and digests.
       directory: new SupabaseUserDirectory(db as unknown as ConstructorParameters<typeof SupabaseUserDirectory>[0]),
+      // Each person's language, so a scheduled email reaches them in it (docs/i18n.md); English without one.
+      preferences: new SupabasePreferences(db as unknown as ConstructorParameters<typeof SupabasePreferences>[0]),
       ...(exportsBucket ? { exports: { put: async (key: string, body: string, contentType: string) => void (await exportsBucket.put(key, body, { httpMetadata: { contentType } })) } } : {}),
     },
   };

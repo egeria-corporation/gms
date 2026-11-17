@@ -12,6 +12,9 @@ import { applicantTypeLabel, daysUntil, formatAwardCount, formatAwardRange, form
 import { PublicFrame, PublicState } from "./PublicFrame.tsx";
 import { FunderExtras, UnverifiedFunderBanner } from "./publicExtras.tsx";
 
+import { translator } from "../../i18n/index.tsx";
+
+const tr = translator("public");
 /** The badge on an opportunity card: how long it stays open, in words. */
 export function DeadlineBadge({ opp, now = new Date() }: { opp: Pick<PublicOpportunityCard, "status" | "keyDates">; now?: Date }) {
   const close = opp.keyDates.closeDate?.date;
@@ -20,7 +23,7 @@ export function DeadlineBadge({ opp, now = new Date() }: { opp: Pick<PublicOppor
     return (
       <span className="bdg bdg-done">
         <CircleMinus className="ic" aria-hidden="true" />
-        Closed
+        {tr("funderPage.closed")}
       </span>
     );
   }
@@ -28,7 +31,7 @@ export function DeadlineBadge({ opp, now = new Date() }: { opp: Pick<PublicOppor
     return (
       <span className="bdg bdg-neutral">
         <Calendar className="ic" aria-hidden="true" />
-        {opp.keyDates.postDate?.date ? `Opens ${formatDate(opp.keyDates.postDate.date)}` : "Forecasted"}
+        {opp.keyDates.postDate?.date ? tr("funderPage.opens", { date: formatDate(opp.keyDates.postDate.date) }) : tr("funderPage.forecasted")}
       </span>
     );
   }
@@ -36,14 +39,14 @@ export function DeadlineBadge({ opp, now = new Date() }: { opp: Pick<PublicOppor
     return (
       <span className="bdg bdg-info">
         <RefreshCw className="ic" aria-hidden="true" />
-        Rolling
+        {tr("funderPage.rolling")}
       </span>
     );
   }
   return (
     <span className={days <= 7 ? "bdg bdg-warn" : "bdg bdg-ok"}>
       <Clock className="ic" aria-hidden="true" />
-      {days < 0 ? "Closing" : days === 0 ? "Closes today" : `Closes in ${days} day${days === 1 ? "" : "s"}`}
+      {days < 0 ? tr("funderPage.closing") : days === 0 ? tr("funderPage.closesToday") : tr("funderPage.closesInDays", { days })}
     </span>
   );
 }
@@ -60,7 +63,7 @@ export function OpportunityCard({ handle, opp }: { handle: string; opp: PublicOp
       <h3>{opp.title}</h3>
       <div className="amt">{formatAwardRange(opp.funding)}</div>
       <div className="meta">
-        <span>{close?.date ? `${close.name} ${formatDate(close.date)}` : (opp.funding.details ?? "No fixed deadline")}</span>
+        <span>{close?.date ? `${close.name} ${formatDate(close.date)}` : (opp.funding.details ?? tr("funderPage.noFixedDeadline"))}</span>
         {count && (
           <>
             <span>·</span>
@@ -79,17 +82,17 @@ export function OpportunityCard({ handle, opp }: { handle: string; opp: PublicOp
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginTop: "6px" }}>
         {opp.acceptingApplications === true ? (
           <>
-            <Link to={to} className="btn btn-tenant" aria-label={`Apply to ${opp.title}`}>
-              Apply <ArrowRight className="ic" aria-hidden="true" />
+            <Link to={to} className="btn btn-tenant" aria-label={tr("funderPage.applyTo", { title: opp.title })}>
+              {tr("funderPage.apply")} <ArrowRight className="ic" aria-hidden="true" />
             </Link>
-            <Link to={to} style={{ fontSize: "14px", fontWeight: 700 }} aria-label={`Details of ${opp.title}`}>
-              Details
+            <Link to={to} style={{ fontSize: "14px", fontWeight: 700 }} aria-label={tr("funderPage.detailsOf", { title: opp.title })}>
+              {tr("funderPage.details")}
             </Link>
           </>
         ) : (
           // Open, but no competition is taking applications yet (or an older server): no Apply.
-          <Link to={to} className="btn btn-secondary" aria-label={`View details of ${opp.title}`}>
-            View details <ArrowRight className="ic" aria-hidden="true" />
+          <Link to={to} className="btn btn-secondary" aria-label={tr("funderPage.viewDetailsOf", { title: opp.title })}>
+            {tr("funderPage.viewDetails")} <ArrowRight className="ic" aria-hidden="true" />
           </Link>
         )}
       </div>
@@ -101,11 +104,11 @@ export default function FunderPage() {
   const { handle = "" } = useParams();
   const page = useApiQuery((api) => api.publicFunder(handle), [handle]);
 
-  if (page.status === "loading") return <PublicState title="Loading…" />;
+  if (page.status === "loading") return <PublicState title={tr("funderPage.loading")} />;
   if (page.status === "error") {
     if (page.error instanceof ApiError && page.error.status === 404) return <NotFound />;
     return (
-      <PublicState title="This page could not be loaded">
+      <PublicState title={tr("funderPage.thisPageCouldNotBe")}>
         <ErrorBanner error={page.error} onRetry={page.reload} />
       </PublicState>
     );
@@ -127,20 +130,20 @@ export default function FunderPage() {
 
   return (
     <>
-      <title>{`${funder.name} — Funding opportunities`}</title>
+      <title>{tr("funderPage.fundingOpportunities", { name: funder.name })}</title>
       <PublicFrame
         funder={funder}
         nav={
           <>
-            <a href="#open">Open opportunities</a>
-            {forecasted.length > 0 && <a href="#forecast">Forecasted</a>}
-            {page.data.pastAwards != null && <Link to={`/f/${funder.handle}/awards`}>Grants awarded</Link>}
+            <a href="#open">{tr("funderPage.openOpportunities")}</a>
+            {forecasted.length > 0 && <a href="#forecast">{tr("funderPage.forecasted")}</a>}
+            {page.data.pastAwards != null && <Link to={`/f/${funder.handle}/awards`}>{tr("funderPage.grantsAwarded")}</Link>}
           </>
         }
         hero={
           <div className="mission">
             <h1>{funder.name}</h1>
-            {funder.workspaceName && <p className="small" style={{ color: "var(--on-tenant)" }}>Workspace name: {funder.workspaceName}</p>}
+            {funder.workspaceName && <p className="small" style={{ color: "var(--on-tenant)" }}>{tr("funderPage.workspaceName", { workspaceName: funder.workspaceName })}</p>}
             {funder.mission && (
               <p className="sub" style={{ color: "var(--on-tenant)" }}>
                 {funder.mission}
@@ -157,18 +160,18 @@ export default function FunderPage() {
                   // An unverified funder's website is shown, not linked: it may not be the funder's.
                   <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
                     <Globe className="ic" aria-hidden="true" />
-                    {site} (not checked)
+                    {tr("funderPage.notChecked", { site })}
                   </span>
                 ))}
               {fromPassport ? (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", opacity: ".9" }}>
                   <ShieldCheck className="ic" aria-hidden="true" />
-                  Claimed in OpenGrants Passport
+                  {tr("funderPage.claimedInOpengrantsPassport")}
                 </span>
               ) : (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", opacity: ".9", fontSize: "13px" }}>
                   <ShieldOff className="ic" aria-hidden="true" />
-                  This funder’s organization is not verified with OpenGrants Passport
+                  {tr("funderPage.thisFunderSOrganizationIs")}
                 </span>
               )}
             </div>
@@ -180,16 +183,16 @@ export default function FunderPage() {
           <section id="open">
             <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", marginBottom: "16px" }}>
               <div>
-                <span className="eyebrow">Accepting applications</span>
-                <h2 style={{ marginBottom: "0", marginTop: "6px" }}>Open Opportunities</h2>
+                <span className="eyebrow">{tr("funderPage.acceptingApplications")}</span>
+                <h2 style={{ marginBottom: "0", marginTop: "6px" }}>{tr("funderPage.openOpportunities2")}</h2>
               </div>
               <span className="muted" style={{ fontSize: "14px" }}>
-                {open.length} open
+                {tr("funderPage.open", { length: open.length })}
               </span>
             </div>
             {open.length > 0 && byFund ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
-                {[...fundSections.map((f) => ({ key: `f-${f.slug}`, title: f.name, slug: f.slug, description: f.description, open: f.open })), { key: "other-opportunities", title: "Other opportunities", slug: "", description: null, open: others }]
+                {[...fundSections.map((f) => ({ key: `f-${f.slug}`, title: f.name, slug: f.slug, description: f.description, open: f.open })), { key: "other-opportunities", title: tr("funderPage.otherOpportunities"), slug: "", description: null, open: others }]
                   .filter((f) => f.open.length > 0)
                   .map((f) => (
                     <section key={f.key} aria-labelledby={`fund-${f.key}`}>
@@ -198,8 +201,8 @@ export default function FunderPage() {
                           {f.title}
                         </h3>
                         {f.slug && (
-                          <Link to={`/f/${funder.handle}/${f.slug}`} style={{ fontSize: "14px", fontWeight: 700 }} aria-label={`All of ${f.title}`}>
-                            Fund page <ArrowRight className="ic ic-sm" aria-hidden="true" />
+                          <Link to={`/f/${funder.handle}/${f.slug}`} style={{ fontSize: "14px", fontWeight: 700 }} aria-label={tr("funderPage.allOf", { title: f.title })}>
+                            {tr("funderPage.fundPage")} <ArrowRight className="ic ic-sm" aria-hidden="true" />
                           </Link>
                         )}
                       </div>
@@ -221,16 +224,18 @@ export default function FunderPage() {
             ) : (
               <div className="card empty" style={{ minHeight: "200px", justifyContent: "center" }}>
                 <Calendar className="ic" aria-hidden="true" />
-                <h3>No opportunities are open right now</h3>
+                <h3>{tr("funderPage.noOpportunitiesAreOpenRight")}</h3>
                 <p>
                   {nextForecast
-                    ? `${funder.name}'s next cycle, ${nextForecast.title}, is forecasted${nextForecast.keyDates.postDate?.date ? ` to open ${formatDate(nextForecast.keyDates.postDate.date)}` : ""}.`
-                    : `${funder.name} has not announced its next cycle yet.`}
+                    ? nextForecast.keyDates.postDate?.date
+                      ? tr("funderPage.nextCycleOpens", { name: funder.name, title: nextForecast.title, date: formatDate(nextForecast.keyDates.postDate.date) })
+                      : tr("funderPage.nextCycle", { name: funder.name, title: nextForecast.title })
+                    : tr("funderPage.hasNotAnnouncedItsNext", { name: funder.name })}
                 </p>
                 {nextForecast && (
                   <div className="acts">
                     <a href="#forecast" className="btn btn-tenant">
-                      See what is planned
+                      {tr("funderPage.seeWhatIsPlanned")}
                     </a>
                   </div>
                 )}
@@ -240,8 +245,8 @@ export default function FunderPage() {
 
           {forecasted.length > 0 && (
             <section id="forecast">
-              <span className="eyebrow">Planned</span>
-              <h2 style={{ marginTop: "6px" }}>Forecasted</h2>
+              <span className="eyebrow">{tr("funderPage.planned")}</span>
+              <h2 style={{ marginTop: "6px" }}>{tr("funderPage.forecasted")}</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {forecasted.map((o) => (
                   <div className="card" key={o.id} style={{ padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "20px", flexWrap: "wrap" }}>
@@ -252,11 +257,11 @@ export default function FunderPage() {
                       </div>
                       <p style={{ fontSize: "15px", color: "#4A5C5A" }}>
                         {o.description}
-                        {formatAwardRange(o.funding) !== "—" ? ` Expected range ${formatAwardRange(o.funding)}.` : ""}
+                        {formatAwardRange(o.funding) !== "—" ? ` ${tr("funderPage.expectedRange", { funding: formatAwardRange(o.funding) })}` : ""}
                       </p>
                     </div>
-                    <Link to={`/f/${funder.handle}/o/${o.slug}`} className="btn btn-secondary" aria-label={`Details of ${o.title}`}>
-                      Details
+                    <Link to={`/f/${funder.handle}/o/${o.slug}`} className="btn btn-secondary" aria-label={tr("funderPage.detailsOf", { title: o.title })}>
+                      {tr("funderPage.details")}
                     </Link>
                   </div>
                 ))}

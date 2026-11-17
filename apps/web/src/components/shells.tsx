@@ -30,6 +30,42 @@ import { hiddenFunderRailItems } from "../lib/roles.ts";
 import { WorkspaceMenu } from "./WorkspaceMenu.tsx";
 import { FundSwitcher } from "./FundSwitcher.tsx";
 
+import { translator, type Key } from "../i18n/index.tsx";
+
+
+const t = translator("shared");
+
+/**
+ * Each rail item's label is its identity (screens name the current one with `active`, roles hide
+ * items by it) and stays English; this is what the person reads, in their language.
+ */
+const RAIL_LABEL: Record<string, Key<"shared">> = {
+  "Dashboard": "shells.rail.dashboard",
+  "Programs": "shells.rail.programs",
+  "Opportunities": "shells.rail.opportunities",
+  "Applications": "shells.rail.applications",
+  "Reviews": "shells.rail.reviews",
+  "Awards": "shells.rail.awards",
+  "Payments": "shells.rail.payments",
+  "Reporting": "shells.rail.reporting",
+  "Grantees": "shells.rail.grantees",
+  "Analytics": "shells.rail.analytics",
+  "Communications": "shells.rail.communications",
+  "Approvals": "shells.rail.approvals",
+  "Settings": "shells.rail.settings",
+  "Organization": "shells.rail.organization",
+  "Find funding": "shells.rail.findFunding",
+  "Awarded funding": "shells.rail.awardedFunding",
+  "Funding summary": "shells.rail.fundingSummary",
+  "Reports": "shells.rail.reports",
+  "Answer library": "shells.rail.answerLibrary",
+  "Funders": "shells.rail.funders",
+  "Team & access": "shells.rail.teamAccess",
+  "Home": "shells.rail.home",
+  "Apply": "shells.rail.apply",
+  "Org": "shells.rail.org",
+};
+export const railLabel = (label: string): string => (RAIL_LABEL[label] ? t(RAIL_LABEL[label]) : label);
 export interface RailItem {
   label: string;
   icon: LucideIcon;
@@ -70,13 +106,13 @@ function TopBar({
         {ws.name} <span className="role">{roleLabel}</span>
       </WorkspaceMenu>
       <div className="row" style={{ marginLeft: "auto", gap: "4px" }}>
-        <Link to="/notifications" className="iconbtn" aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}>
+        <Link to="/notifications" className="iconbtn" aria-label={unread > 0 ? t("shells.notificationsUnread", { unread }) : t("shells.notifications")}>
           <Bell className="ic ic-md" aria-hidden="true" />
           {unread > 0 && <span className="dot"></span>}
         </Link>
         <Link to="/account/agents" className={avatarClass}>
           <span aria-hidden="true">{ws.member.initials}</span>
-          <span className="sr">Account: {ws.member.name}</span>
+          <span className="sr">{t("shells.account", { name: ws.member.name })}</span>
         </Link>
       </div>
     </header>
@@ -92,7 +128,7 @@ function RailList({ ws, items, active }: { ws: Workspace; items: RailItem[]; act
           <li key={label}>
             <Link to={`/w/${ws.handle}${path}`} className={on ? "on" : undefined} aria-current={on ? "page" : undefined}>
               <Icon className="ic" aria-hidden="true" />
-              {label}
+              {railLabel(label)}
               {count ? <span className="count">{count}</span> : null}
             </Link>
           </li>
@@ -106,18 +142,18 @@ function funderRail(ws: Workspace): RailItem[] {
   // A role is shown only what it can use; the API still decides access.
   const hidden = hiddenFunderRailItems(ws.member.role ?? "admin");
   return [
-    { label: "Dashboard", icon: LayoutDashboard, path: "" },
-    { label: "Programs", icon: Briefcase, path: "/programs" },
-    { label: "Opportunities", icon: Layers, path: "/opportunities" },
-    { label: "Applications", icon: Inbox, path: "/applications" },
-    { label: "Reviews", icon: ClipboardCheck, path: "/reviews/assign" },
-    { label: "Awards", icon: Award, path: "/awards" },
-    { label: "Payments", icon: Banknote, path: "/payments/due" },
-    { label: "Reporting", icon: FileText, path: "/reporting" },
-    { label: "Grantees", icon: Users, path: "/grantees" },
-    { label: "Analytics", icon: ChartColumn, path: "/analytics" },
-    { label: "Communications", icon: Mail, path: "/communications" },
-    { label: "Approvals", icon: Bot, path: "/approvals", count: ws.pendingApprovals },
+    { label: t("shells.rail.dashboard"), icon: LayoutDashboard, path: "" },
+    { label: t("shells.rail.programs"), icon: Briefcase, path: "/programs" },
+    { label: t("shells.rail.opportunities"), icon: Layers, path: "/opportunities" },
+    { label: t("shells.rail.applications"), icon: Inbox, path: "/applications" },
+    { label: t("shells.rail.reviews"), icon: ClipboardCheck, path: "/reviews/assign" },
+    { label: t("shells.rail.awards"), icon: Award, path: "/awards" },
+    { label: t("shells.rail.payments"), icon: Banknote, path: "/payments/due" },
+    { label: t("shells.rail.reporting"), icon: FileText, path: "/reporting" },
+    { label: t("shells.rail.grantees"), icon: Users, path: "/grantees" },
+    { label: t("shells.rail.analytics"), icon: ChartColumn, path: "/analytics" },
+    { label: t("shells.rail.communications"), icon: Mail, path: "/communications" },
+    { label: t("shells.rail.approvals"), icon: Bot, path: "/approvals", count: ws.pendingApprovals },
     { label: "Settings", icon: Settings, path: "/settings" },
   ].filter((item) => !hidden.has(item.label));
 }
@@ -151,9 +187,9 @@ export function FunderShell({ active, overlay, firstRun = false, children }: She
   const ws = firstRun ? { ...base, unreadNotifications: 0, pendingApprovals: 0 } : base;
   return (
     <div className="gms gms-funder gms-frame" style={tenantStyle(ws)}>
-      <TopBar ws={ws} roleLabel="Funder" avatarClass="av" />
+      <TopBar ws={ws} roleLabel={t("shells.funder")} avatarClass="av" />
       <div className="shell">
-        <nav className="rail" aria-label="Funder workspace">
+        <nav className="rail" aria-label={t("shells.funderWorkspace")}>
           <div className="rail-tenant">
             <div className="name">{ws.name}</div>
             <div className="sub">{ws.sub}</div>
@@ -175,9 +211,9 @@ export function ApplicantShell({ active, overlay, children }: ShellProps) {
   const ws = useWorkspace("applicant");
   return (
     <div className="gms gms-applicant gms-frame" style={tenantStyle(ws)}>
-      <TopBar ws={ws} roleLabel="Applicant" avatarClass="av av-t" />
+      <TopBar ws={ws} roleLabel={t("shells.applicant")} avatarClass="av av-t" />
       <div className="shell">
-        <nav className="rail" aria-label="Applicant workspace">
+        <nav className="rail" aria-label={t("shells.applicantWorkspace")}>
           <div className="rail-brand">
             <img src="/brand/opengrants-icon-color.png" alt="" style={{ width: "24px", height: "24px" }} />
             <div>
@@ -192,13 +228,13 @@ export function ApplicantShell({ active, overlay, children }: ShellProps) {
         </nav>
         {children}
       </div>
-      <nav className="phone-tabs gms-phone-only" aria-label="Primary">
+      <nav className="phone-tabs gms-phone-only" aria-label={t("shells.primary")}>
         {APPLICANT_TABS.map(({ label, icon: Icon, path, rail }) => {
           const on = rail.includes(active);
           return (
             <Link key={label} to={`/w/${ws.handle}${path}`} className={on ? "on" : undefined} aria-current={on ? "page" : undefined}>
               <Icon className="ic ic-md" aria-hidden="true" />
-              {label}
+              {railLabel(label)}
             </Link>
           );
         })}

@@ -6,6 +6,9 @@
 import type { RevisionChange, RevisionDiff as Revision } from "../api/applicantMore.ts";
 import { formatDate } from "../lib/format.ts";
 
+import { translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 type Part = { text: string; kind: "same" | "del" | "ins" };
 
 /** Word-level diff by longest common subsequence. Answers are short, so the table stays small. */
@@ -44,7 +47,7 @@ const fieldName = (path: string) => {
   const spaced = key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
 };
-const delta = (n: number) => (n === 0 ? "same length" : `${n > 0 ? "+" : "−"}${Math.abs(n)} word${Math.abs(n) === 1 ? "" : "s"}`);
+const delta = (n: number) => (n === 0 ? t("revisionDiff.sameLength") : t(n > 0 ? "revisionDiff.wordsMore" : "revisionDiff.wordsFewer", { count: Math.abs(n) }));
 
 function Change({ change, label }: { change: RevisionChange; label: string }) {
   const parts = diffWords(change.before ?? "", change.after ?? "");
@@ -53,21 +56,21 @@ function Change({ change, label }: { change: RevisionChange; label: string }) {
       <div className="hd">
         <span>{label}</span>
         <span>
-          {change.wordsBefore} → {change.wordsAfter} words ({delta(change.wordDelta)})
+          {t("revisionDiff.words", { wordsBefore: change.wordsBefore, wordsAfter: change.wordsAfter, wordDelta: delta(change.wordDelta) })}
         </span>
       </div>
       <div className="cols">
         <div>
           <div className="eyebrow" style={{ marginBottom: "4px" }}>
-            Before
+            {t("revisionDiff.before")}
           </div>
-          {parts.before.length === 0 ? <span className="muted">Empty</span> : parts.before.map((p, i) => (p.kind === "del" ? <del key={i} className="del">{p.text}</del> : <span key={i}>{p.text}</span>))}
+          {parts.before.length === 0 ? <span className="muted">{t("revisionDiff.empty")}</span> : parts.before.map((p, i) => (p.kind === "del" ? <del key={i} className="del">{p.text}</del> : <span key={i}>{p.text}</span>))}
         </div>
         <div>
           <div className="eyebrow" style={{ marginBottom: "4px" }}>
-            After
+            {t("revisionDiff.after")}
           </div>
-          {parts.after.length === 0 ? <span className="muted">Empty</span> : parts.after.map((p, i) => (p.kind === "ins" ? <ins key={i} className="ins" style={{ textDecoration: "none" }}>{p.text}</ins> : <span key={i}>{p.text}</span>))}
+          {parts.after.length === 0 ? <span className="muted">{t("revisionDiff.empty")}</span> : parts.after.map((p, i) => (p.kind === "ins" ? <ins key={i} className="ins" style={{ textDecoration: "none" }}>{p.text}</ins> : <span key={i}>{p.text}</span>))}
         </div>
       </div>
     </div>
@@ -78,11 +81,11 @@ export function RevisionDiff({ revision, labels = {} }: { revision: Revision; la
   const changes = revision.changes;
   const net = changes.reduce((s, c) => s + c.wordDelta, 0);
   const name = (c: RevisionChange) => labels[c.path] ?? labels[c.path.replace(/^\//, "")] ?? fieldName(c.path);
-  if (!changes.length) return <p className="small muted">Resubmitted without changes to the answers.</p>;
+  if (!changes.length) return <p className="small muted">{t("revisionDiff.resubmittedWithoutChangesToThe")}</p>;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
       <p className="small muted">
-        What changed since the request of {formatDate(revision.requestedAt)}: {changes.map(name).join(", ")} · {delta(net)} in all
+        {t("revisionDiff.whatChangedSinceTheRequest", { requestedAt: formatDate(revision.requestedAt), join: changes.map(name).join(", "), net: delta(net) })}
       </p>
       {changes.map((c) => (
         <Change key={`${c.formId}${c.path}`} change={c} label={name(c)} />

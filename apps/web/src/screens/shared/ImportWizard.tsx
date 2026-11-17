@@ -18,29 +18,53 @@ import { fileSource, targetFor, toBase64, type ConnectedApp, type ImportAdapter,
 import { useImportsApi, useImportsQuery } from "../../api/importsHooks.ts";
 import { ApplicantShell, FunderShell } from "../../components/shells.tsx";
 import { ErrorBanner, Field, Loading, Notice, PageHeader } from "../../components/ui.tsx";
+import { railLabel } from "../../components/shells.tsx";
 import { formatMinor } from "../../lib/format.ts";
 
+import { intlLocale, translator } from "../../i18n/index.tsx";
+
+const tr = translator("shared");
 type Step = "source" | "system" | "connect" | "pick" | "map" | "check" | "import" | "done";
 /** A file, a connected app, an export from a grants system, or a grants system read through its API. */
 type Choice = "file" | "system" | ConnectedApp | ImportPuller;
-const STEP_LABEL: Record<Step, string> = { source: "Source", system: "System", connect: "Connect", pick: "Choose", map: "Match columns", check: "Check", import: "Import", done: "Done" };
+const STEP_KEY = {
+  source: "importWizard.step.source",
+  system: "importWizard.step.system",
+  connect: "importWizard.step.connect",
+  pick: "importWizard.step.pick",
+  map: "importWizard.step.map",
+  check: "importWizard.step.check",
+  import: "importWizard.step.import",
+  done: "importWizard.step.done",
+} as const satisfies Record<Step, string>;
+const STEP_LABEL = (step: Step): string => tr(STEP_KEY[step]);
 const APP_LABEL: Record<ConnectedApp | ImportPuller, string> = { google_sheets: "Google Sheets", airtable: "Airtable", fluxx: "Fluxx", zengine: "Zengine" };
 const isPuller = (c: Choice | null): c is ImportPuller => c === "fluxx" || c === "zengine";
 const isApp = (c: Choice | null): c is ConnectedApp => c === "google_sheets" || c === "airtable";
 /** Files read from a zip at once, and sent to be matched. */
 const MAX_ZIP_PATHS = 2000;
-const KIND_LABEL: Record<string, string> = { ask: "Asked", awarded: "Awarded", paid: "Paid (recorded as paid elsewhere)" };
+const KIND_LABEL: Record<string, string> = {
+  get ask() {
+    return tr("importWizard.kind.ask");
+  },
+  get awarded() {
+    return tr("importWizard.kind.awarded");
+  },
+  get paid() {
+    return tr("importWizard.kind.paid");
+  },
+};
 
 function Steps({ steps, at }: { steps: Step[]; at: Step }) {
   const i = steps.indexOf(at);
   return (
-    <ol className="stp" aria-label="Import steps" style={{ flexWrap: "wrap", rowGap: "8px", marginBottom: "18px" }}>
+    <ol className="stp" aria-label={tr("importWizard.importSteps")} style={{ flexWrap: "wrap", rowGap: "8px", marginBottom: "18px" }}>
       {steps.map((s, n) => (
         <li key={s} style={{ display: "contents" }}>
           {n > 0 && <span className={n <= i ? "ln done" : "ln"} aria-hidden="true"></span>}
           <div className={n < i || (s === "done" && at === "done") ? "s done" : n === i ? "s on" : "s"} aria-current={n === i ? "step" : undefined}>
             <span className="n">{n < i || (s === "done" && at === "done") ? <Check className="ic ic-sm" aria-hidden="true" /> : n + 1}</span>
-            {STEP_LABEL[s]}
+            {STEP_LABEL(s)}
           </div>
         </li>
       ))}
@@ -54,20 +78,20 @@ function OutcomeBadge({ outcome, written }: { outcome: string; written?: boolean
     return (
       <span className="bdg bdg-ok">
         <CircleCheck className="ic" aria-hidden="true" />
-        {written ? "Imported" : "Will be imported"}
+        {written ? tr("importWizard.imported") : tr("importWizard.willBeImported")}
       </span>
     );
   if (outcome === "skip")
     return (
       <span className="bdg bdg-neutral">
         <CircleSlash className="ic" aria-hidden="true" />
-        Skipped
+        {tr("importWizard.skipped")}
       </span>
     );
   return (
     <span className="bdg bdg-warn">
       <TriangleExclamationPoint className="ic" aria-hidden="true" />
-      Needs a fix
+      {tr("importWizard.needsAFix")}
     </span>
   );
 }
@@ -75,11 +99,11 @@ function OutcomeBadge({ outcome, written }: { outcome: string; written?: boolean
 function Dropped({ dropped }: { dropped: ImportRead["dropped"] }) {
   if (!dropped.length) return null;
   return (
-    <Notice tone="warn" title={dropped.length === 1 ? "1 column left out" : `${dropped.length} columns left out`}>
+    <Notice tone="warn" title={tr("importWizard.columnsLeftOutCount", { count: dropped.length })}>
       <p className="small" style={{ margin: "0 0 6px" }}>
-        These columns look like bank or identity details, so nothing in them is imported, stored or shown. Only their names are kept, so you can see what was left out.
+        {tr("importWizard.theseColumnsLookLikeBank")}
       </p>
-      <ul aria-label="Columns left out" style={{ margin: 0, paddingLeft: "18px" }}>
+      <ul aria-label={tr("importWizard.columnsLeftOut2")} style={{ margin: 0, paddingLeft: "18px" }}>
         {dropped.map((d) => (
           <li key={d.column} className="small">
             <b>{d.column}</b>: {d.why}
@@ -101,14 +125,14 @@ function Totals({ totals }: { totals: ImportTotal[] }) {
     currencies
       .map((c) => created.find((t) => t.year === year && t.kind === kind && t.currency === c))
       .filter(Boolean)
-      .map((t) => `${formatMinor(t!.amountMinor, t!.currency)} (${t!.rows} row${t!.rows === 1 ? "" : "s"})`)
+      .map((t) => tr("importWizard.amountRows", { amount: formatMinor(t!.amountMinor, t!.currency), count: t!.rows }))
       .join(" · ") || "—";
   return (
-    <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Amounts by year, scrollable">
-      <table className="tbl tbl-compact" aria-label="Amounts by year">
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label={tr("importWizard.amountsByYearScrollable")}>
+      <table className="tbl tbl-compact" aria-label={tr("importWizard.amountsByYear")}>
         <thead>
           <tr>
-            <th>Year</th>
+            <th>{tr("importWizard.year")}</th>
             {kinds.map((k) => (
               <th key={k} className="num">
                 {KIND_LABEL[k] ?? k}
@@ -119,7 +143,7 @@ function Totals({ totals }: { totals: ImportTotal[] }) {
         <tbody>
           {years.map((y) => (
             <tr key={String(y)}>
-              <td>{y ?? "No year"}</td>
+              <td>{y ?? tr("importWizard.noYear")}</td>
               {kinds.map((k) => (
                 <td key={k} className="num">
                   {cell(y, k)}
@@ -133,35 +157,32 @@ function Totals({ totals }: { totals: ImportTotal[] }) {
   );
 }
 
-const FILTERS = [
-  ["all", "All rows"],
-  ["create", "To import"],
-  ["skip", "Skipped"],
-  ["error", "Need a fix"],
-] as const;
+const FILTERS = ["all", "create", "skip", "error"] as const;
+const FILTER_KEY = { all: "importWizard.filter.all", create: "importWizard.filter.create", skip: "importWizard.filter.skip", error: "importWizard.filter.error" } as const;
+const FILTER_LABEL = (f: (typeof FILTERS)[number]): string => tr(FILTER_KEY[f]);
 const SHOW = 200;
 
 function RowsTable({ rows, subtitle }: { rows: ImportPreviewRow[]; subtitle: string }) {
-  const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("all");
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const shown = rows.filter((r) => filter === "all" || r.outcome === filter);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      <div className="seg" role="group" aria-label="Show rows">
-        {FILTERS.map(([k, label]) => (
+      <div className="seg" role="group" aria-label={tr("importWizard.showRows")}>
+        {FILTERS.map((k) => (
           <button key={k} type="button" className={filter === k ? "on" : undefined} aria-pressed={filter === k} onClick={() => setFilter(k)}>
-            {label}
+            {FILTER_LABEL(k)}
           </button>
         ))}
       </div>
-      <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Rows checked, scrollable" style={{ maxHeight: "360px", overflow: "auto" }}>
-        <table className="tbl tbl-compact" aria-label="Rows checked">
+      <div className="tbl-wrap" tabIndex={0} role="region" aria-label={tr("importWizard.rowsCheckedScrollable")} style={{ maxHeight: "360px", overflow: "auto" }}>
+        <table className="tbl tbl-compact" aria-label={tr("importWizard.rowsChecked")}>
           <thead>
             <tr>
-              <th className="num">Row</th>
-              <th>Title</th>
+              <th className="num">{tr("importWizard.row")}</th>
+              <th>{tr("importWizard.title")}</th>
               <th>{subtitle}</th>
-              <th>Check</th>
-              <th>Why</th>
+              <th>{tr("importWizard.check")}</th>
+              <th>{tr("importWizard.why")}</th>
             </tr>
           </thead>
           <tbody>
@@ -181,7 +202,7 @@ function RowsTable({ rows, subtitle }: { rows: ImportPreviewRow[]; subtitle: str
           </tbody>
         </table>
       </div>
-      {shown.length > SHOW && <p className="small muted">Showing the first {SHOW} of {shown.length} rows.</p>}
+      {shown.length > SHOW && <p className="small muted">{tr("importWizard.showingTheFirstOfRows", { SHOW, length: shown.length })}</p>}
     </div>
   );
 }
@@ -209,7 +230,7 @@ const bytesOf = (file: File): Promise<Uint8Array> =>
     : new Promise((resolve, reject) => {
         const r = new FileReader();
         r.onload = () => resolve(new Uint8Array(r.result as ArrayBuffer));
-        r.onerror = () => reject(new Error("The file could not be read"));
+        r.onerror = () => reject(new Error(tr("importWizard.theFileCouldNotBe")));
         r.readAsArrayBuffer(file);
       });
 
@@ -254,14 +275,14 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
     setProgress({ ...p });
     for (const m of match.matched) {
       const bytes = readZipEntry(zip.bytes, m.path);
-      if (!bytes) p.failed.push({ name: m.name, why: "Larger than 25 MB" });
+      if (!bytes) p.failed.push({ name: m.name, why: tr("importWizard.largerThan25Mb") });
       else {
         try {
           const r = await api.attachFile(runId, { path: m.path, contentBase64: toBase64(bytes) });
           if (r.created) p.attached++;
           else p.already++;
         } catch (e) {
-          p.failed.push({ name: m.name, why: e instanceof Error ? e.message : "It could not be attached" });
+          p.failed.push({ name: m.name, why: e instanceof Error ? e.message : tr("importWizard.itCouldNotBeAttached") });
         }
       }
       p.done++;
@@ -273,46 +294,46 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
   return (
     <section className="card" aria-labelledby="imp-files">
       <div className="card-h">
-        <h3 id="imp-files">Add the PDFs and files</h3>
-        <span className="small muted">Optional</span>
+        <h3 id="imp-files">{tr("importWizard.addThePdfsAndFiles")}</h3>
+        <span className="small muted">{tr("importWizard.optional")}</span>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <p className="small" style={{ margin: 0 }}>
-          {adapter.attachments} Only your team sees them on the award; the grantee does not, and the GMS does not read what is in them.
+          {tr("importWizard.onlyYourTeamSeesThem", { attachments: adapter.attachments })}
         </p>
         {error ? <ErrorBanner error={error} /> : null}
         <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
           <label className="btn btn-secondary" style={{ cursor: "pointer" }}>
             <FileArchive className="ic" aria-hidden="true" />
-            {zip ? "Choose another zip" : "Choose the zip"}
-            <input type="file" accept=".zip,application/zip" className="sr" aria-label="Choose the zip" disabled={!!busy} onChange={(e) => void choose(e.target.files?.[0] ?? null)} />
+            {zip ? tr("importWizard.chooseAnotherZip") : tr("importWizard.chooseTheZip")}
+            <input type="file" accept=".zip,application/zip" className="sr" aria-label={tr("importWizard.chooseTheZip")} disabled={!!busy} onChange={(e) => void choose(e.target.files?.[0] ?? null)} />
           </label>
           {zip && <span className="small">{zip.name}</span>}
-          {busy === "read" && <span className="small muted">Reading the zip…</span>}
+          {busy === "read" && <span className="small muted">{tr("importWizard.readingTheZip")}</span>}
         </div>
-        {zip && zip.extra > 0 && <p className="small muted">The zip holds more than {MAX_ZIP_PATHS.toLocaleString("en-US")} files; the first {MAX_ZIP_PATHS.toLocaleString("en-US")} were matched. Add the rest from a second zip.</p>}
+        {zip && zip.extra > 0 && <p className="small muted">{tr("importWizard.theZipHoldsMoreThan", { count: MAX_ZIP_PATHS.toLocaleString(intlLocale()) })}</p>}
         {match && (
           <>
-            <div className="row" style={{ gap: "8px", flexWrap: "wrap" }} role="group" aria-label="Files matched">
+            <div className="row" style={{ gap: "8px", flexWrap: "wrap" }} role="group" aria-label={tr("importWizard.filesMatched")}>
               <span className="bdg bdg-ok">
                 <CircleCheck className="ic" aria-hidden="true" />
-                {match.matched.length} {match.matched.length === 1 ? "file matches an award" : "files match an award"}
+                {tr("importWizard.filesMatch", { count: match.matched.length })}
               </span>
               {match.unmatched.length > 0 && (
                 <span className="bdg bdg-neutral">
                   <CircleSlash className="ic" aria-hidden="true" />
-                  {match.unmatched.length} left out
+                  {tr("importWizard.leftOut", { length: match.unmatched.length })}
                 </span>
               )}
             </div>
             {match.matched.length > 0 && (
-              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Files to attach, scrollable" style={{ maxHeight: "260px", overflow: "auto" }}>
-                <table className="tbl tbl-compact" aria-label="Files to attach">
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label={tr("importWizard.filesToAttachScrollable")} style={{ maxHeight: "260px", overflow: "auto" }}>
+                <table className="tbl tbl-compact" aria-label={tr("importWizard.filesToAttach")}>
                   <thead>
                     <tr>
-                      <th>File</th>
-                      <th>Award</th>
-                      <th>Matched by</th>
+                      <th>{tr("importWizard.file")}</th>
+                      <th>{tr("importWizard.award")}</th>
+                      <th>{tr("importWizard.matchedBy")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -320,7 +341,7 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
                       <tr key={m.path}>
                         <td>{m.name}</td>
                         <td>{m.title}</td>
-                        <td className="small">{m.by === "id" ? "Its id in the file name" : "Its title"}</td>
+                        <td className="small">{m.by === "id" ? tr("importWizard.itsIdInTheFile") : tr("importWizard.itsTitle")}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -328,7 +349,7 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
               </div>
             )}
             {match.unmatched.length > 0 && (
-              <ul aria-label="Files left out" style={{ margin: 0, paddingLeft: "18px" }}>
+              <ul aria-label={tr("importWizard.filesLeftOut")} style={{ margin: 0, paddingLeft: "18px" }}>
                 {match.unmatched.slice(0, 50).map((u) => (
                   <li key={u.path} className="small">
                     <b>{u.name}</b>: {u.why}
@@ -343,25 +364,25 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
             <div className="lbls">
               {/* The count is the announced part: a progress bar's value changes silently (WCAG 4.1.3). */}
               <span role="status">
-                Attached <b>{progress.attached + progress.already}</b> of <b>{match?.matched.length ?? 0}</b>
+                {tr.rich("importWizard.attachedOf", { done: progress.attached + progress.already, total: match?.matched.length ?? 0, b: (chunks) => <b>{chunks}</b> })}
               </span>
             </div>
-            <div className="track" role="progressbar" aria-label="Attaching files" aria-valuemin={0} aria-valuemax={match?.matched.length ?? 0} aria-valuenow={progress.done}>
+            <div className="track" role="progressbar" aria-label={tr("importWizard.attachingFiles")} aria-valuemin={0} aria-valuemax={match?.matched.length ?? 0} aria-valuenow={progress.done}>
               <div className="fill" style={{ width: `${match?.matched.length ? (progress.done / match.matched.length) * 100 : 100}%` }}></div>
             </div>
           </div>
         )}
         {progress && !busy && match && progress.done === match.matched.length && (
-          <Notice tone={progress.failed.length ? "warn" : "ok"} title={`${progress.attached} ${progress.attached === 1 ? "file" : "files"} attached`}>
-            {progress.already ? `${progress.already} ${progress.already === 1 ? "was" : "were"} on the award already. ` : ""}
-            {progress.failed.length ? `${progress.failed.length} could not be attached: ${progress.failed.map((f) => `${f.name} (${f.why})`).join("; ")}.` : "Each is on the award it matched."}
+          <Notice tone={progress.failed.length ? "warn" : "ok"} title={tr("importWizard.filesAttached", { count: progress.attached })}>
+            {progress.already ? tr("importWizard.alreadyOnAward", { count: progress.already }) : ""}
+            {progress.failed.length ? tr("importWizard.couldNotBeAttached", { length: progress.failed.length, join: progress.failed.map((f) => `${f.name} (${f.why})`).join("; ") }) : tr("importWizard.eachIsOnTheAward")}
           </Notice>
         )}
       </div>
       {match && match.matched.length > 0 && !(progress && progress.done === match.matched.length) && (
         <div className="card-f">
           <button type="button" className="btn btn-primary" disabled={busy === "attach"} onClick={() => void attachAll()}>
-            {busy === "attach" ? "Attaching…" : `Attach ${match.matched.length} ${match.matched.length === 1 ? "file" : "files"}`}
+            {busy === "attach" ? tr("importWizard.attaching") : tr("importWizard.attachFiles", { count: match.matched.length })}
           </button>
         </div>
       )}
@@ -432,7 +453,7 @@ export function ImportWizard() {
 
   async function pick() {
     if (choice === "file" || choice === "system") {
-      const src = file ? await fileSource(file) : { kind: "csv" as const, text: pasted, fileName: "Pasted CSV" };
+      const src = file ? await fileSource(file) : { kind: "csv" as const, text: pasted, fileName: tr("importWizard.pastedCsv") };
       return readSource(src, choice === "system" ? (system ?? undefined) : undefined);
     }
     if (choice === "fluxx") return readSource({ kind: "fluxx" });
@@ -527,7 +548,7 @@ export function ImportWizard() {
   }
 
   const Shell = funder ? FunderShell : ApplicantShell;
-  const title = funder ? "Import grant history" : "Import applications";
+  const title = funder ? tr("importWizard.importGrantHistory") : tr("importWizard.importApplications");
   const created = detail?.rows.filter((r) => r.entity) ?? [];
   const reconciliation = preview?.run.reconciliation;
 
@@ -537,34 +558,33 @@ export function ImportWizard() {
       <Shell active={noun.list}>
         <main className="main">
           <PageHeader
-            crumbs={[{ label: ws.name, to: base }, { label: noun.list, to: noun.to }, { label: "Import" }]}
+            crumbs={[{ label: ws.name, to: base }, { label: railLabel(noun.list), to: noun.to }, { label: tr("importWizard.step.import") }]}
             title={title}
-            meta={<span>{funder ? "Past awards to named organizations, with what you paid. Payments are recorded as paid elsewhere: nothing is paid from here." : "Applications you track in a spreadsheet or another app. Only your team sees them."}</span>}
+            meta={<span>{funder ? tr("importWizard.pastAwardsToNamedOrganizations") : tr("importWizard.applicationsYouTrackInA")}</span>}
           />
           <Steps steps={steps} at={step} />
-          {error ? <ErrorBanner error={error} title={busy === "import" || step === "import" ? "The import stopped" : "That did not work"} /> : null}
+          {error ? <ErrorBanner error={error} title={busy === "import" || step === "import" ? tr("importWizard.theImportStopped") : tr("importWizard.thatDidNotWork")} /> : null}
 
           {step === "source" && (
             <section className="card" aria-labelledby="imp-source">
               <div className="card-h">
-                <h3 id="imp-source">Where are your {noun.many}?</h3>
+                <h3 id="imp-source">{tr("importWizard.whereAreYour", { kind: noun.one })}</h3>
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {sources.status === "loading" && <Loading label="Loading sources" />}
+                {sources.status === "loading" && <Loading label={tr("importWizard.loadingSources")} />}
                 {sources.status === "error" && <ErrorBanner error={sources.error} onRetry={sources.reload} />}
                 {sources.status === "ready" && (
                   <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <legend className="sr">Source</legend>
-                    <SourceOption value="file" chosen={choice} onChoose={setChoice} icon={<FileSpreadsheet className="ic" aria-hidden="true" />} title="A file from your computer">
-                      A CSV file or an Excel workbook (.xlsx) with a header row, up to {sources.data.maxRows.toLocaleString("en-US")} rows.
+                    <legend className="sr">{tr("importWizard.source")}</legend>
+                    <SourceOption value="file" chosen={choice} onChoose={setChoice} icon={<FileSpreadsheet className="ic" aria-hidden="true" />} title={tr("importWizard.aFileFromYourComputer")}>
+                      {tr("importWizard.aCsvFileOrAn", { count: sources.data.maxRows })}
                     </SourceOption>
                     {funder && adapters.some((a) => a.via === "file") && (
-                      <SourceOption value="system" chosen={choice} onChoose={setChoice} icon={<ArrowRightLeft className="ic" aria-hidden="true" />} title="An export from another grants system">
-                        {adapters
+                      <SourceOption value="system" chosen={choice} onChoose={setChoice} icon={<ArrowRightLeft className="ic" aria-hidden="true" />} title={tr("importWizard.anExportFromAnotherGrants")}>
+                        {tr("importWizard.theColumnsAreMatchedFor", { join: adapters
                           .filter((a) => a.via === "file")
                           .map((a) => a.system)
-                          .join(", ")}
-                        . The columns are matched for you, and applications that were never awarded are set aside.
+                          .join(", ") })}
                       </SourceOption>
                     )}
                     {(["fluxx", "zengine"] as const)
@@ -581,17 +601,17 @@ export function ImportWizard() {
                             option(k)!.connected ? (
                               <span className="bdg bdg-ok">
                                 <Link2 className="ic" aria-hidden="true" />
-                                Connected
+                                {tr("importWizard.connected")}
                               </span>
                             ) : (
                               <span className="bdg bdg-neutral">
                                 <Link2Off className="ic" aria-hidden="true" />
-                                Not connected
+                                {tr("importWizard.notConnected")}
                               </span>
                             )
                           }
                         >
-                          {`Read your grant history straight from ${APP_LABEL[k]}, with ${k === "fluxx" ? "an application id and secret" : "an access token"} you create there. The GMS only reads it.`}
+                          {tr(k === "fluxx" ? "importWizard.readHistoryFluxx" : "importWizard.readHistoryToken", { system: APP_LABEL[k] })}
                         </SourceOption>
                       ))}
                     {(["google_sheets", "airtable"] as const)
@@ -608,17 +628,17 @@ export function ImportWizard() {
                             option(k)!.connected ? (
                               <span className="bdg bdg-ok">
                                 <Link2 className="ic" aria-hidden="true" />
-                                Connected
+                                {tr("importWizard.connected")}
                               </span>
                             ) : (
                               <span className="bdg bdg-neutral">
                                 <Link2Off className="ic" aria-hidden="true" />
-                                Not connected
+                                {tr("importWizard.notConnected")}
                               </span>
                             )
                           }
                         >
-                          {k === "google_sheets" ? "Paste the link to a spreadsheet. The GMS only reads it." : "Paste the link to a base or table. The GMS only reads it."}
+                          {k === "google_sheets" ? tr("importWizard.pasteTheLinkToA") : tr("importWizard.pasteTheLinkToA2")}
                         </SourceOption>
                       ))}
                   </fieldset>
@@ -626,10 +646,10 @@ export function ImportWizard() {
               </div>
               <div className="card-f">
                 <button type="button" className="btn btn-primary" disabled={!choice} onClick={() => setStep(choice === "system" ? "system" : needsConnect ? "connect" : "pick")}>
-                  Continue
+                  {tr("importWizard.continue")}
                 </button>
                 <Link to={noun.to} className="btn btn-ghost">
-                  Cancel
+                  {tr("importWizard.cancel")}
                 </Link>
               </div>
             </section>
@@ -638,11 +658,11 @@ export function ImportWizard() {
           {step === "system" && (
             <section className="card" aria-labelledby="imp-system">
               <div className="card-h">
-                <h3 id="imp-system">Which system is the export from?</h3>
+                <h3 id="imp-system">{tr("importWizard.whichSystemIsTheExport")}</h3>
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "8px" }}>
-                  <legend className="sr">System</legend>
+                  <legend className="sr">{tr("importWizard.system")}</legend>
                   {adapters
                     .filter((a) => a.via === "file")
                     .map((a) => (
@@ -653,9 +673,9 @@ export function ImportWizard() {
                     ))}
                 </fieldset>
                 {adapterOf(system) && (
-                  <div aria-label={`How to export from ${adapterOf(system)!.system}`} role="group">
+                  <div aria-label={tr("importWizard.howToExportFrom", { system: adapterOf(system)!.system })} role="group">
                     <p className="lbl" style={{ margin: "6px 0" }}>
-                      How to export from {adapterOf(system)!.system}
+                      {tr("importWizard.howToExportFrom", { system: adapterOf(system)!.system })}
                     </p>
                     <ol style={{ margin: 0, paddingLeft: "20px" }}>
                       {adapterOf(system)!.steps.map((x) => (
@@ -665,19 +685,19 @@ export function ImportWizard() {
                       ))}
                     </ol>
                     <p className="small muted" style={{ margin: "8px 0 0" }}>
-                      {adapterOf(system)!.accepts.map((x) => x.toUpperCase()).join(", ")} files.{adapterOf(system)!.attachments ? " After the import you can add its zip of PDFs and files." : ""}
-                      {adapterOf(system)!.headersConfirmed ? "" : " Column names differ between accounts, so you check each field before anything is imported."}
+                      {tr("importWizard.files", { join: adapterOf(system)!.accepts.map((x) => x.toUpperCase()).join(", ") })}{adapterOf(system)!.attachments ? ` ${tr("importWizard.afterTheImportYouCan")}` : ""}
+                      {adapterOf(system)!.headersConfirmed ? "" : ` ${tr("importWizard.columnNamesDifferBetweenAccounts")}`}
                     </p>
                   </div>
                 )}
               </div>
               <div className="card-f">
                 <button type="button" className="btn btn-primary" disabled={!system} onClick={() => setStep("pick")}>
-                  Continue
+                  {tr("importWizard.continue")}
                 </button>
                 <button type="button" className="btn btn-ghost" onClick={() => setStep("source")}>
                   <ArrowLeft className="ic" aria-hidden="true" />
-                  Back
+                  {tr("importWizard.back")}
                 </button>
               </div>
             </section>
@@ -686,10 +706,10 @@ export function ImportWizard() {
           {step === "connect" && isPuller(choice) && (
             <section className="card" aria-labelledby="imp-connect">
               <div className="card-h">
-                <h3 id="imp-connect">Connect {APP_LABEL[choice]}</h3>
+                <h3 id="imp-connect">{tr("importWizard.connect", { value: APP_LABEL[choice] })}</h3>
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <ol style={{ margin: 0, paddingLeft: "20px" }} aria-label={`How to connect ${APP_LABEL[choice]}`}>
+                <ol style={{ margin: 0, paddingLeft: "20px" }} aria-label={tr("importWizard.howToConnect", { value: APP_LABEL[choice] })}>
                   {(adapterOf(choice)?.steps ?? []).map((x) => (
                     <li key={x} className="small">
                       {x}
@@ -698,39 +718,39 @@ export function ImportWizard() {
                 </ol>
                 <p className="row" style={{ gap: "8px", margin: 0 }}>
                   <ShieldCheck className="ic" aria-hidden="true" />
-                  <span className="small">The GMS checks them with one read, keeps them encrypted, never shows them again, and deletes them when the import is finished or you disconnect.</span>
+                  <span className="small">{tr("importWizard.theGmsChecksThemWith")}</span>
                 </p>
                 {option(choice)?.canConnect ? (
                   choice === "fluxx" ? (
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "10px" }}>
-                      <Field id="imp-fluxx-url" label="Fluxx address" help="It looks like https://yourfoundation.fluxx.io">
+                      <Field id="imp-fluxx-url" label={tr("importWizard.fluxxAddress")} help={tr("importWizard.itLooksLikeHttpsYourfoundation")}>
                         <input id="imp-fluxx-url" className="inp" value={creds.instanceUrl} onChange={(e) => setCreds((c) => ({ ...c, instanceUrl: e.target.value }))} />
                       </Field>
-                      <Field id="imp-fluxx-id" label="Application id">
+                      <Field id="imp-fluxx-id" label={tr("importWizard.applicationId")}>
                         <input id="imp-fluxx-id" className="inp mono" autoComplete="off" value={creds.clientId} onChange={(e) => setCreds((c) => ({ ...c, clientId: e.target.value }))} />
                       </Field>
-                      <Field id="imp-fluxx-secret" label="Application secret">
+                      <Field id="imp-fluxx-secret" label={tr("importWizard.applicationSecret")}>
                         <input id="imp-fluxx-secret" type="password" className="inp mono" autoComplete="off" value={creds.clientSecret} onChange={(e) => setCreds((c) => ({ ...c, clientSecret: e.target.value }))} />
                       </Field>
                     </div>
                   ) : (
-                    <Field id="imp-zengine-token" label="Access token">
+                    <Field id="imp-zengine-token" label={tr("importWizard.accessToken")}>
                       <input id="imp-zengine-token" type="password" className="inp mono" autoComplete="off" value={creds.token} onChange={(e) => setCreds((c) => ({ ...c, token: e.target.value }))} />
                     </Field>
                   )
                 ) : (
-                  <Notice tone="info" title={`Ask a workspace admin to connect ${APP_LABEL[choice]}`}>Once it is connected, they can import from it here.</Notice>
+                  <Notice tone="info" title={tr("importWizard.askAWorkspaceAdminTo", { value: APP_LABEL[choice] })}>{tr("importWizard.onceItIsConnectedThey")}</Notice>
                 )}
               </div>
               <div className="card-f">
                 {option(choice)?.canConnect && (
                   <button type="button" className="btn btn-primary" disabled={busy === "connect" || (choice === "fluxx" ? !creds.instanceUrl.trim() || !creds.clientId.trim() || !creds.clientSecret.trim() : creds.token.trim().length < 8)} onClick={() => void connectPuller(choice)}>
-                    {busy === "connect" ? "Checking…" : `Connect ${APP_LABEL[choice]}`}
+                    {busy === "connect" ? tr("importWizard.checking") : tr("importWizard.connect", { value: APP_LABEL[choice] })}
                   </button>
                 )}
                 <button type="button" className="btn btn-ghost" onClick={() => setStep("source")}>
                   <ArrowLeft className="ic" aria-hidden="true" />
-                  Back
+                  {tr("importWizard.back")}
                 </button>
               </div>
             </section>
@@ -739,28 +759,28 @@ export function ImportWizard() {
           {step === "connect" && isApp(choice) && (
             <section className="card" aria-labelledby="imp-connect">
               <div className="card-h">
-                <h3 id="imp-connect">Connect {APP_LABEL[choice]}</h3>
+                <h3 id="imp-connect">{tr("importWizard.connect", { value: APP_LABEL[choice] })}</h3>
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 <p className="row" style={{ gap: "8px", margin: 0 }}>
                   <ShieldCheck className="ic" aria-hidden="true" />
                   <span>
                     {choice === "google_sheets"
-                      ? "You sign in with Google and allow read-only access to spreadsheets. The GMS reads only the sheet you paste the link to and never changes it."
-                      : "You sign in with Airtable and allow read-only access to records and table structure. The GMS reads only the table you choose and never changes it."}
+                      ? tr("importWizard.youSignInWithGoogle")
+                      : tr("importWizard.youSignInWithAirtable")}
                   </span>
                 </p>
-                {option(choice)?.canConnect ? null : <Notice tone="info" title={`Ask a workspace admin to connect ${APP_LABEL[choice]}`}>Once it is connected, anyone who can import may use it.</Notice>}
+                {option(choice)?.canConnect ? null : <Notice tone="info" title={tr("importWizard.askAWorkspaceAdminTo", { value: APP_LABEL[choice] })}>{tr("importWizard.onceItIsConnectedAnyone")}</Notice>}
               </div>
               <div className="card-f">
                 {option(choice)?.canConnect && (
                   <button type="button" className="btn btn-primary" disabled={busy === "connect"} onClick={() => void connect(choice)}>
-                    {busy === "connect" ? "Opening…" : `Connect ${APP_LABEL[choice]}`}
+                    {busy === "connect" ? tr("importWizard.opening") : tr("importWizard.connect", { value: APP_LABEL[choice] })}
                   </button>
                 )}
                 <button type="button" className="btn btn-ghost" onClick={() => setStep("source")}>
                   <ArrowLeft className="ic" aria-hidden="true" />
-                  Back
+                  {tr("importWizard.back")}
                 </button>
               </div>
             </section>
@@ -769,12 +789,12 @@ export function ImportWizard() {
           {step === "pick" && choice && (
             <section className="card" aria-labelledby="imp-pick">
               <div className="card-h">
-                <h3 id="imp-pick">{choice === "file" ? "Choose the file" : choice === "system" ? `Choose the ${adapterOf(system)?.system ?? ""} export` : choice === "fluxx" ? "Read from Fluxx" : choice === "zengine" ? "Which Zengine form?" : choice === "google_sheets" ? "Which spreadsheet?" : "Which Airtable base?"}</h3>
+                <h3 id="imp-pick">{choice === "file" ? tr("importWizard.chooseTheFile") : choice === "system" ? tr("importWizard.chooseTheExport", { value: adapterOf(system)?.system ?? "" }) : choice === "fluxx" ? tr("importWizard.readFromFluxx") : choice === "zengine" ? tr("importWizard.whichZengineForm") : choice === "google_sheets" ? tr("importWizard.whichSpreadsheet") : tr("importWizard.whichAirtableBase")}</h3>
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {returned === choice && (
-                  <Notice tone="ok" title={`${APP_LABEL[choice as ConnectedApp]} is connected`}>
-                    Paste the link to read from it.
+                  <Notice tone="ok" title={tr("importWizard.isConnected", { value: APP_LABEL[choice as ConnectedApp] })}>
+                    {tr("importWizard.pasteTheLinkToRead")}
                   </Notice>
                 )}
                 {isPuller(choice) ? (
@@ -782,15 +802,15 @@ export function ImportWizard() {
                     <p className="row" style={{ gap: "8px", margin: 0 }}>
                       <Link2 className="ic" aria-hidden="true" />
                       <span className="small">
-                        {`${APP_LABEL[choice]} is connected. `}
-                        The GMS reads up to {(sources.status === "ready" ? sources.data.maxRows : 5000).toLocaleString("en-US")} records at a time{choice === "fluxx" ? ", with the organization each grant went to and what was paid" : ""}, and nothing is imported until you check them.
+                        {tr("importWizard.isConnected2", { value: APP_LABEL[choice] })}{" "}
+                        {tr(choice === "fluxx" ? "importWizard.readsUpToFluxx" : "importWizard.readsUpTo", { count: sources.status === "ready" ? sources.data.maxRows : 5000 })}
                       </span>
                     </p>
                     {choice === "zengine" &&
                       (forms ? (
-                        <Field id="imp-zengine-form" label="Form">
+                        <Field id="imp-zengine-form" label={tr("importWizard.form")}>
                           <select id="imp-zengine-form" className="sel" value={formId} onChange={(e) => setFormId(e.target.value)}>
-                            <option value="">Choose a form</option>
+                            <option value="">{tr("importWizard.chooseAForm")}</option>
                             {forms.map((f) => (
                               <option key={f.id} value={f.id}>
                                 {f.workspaceName ? `${f.workspaceName} · ${f.name}` : f.name}
@@ -799,7 +819,7 @@ export function ImportWizard() {
                           </select>
                         </Field>
                       ) : busy === "forms" ? (
-                        <Loading label="Loading the forms" />
+                        <Loading label={tr("importWizard.loadingTheForms")} />
                       ) : null)}
                   </>
                 ) : choice === "file" || choice === "system" ? (
@@ -807,34 +827,34 @@ export function ImportWizard() {
                     <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
                       <label className="btn btn-secondary" style={{ cursor: "pointer" }}>
                         <Upload className="ic" aria-hidden="true" />
-                        Choose a file
-                        <input type="file" accept={choice === "system" && adapterOf(system)?.accepts.includes("json") ? ".csv,.xlsx,.json,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : ".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"} className="sr" aria-label="Choose a file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                        {tr("importWizard.chooseAFile")}
+                        <input type="file" accept={choice === "system" && adapterOf(system)?.accepts.includes("json") ? ".csv,.xlsx,.json,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : ".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"} className="sr" aria-label={tr("importWizard.chooseAFile")} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
                       </label>
                       {file && <span className="small">{file.name}</span>}
                     </div>
-                    <Field id="imp-paste" label="Or paste CSV text" help="A header row first, then one row per line.">
+                    <Field id="imp-paste" label={tr("importWizard.orPasteCsvText")} help={tr("importWizard.aHeaderRowFirstThen")}>
                       <textarea id="imp-paste" className="ta mono" style={{ minHeight: "110px", fontSize: "12px" }} value={pasted} onChange={(e) => setPasted(e.target.value)} />
                     </Field>
                   </>
                 ) : (
-                  <Field id="imp-link" label={choice === "google_sheets" ? "Spreadsheet link" : "Airtable link"} help={choice === "google_sheets" ? "It starts with https://docs.google.com/spreadsheets/" : "It starts with https://airtable.com/app"}>
+                  <Field id="imp-link" label={choice === "google_sheets" ? tr("importWizard.spreadsheetLink") : tr("importWizard.airtableLink")} help={choice === "google_sheets" ? tr("importWizard.itStartsWithHttpsDocs") : tr("importWizard.itStartsWithHttpsAirtable")}>
                     <input id="imp-link" className="inp" value={link} onChange={(e) => setLink(e.target.value)} />
                   </Field>
                 )}
               </div>
               <div className="card-f">
                 <button type="button" className="btn btn-primary" disabled={busy === "read" || (choice === "file" || choice === "system" ? !file && !pasted.trim() : choice === "fluxx" ? false : choice === "zengine" ? !formId : !link.trim())} onClick={() => void pick()}>
-                  {busy === "read" ? "Reading…" : choice === "file" || choice === "system" ? "Read the file" : choice === "fluxx" ? "Read grant requests" : choice === "zengine" ? "Read the form" : "Read it"}
+                  {busy === "read" ? tr("importWizard.reading") : choice === "file" || choice === "system" ? tr("importWizard.readTheFile") : choice === "fluxx" ? tr("importWizard.readGrantRequests") : choice === "zengine" ? tr("importWizard.readTheForm") : tr("importWizard.readIt")}
                 </button>
                 {isPuller(choice) && option(choice)?.canConnect && (
                   <button type="button" className="btn btn-ghost" disabled={busy === "disconnect"} onClick={() => void disconnectPuller(choice)}>
                     <Unplug className="ic" aria-hidden="true" />
-                    Disconnect {APP_LABEL[choice]}
+                    {tr("importWizard.disconnect", { value: APP_LABEL[choice] })}
                   </button>
                 )}
                 <button type="button" className="btn btn-ghost" onClick={() => setStep("source")}>
                   <ArrowLeft className="ic" aria-hidden="true" />
-                  Back
+                  {tr("importWizard.back")}
                 </button>
               </div>
             </section>
@@ -843,33 +863,33 @@ export function ImportWizard() {
           {step === "map" && read && source && (
             <section className="card" aria-labelledby="imp-map">
               <div className="card-h">
-                <h3 id="imp-map">Match columns to fields</h3>
+                <h3 id="imp-map">{tr("importWizard.matchColumnsToFields")}</h3>
                 <span className="small muted">
-                  {read.source.label} · {read.rows.toLocaleString("en-US")} row{read.rows === 1 ? "" : "s"}
+                  {tr("importWizard.sourceRows", { label: read.source.label, count: read.rows })}
                 </span>
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                 <Dropped dropped={read.dropped} />
                 {read.adapter && (
-                  <Notice tone="ok" title={`Matched as a ${read.adapter.system} export`}>
-                    {`Applications ${read.adapter.system} marks as never awarded are set aside when you check the rows.`}
-                    {adapterOf(read.adapter.key)?.headersConfirmed === false ? " Column names differ between accounts, so check each field." : ""}
+                  <Notice tone="ok" title={tr("importWizard.matchedAsAExport", { system: read.adapter.system })}>
+                    {tr("importWizard.applicationsMarksAsNeverAwarded", { system: read.adapter.system })}
+                    {adapterOf(read.adapter.key)?.headersConfirmed === false ? ` ${tr("importWizard.columnNamesDifferBetweenAccounts2")}` : ""}
                   </Notice>
                 )}
                 {read.detected && read.detected.key !== read.adapter?.key && (
-                  <Notice tone="info" title={`This file looks like a ${read.detected.system} export`}>
+                  <Notice tone="info" title={tr("importWizard.thisFileLooksLikeA", { system: read.detected.system })}>
                     <button type="button" className="btn btn-secondary btn-sm" disabled={busy === "read"} onClick={() => void readSource(source, read.detected!.key)}>
-                      {`Use ${read.detected.system}'s matching`}
+                      {tr("importWizard.useSMatching", { system: read.detected.system })}
                     </button>
                   </Notice>
                 )}
                 {typeof read.source.nextPage === "number" && (
                   <p className="small muted" style={{ margin: 0 }}>
-                    {`${APP_LABEL[read.source.kind as ImportPuller] ?? "The source"} holds more records than one import takes. Import these first; the next part follows from the summary.`}
+                    {tr("importWizard.holdsMoreRecordsThanOne", { value: APP_LABEL[read.source.kind as ImportPuller] ?? tr("importWizard.theSource") })}
                   </p>
                 )}
                 {read.source.sheets && read.source.sheets.length > 1 && (
-                  <Field id="imp-sheet" label="Sheet">
+                  <Field id="imp-sheet" label={tr("importWizard.sheet")}>
                     <select id="imp-sheet" className="sel" value={read.source.sheet ?? ""} onChange={(e) => void readSource({ ...(source as Extract<ImportSourceInput, { kind: "xlsx" | "google_sheets" }>), sheet: e.target.value })}>
                       {read.source.sheets.map((s) => (
                         <option key={s} value={s}>
@@ -880,7 +900,7 @@ export function ImportWizard() {
                   </Field>
                 )}
                 {read.source.tables && read.source.tables.length > 1 && (
-                  <Field id="imp-table" label="Table">
+                  <Field id="imp-table" label={tr("importWizard.table")}>
                     <select id="imp-table" className="sel" value={read.source.table ?? ""} onChange={(e) => void readSource({ ...(source as Extract<ImportSourceInput, { kind: "airtable" }>), table: e.target.value })}>
                       {read.source.tables.map((t) => (
                         <option key={t.id} value={t.id}>
@@ -892,18 +912,18 @@ export function ImportWizard() {
                 )}
                 {read.savedMapping && (
                   <p className="small muted" style={{ margin: 0 }}>
-                    {read.savedMapping === "this_source" ? "Matched as you saved it last time for this source." : "Matched as you saved it for a similar source. Check each field."}
+                    {read.savedMapping === "this_source" ? tr("importWizard.matchedAsYouSavedIt") : tr("importWizard.matchedAsYouSavedIt2")}
                   </p>
                 )}
                 <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-                  <legend className="lbl">Which column fills each field</legend>
+                  <legend className="lbl">{tr("importWizard.whichColumnFillsEachField")}</legend>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "10px", marginTop: "6px" }}>
                     {read.fields.map((f) => {
                       const col = columns.find((c) => c.name === mapping[f.key]);
                       return (
-                        <Field key={f.key} id={`imp-map-${f.key}`} label={f.label} required={f.required} help={col?.samples.length ? `For example: ${col.samples.join(", ")}` : (f.help ?? undefined)}>
+                        <Field key={f.key} id={`imp-map-${f.key}`} label={f.label} required={f.required} help={col?.samples.length ? tr("importWizard.forExample", { join: col.samples.join(", ") }) : (f.help ?? undefined)}>
                           <select id={`imp-map-${f.key}`} className="sel" value={mapping[f.key] ?? ""} onChange={(e) => setMapping((m) => ({ ...Object.fromEntries(Object.entries(m).filter(([k]) => k !== f.key)), ...(e.target.value ? { [f.key]: e.target.value } : {}) }))}>
-                            <option value="">Not in the file</option>
+                            <option value="">{tr("importWizard.notInTheFile")}</option>
                             {columns.map((c) => (
                               <option key={c.name} value={c.name}>
                                 {c.name}
@@ -917,17 +937,17 @@ export function ImportWizard() {
                 </fieldset>
                 <label className="cb">
                   <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-                  <span>Remember this matching for the next file with these columns</span>
+                  <span>{tr("importWizard.rememberThisMatchingForThe")}</span>
                 </label>
-                {missing.length > 0 && <p className="small muted">Choose a column for: {missing.map((f) => f.label).join(", ")}.</p>}
+                {missing.length > 0 && <p className="small muted">{tr("importWizard.chooseAColumnFor", { join: missing.map((f) => f.label).join(", ") })}</p>}
               </div>
               <div className="card-f">
                 <button type="button" className="btn btn-primary" disabled={missing.length > 0 || busy === "check"} onClick={() => void check()}>
-                  {busy === "check" ? "Checking…" : "Check the rows"}
+                  {busy === "check" ? tr("importWizard.checking") : tr("importWizard.checkTheRows")}
                 </button>
                 <button type="button" className="btn btn-ghost" onClick={() => setStep("pick")}>
                   <ArrowLeft className="ic" aria-hidden="true" />
-                  Back
+                  {tr("importWizard.back")}
                 </button>
               </div>
             </section>
@@ -936,47 +956,47 @@ export function ImportWizard() {
           {step === "check" && preview && reconciliation && (
             <section className="card" aria-labelledby="imp-check">
               <div className="card-h">
-                <h3 id="imp-check">Check before importing</h3>
-                <span className="small muted">Nothing has been imported yet.</span>
+                <h3 id="imp-check">{tr("importWizard.checkBeforeImporting")}</h3>
+                <span className="small muted">{tr("importWizard.nothingHasBeenImportedYet")}</span>
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "12px" }} role="group" aria-label="What will happen">
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "12px" }} role="group" aria-label={tr("importWizard.whatWillHappen")}>
                   <div className="stat">
-                    <span className="stat-l">To import</span>
+                    <span className="stat-l">{tr("importWizard.toImport")}</span>
                     <span className="stat-v">{reconciliation.create}</span>
                     <span className="stat-d">
                       <CircleCheck className="ic ic-sm" aria-hidden="true" />
-                      New {reconciliation.create === 1 ? noun.one : noun.many}
+                      {tr("importWizard.newKind", { kind: noun.one, count: reconciliation.create })}
                     </span>
                   </div>
                   <div className="stat">
-                    <span className="stat-l">Skipped</span>
+                    <span className="stat-l">{tr("importWizard.skipped")}</span>
                     <span className="stat-v">{reconciliation.skip}</span>
                     <span className="stat-d">
                       <CircleSlash className="ic ic-sm" aria-hidden="true" />
-                      Imported before, or repeated
+                      {tr("importWizard.importedBeforeOrRepeated")}
                     </span>
                   </div>
                   <div className="stat">
-                    <span className="stat-l">Need a fix</span>
+                    <span className="stat-l">{tr("importWizard.needAFix")}</span>
                     <span className="stat-v">{reconciliation.error}</span>
                     <span className="stat-d">
                       <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
-                      Left out; fix them in the source and import again
+                      {tr("importWizard.leftOutFixThemIn")}
                     </span>
                   </div>
                 </div>
                 <Totals totals={reconciliation.totals} />
                 <Dropped dropped={preview.run.dropped} />
-                <RowsTable rows={preview.rows} subtitle={funder ? "Organization" : "Funder"} />
+                <RowsTable rows={preview.rows} subtitle={funder ? tr("importWizard.organization") : tr("importWizard.funder")} />
               </div>
               <div className="card-f">
                 <button type="button" className="btn btn-primary" disabled={reconciliation.create === 0} onClick={() => void importAll()}>
-                  {`Import ${reconciliation.create} ${reconciliation.create === 1 ? noun.one : noun.many}`}
+                  {tr("importWizard.importCount", { kind: noun.one, count: reconciliation.create })}
                 </button>
                 <button type="button" className="btn btn-ghost" onClick={() => setStep("map")}>
                   <ArrowLeft className="ic" aria-hidden="true" />
-                  Back to matching
+                  {tr("importWizard.backToMatching")}
                 </button>
               </div>
             </section>
@@ -985,7 +1005,7 @@ export function ImportWizard() {
           {step === "import" && preview && (
             <section className="card" aria-labelledby="imp-run">
               <div className="card-h">
-                <h3 id="imp-run">Importing</h3>
+                <h3 id="imp-run">{tr("importWizard.importing")}</h3>
               </div>
               <div className="card-b">
                 {(() => {
@@ -995,10 +1015,10 @@ export function ImportWizard() {
                     <div className="mtr">
                       <div className="lbls">
                         <span role="status">
-                          Imported <b>{p.written}</b> of <b>{total}</b>
+                          {tr.rich("importWizard.importedOf", { written: p.written, total, b: (chunks) => <b>{chunks}</b>, b2: (chunks) => <b>{chunks}</b> })}
                         </span>
                       </div>
-                      <div className="track" role="progressbar" aria-label="Import progress" aria-valuemin={0} aria-valuemax={total} aria-valuenow={p.written}>
+                      <div className="track" role="progressbar" aria-label={tr("importWizard.importProgress")} aria-valuemin={0} aria-valuemax={total} aria-valuenow={p.written}>
                         <div className="fill" style={{ width: `${total ? (p.written / total) * 100 : 100}%` }}></div>
                       </div>
                     </div>
@@ -1008,7 +1028,7 @@ export function ImportWizard() {
               {error ? (
                 <div className="card-f">
                   <button type="button" className="btn btn-primary" onClick={() => void importAll()}>
-                    Continue the import
+                    {tr("importWizard.continueTheImport")}
                   </button>
                 </div>
               ) : null}
@@ -1018,19 +1038,19 @@ export function ImportWizard() {
           {step === "done" && (
             <section className="card" aria-labelledby="imp-done">
               <div className="card-h">
-                <h3 id="imp-done">Import finished</h3>
+                <h3 id="imp-done">{tr("importWizard.importFinished")}</h3>
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {(() => {
                   const p = detail?.run.progress ?? progress?.run.progress;
                   return (
-                    <Notice tone="ok" title={`${p?.written ?? 0} ${(p?.written ?? 0) === 1 ? noun.one : noun.many} imported`}>
-                      {p && (p.skipped || p.failed) ? `${p.skipped} skipped, ${p.failed} left out with a problem.` : "Every row to import was imported."}
+                    <Notice tone="ok" title={tr("importWizard.importedCount", { kind: noun.one, count: p?.written ?? 0 })}>
+                      {p && (p.skipped || p.failed) ? tr("importWizard.skippedLeftOutWithA", { skipped: p.skipped, failed: p.failed }) : tr("importWizard.everyRowToImportWas")}
                     </Notice>
                   );
                 })()}
                 {!funder && created.length > 0 && (
-                  <ul aria-label="Imported applications" style={{ margin: 0, paddingLeft: "18px" }}>
+                  <ul aria-label={tr("importWizard.importedApplications")} style={{ margin: 0, paddingLeft: "18px" }}>
                     {created.slice(0, 20).map((r) => (
                       <li key={r.line}>
                         <Link to={`${base}/outside/${r.entity!.id}`}>{r.title}</Link>
@@ -1039,26 +1059,26 @@ export function ImportWizard() {
                     ))}
                   </ul>
                 )}
-                {funder && <p className="small muted">Imported awards are marked as imported. A payment you recorded shows as paid elsewhere on the award; nothing is paid from here.</p>}
+                {funder && <p className="small muted">{tr("importWizard.importedAwardsAreMarkedAs")}</p>}
                 {preview?.run.nextPage ? (
-                  <Notice tone="info" title={`There is more to import from ${APP_LABEL[preview.run.source as ImportPuller] ?? "the source"}`}>
-                    <span>This import read one part. Records imported before are skipped, so you can continue at any time. </span>
+                  <Notice tone="info" title={APP_LABEL[preview.run.source as ImportPuller] ? tr("importWizard.thereIsMoreToImport", { system: APP_LABEL[preview.run.source as ImportPuller] }) : tr("importWizard.thereIsMoreToImportSource")}>
+                    <span>{tr("importWizard.thisImportReadOnePart")} </span>
                     <button type="button" className="btn btn-secondary btn-sm" disabled={busy === "read"} onClick={() => void continueNext()}>
-                      Continue with the next records
+                      {tr("importWizard.continueWithTheNextRecords")}
                     </button>
                   </Notice>
                 ) : isPuller(preview?.run.source as Choice) ? (
-                  <Notice tone="ok" title={`Your ${APP_LABEL[preview!.run.source as ImportPuller]} credentials were deleted`}>
-                    The import read everything, so the GMS no longer keeps them. Connect again to import more.
+                  <Notice tone="ok" title={tr("importWizard.yourCredentialsWereDeleted", { value: APP_LABEL[preview!.run.source as ImportPuller] })}>
+                    {tr("importWizard.theImportReadEverythingSo")}
                   </Notice>
                 ) : null}
               </div>
               <div className="card-f">
                 <Link to={noun.to} className="btn btn-primary">
-                  Open {noun.list}
+                  {tr("importWizard.openKind", { kind: noun.one })}
                 </Link>
                 <button type="button" className="btn btn-ghost" onClick={restart}>
-                  Import another
+                  {tr("importWizard.importAnother")}
                 </button>
               </div>
             </section>

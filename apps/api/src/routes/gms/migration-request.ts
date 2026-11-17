@@ -9,6 +9,7 @@ import type { AppEnv } from "../../app.ts";
 import { isSessionToken, verifySupabaseSession } from "../../auth/session.ts";
 import { forbidden } from "../../auth/verify.ts";
 import { ok } from "../../lib/errors.ts";
+import { requestLocale } from "../../lib/locale.ts";
 import { parse } from "../../lib/input.ts";
 import { addressKey } from "../../lib/rate-limit.ts";
 import * as migration from "../../services/migration-request.ts";
@@ -44,6 +45,7 @@ function ctxOf(c: C): migration.MigrationRequestContext {
     requestTo: cfg.consultingRequestTo ?? null,
     webBaseUrl: cfg.webBaseUrl,
     formKey: () => migration.formKeyFrom(c.env.OAUTH_SIGNING_KEY_JWK),
+    locale: requestLocale({ url: c.req.url, header: (n) => c.req.header(n) }),
   };
 }
 

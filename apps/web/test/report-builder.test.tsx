@@ -108,13 +108,13 @@ describe("the HTTP client", () => {
     const fetch = vi.fn(async (url: string, init: RequestInit) => {
       calls.push({ method: init.method!, url, ...(init.body ? { body: String(init.body) } : {}) });
       expect((init.headers as Record<string, string>)["X-GMS-Workspace"]).toBe("ws-1");
-      return url.endsWith("/export") ? new Response("A\r\n", { headers: { "Content-Disposition": 'attachment; filename="r-2027-04-16.csv"' } }) : new Response(JSON.stringify({ data: { ok: true } }));
+      return url.includes("/export") ? new Response("A\r\n", { headers: { "Content-Disposition": 'attachment; filename="r-2027-04-16.csv"' } }) : new Response(JSON.stringify({ data: { ok: true } }));
     });
     const api = createHttpReportsApi({ baseUrl: "https://gms.test", token: async () => "t", workspaceId: () => "ws-1", fetch: fetch as unknown as typeof globalThis.fetch });
     await api.preview(emptyDefinition("awards", ["title"]));
     const f = await api.exportView("starter-overdue-reports");
     await api.setSchedule("v1", { cadence: "weekly", weekday: 1, recipientUserIds: ["u1"] });
     expect(f.filename).toBe("r-2027-04-16.csv");
-    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual(["POST https://gms.test/gms/reports/preview", "GET https://gms.test/gms/report-views/starter-overdue-reports/export", "PUT https://gms.test/gms/report-views/v1/schedule"]);
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual(["POST https://gms.test/gms/reports/preview", "GET https://gms.test/gms/report-views/starter-overdue-reports/export?lang=en", "PUT https://gms.test/gms/report-views/v1/schedule"]);
   });
 });

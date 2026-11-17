@@ -11,6 +11,8 @@ import type { AiSummary, ComparisonDraft } from "../../api/funderFull.ts";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
+import { intlLocale } from "../../i18n/index.tsx";
+import { t } from "./i18n.ts";
 
 interface BudgetRow {
   category: string;
@@ -49,7 +51,7 @@ export function findBudgets(app: InboxApplication): FoundBudget[] {
     for (const [field, value] of Object.entries(r.response ?? {})) {
       if (!Array.isArray(value) || !value.length) continue;
       const rows = value.map(budgetRow);
-      if (rows.every((x): x is BudgetRow => x !== null)) out.push({ form: r.formTitle ?? "Form", field: words(field), rows });
+      if (rows.every((x): x is BudgetRow => x !== null)) out.push({ form: r.formTitle ?? t("applicationPanels.form"), field: words(field), rows });
     }
   }
   return out;
@@ -59,7 +61,7 @@ function documentOf(v: unknown): Omit<FoundDocument, "form" | "field"> | null {
   if (!isObject(v)) return null;
   const passport = typeof v.passportDocumentId === "string";
   if (!passport && typeof v.documentId !== "string") return null;
-  return { name: typeof v.name === "string" ? v.name : passport ? "Passport locker document" : "Uploaded document", source: passport ? "passport" : "upload", sha256: typeof v.sha256 === "string" ? v.sha256 : null };
+  return { name: typeof v.name === "string" ? v.name : passport ? t("applicationPanels.passportLockerDocument") : t("applicationPanels.uploadedDocument"), source: passport ? "passport" : "upload", sha256: typeof v.sha256 === "string" ? v.sha256 : null };
 }
 
 /** Every file reference in the application's responses, whether a single field or a list. */
@@ -69,7 +71,7 @@ export function findDocuments(app: InboxApplication): FoundDocument[] {
     for (const [field, value] of Object.entries(r.response ?? {})) {
       for (const candidate of Array.isArray(value) ? value : [value]) {
         const doc = documentOf(candidate);
-        if (doc) out.push({ form: r.formTitle ?? "Form", field: words(field), ...doc });
+        if (doc) out.push({ form: r.formTitle ?? t("applicationPanels.form"), field: words(field), ...doc });
       }
     }
   }
@@ -82,12 +84,12 @@ export function BudgetPanel({ app }: { app: InboxApplication }) {
   return (
     <div className="card">
       <div className="card-h">
-        <h3>Budget</h3>
-        {requested !== null && <span className="small muted">Requested {formatMinor(requested, app.currency)}</span>}
+        <h3>{t("applicationPanels.budget")}</h3>
+        {requested !== null && <span className="small muted">{t("applicationPanels.requested", { amount: formatMinor(requested, app.currency) })}</span>}
       </div>
       {!budgets.length && (
         <div className="card-b">
-          <p className="muted small">None of this application’s forms has a budget table{requested !== null ? "; the requested amount is the only figure." : "."}</p>
+          <p className="muted small">{requested !== null ? t("applicationPanels.noBudgetTableRequestedOnly") : t("applicationPanels.noBudgetTable")}</p>
         </div>
       )}
       {budgets.map((b) => {
@@ -95,13 +97,13 @@ export function BudgetPanel({ app }: { app: InboxApplication }) {
         const over = requested !== null && total > requested;
         return (
           <div key={`${b.form}-${b.field}`}>
-            <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label={`${b.field}, scrollable`}>
+            <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }} tabIndex={0} role="region" aria-label={t("applicationPanels.scrollable", { field: b.field })}>
               <table className="tbl bud" aria-label={`${b.field} · ${b.form}`}>
                 <thead>
                   <tr>
-                    <th>Category</th>
-                    <th className="num">Amount</th>
-                    <th>Notes</th>
+                    <th>{t("applicationPanels.category")}</th>
+                    <th className="num">{t("applicationPanels.amount")}</th>
+                    <th>{t("applicationPanels.notes")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -115,14 +117,14 @@ export function BudgetPanel({ app }: { app: InboxApplication }) {
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td>Total</td>
+                    <td>{t("applicationPanels.total")}</td>
                     <td className={over ? "num over" : "num"}>{formatMinor(total, b.rows[0]?.currency ?? app.currency)}</td>
-                    <td>{over ? `Exceeds the requested amount by ${formatMinor(total - requested, app.currency)}` : ""}</td>
+                    <td>{over ? t("applicationPanels.exceedsTheRequestedAmount", { amount: formatMinor(total - requested, app.currency) }) : ""}</td>
                   </tr>
                 </tfoot>
               </table>
             </div>
-            <div className="card-f small muted">From “{b.form}”</div>
+            <div className="card-f small muted">{t("applicationPanels.from", { form: b.form })}</div>
           </div>
         );
       })}
@@ -137,17 +139,17 @@ export function DocumentsPanel({ app }: { app: InboxApplication }) {
   return (
     <div className="card">
       <div className="card-h">
-        <h3>Documents</h3>
-        <span className="small muted">{docs.length === 1 ? "1 file" : `${docs.length} files`}</span>
+        <h3>{t("applicationPanels.documents")}</h3>
+        <span className="small muted">{t("applicationPanels.fileCount", { count: docs.length })}</span>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {!docs.length && <p className="muted small">No files are attached to this application.</p>}
+        {!docs.length && <p className="muted small">{t("applicationPanels.noFilesAreAttached")}</p>}
         {docs.map((d, i) => {
           const ext = /\.([a-z0-9]{2,4})$/i.exec(d.name)?.[1]?.toLowerCase() ?? "";
           const kind = ext === "pdf" ? "ft-pdf" : ["xls", "xlsx", "csv"].includes(ext) ? "ft-xls" : ["doc", "docx"].includes(ext) ? "ft-doc" : "";
           return (
             <div key={i} className="doc">
-              <span className={`ft ${kind}`.trim()}>{ext ? ext.slice(0, 3).toUpperCase() : "FILE"}</span>
+              <span className={`ft ${kind}`.trim()}>{ext ? ext.slice(0, 3).toUpperCase() : t("applicationPanels.file")}</span>
               <div className="grow">
                 <div className="nm">{d.name}</div>
                 <div className="mt">
@@ -156,15 +158,15 @@ export function DocumentsPanel({ app }: { app: InboxApplication }) {
                   {d.source === "passport" ? (
                     <span className="prov prov-passport">
                       <BadgeCheck className="ic" aria-hidden="true" />
-                      Passport locker
+                      {t("applicationPanels.passportLocker")}
                     </span>
                   ) : (
-                    <span className="prov prov-entered">Uploaded</span>
+                    <span className="prov prov-entered">{t("applicationPanels.uploaded")}</span>
                   )}
                   {d.sha256 && (
                     <>
                       <span>·</span>
-                      <span className="mono">sha256 {shortHash(d.sha256)}</span>
+                      <span className="mono">{t("applicationPanels.sha256", { shortHash: shortHash(d.sha256) })}</span>
                     </>
                   )}
                 </div>
@@ -172,7 +174,7 @@ export function DocumentsPanel({ app }: { app: InboxApplication }) {
             </div>
           );
         })}
-        {docs.some((d) => d.source === "passport") && <p className="small muted">Passport locker files are referenced, not copied. The applicant keeps them current in Passport.</p>}
+        {docs.some((d) => d.source === "passport") && <p className="small muted">{t("applicationPanels.passportLockerFilesAre")}</p>}
       </div>
     </div>
   );
@@ -198,23 +200,23 @@ export function AiSummaryPanel({ applicationId }: { applicationId: string }) {
     <section className="assist" aria-labelledby="ai-summary-h">
       <div className="hd">
         <Sparkles className="ic" aria-hidden="true" style={{ color: "var(--s-agent-fg)" }} />
-        <span id="ai-summary-h">AI summary</span>
+        <span id="ai-summary-h">{t("applicationPanels.aiSummary")}</span>
         <span className="draft-mark">
           <TriangleExclamationPoint className="ic ic-sm" aria-hidden="true" />
-          {view?.label ?? "Review before relying on it"}
+          {view?.label ?? t("applicationPanels.reviewBeforeRelyingOn")}
         </span>
       </div>
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "10px", fontSize: "13px" }}>
-        {kept.status === "loading" && !written ? <p className="muted small" role="status">Looking for this application’s summary…</p> : null}
-        {kept.status === "error" ? <ErrorBanner error={kept.error} onRetry={kept.reload} title="The summary could not be loaded" /> : null}
+        {kept.status === "loading" && !written ? <p className="muted small" role="status">{t("applicationPanels.lookingForThisApplications")}</p> : null}
+        {kept.status === "error" ? <ErrorBanner error={kept.error} onRetry={kept.reload} title={t("applicationPanels.theSummaryCouldNot")} /> : null}
         {s ? (
-          <div className="col" style={{ gap: "8px" }} aria-label="AI summary of this application" role="group">
+          <div className="col" style={{ gap: "8px" }} aria-label={t("applicationPanels.aiSummaryOfThis")} role="group">
             <p>{s.summary}</p>
-            {s.strengths.length > 0 && <DraftList title="Strengths" items={s.strengths} />}
-            {s.openQuestions.length > 0 && <DraftList title="Open questions" items={s.openQuestions} />}
+            {s.strengths.length > 0 && <DraftList title={t("applicationPanels.strengths")} items={s.strengths} />}
+            {s.openQuestions.length > 0 && <DraftList title={t("applicationPanels.openQuestions")} items={s.openQuestions} />}
             {s.quotes.map((q, i) => (
               <blockquote key={i} className="cmt" style={{ margin: 0 }}>
-                <span className="fld-ref">Applicant-supplied · {q.field}</span>
+                <span className="fld-ref">{t("applicationPanels.applicantSupplied", { field: q.field })}</span>
                 <span className="bd">“{q.text}”</span>
               </blockquote>
             ))}
@@ -225,12 +227,12 @@ export function AiSummaryPanel({ applicationId }: { applicationId: string }) {
             ))}
             <Cautions items={s.cautions} />
             <p className="small muted">
-              Written by the assistant{view?.generatedAt ? ` on ${formatDate(view.generatedAt)}` : ""} from this version of the answers. Everyone reviewing this version sees the same summary. It does not score or decide anything.
+              {view?.generatedAt ? t("applicationPanels.writtenOnFromThisVersion", { date: formatDate(view.generatedAt) }) : t("applicationPanels.writtenFromThisVersion")}
             </p>
           </div>
         ) : view ? (
           <>
-            <p className="muted small">No summary yet for this version of the answers. Writing it uses one of this month’s {view.quota.remaining} remaining drafts; everyone reviewing this version then reads the same one. It does not score or decide anything.</p>
+            <p className="muted small">{t("applicationPanels.noSummaryYetFor", { remaining: view.quota.remaining })}</p>
             <button
               type="button"
               className="btn btn-sm btn-secondary"
@@ -242,12 +244,12 @@ export function AiSummaryPanel({ applicationId }: { applicationId: string }) {
               }}
             >
               <Sparkles className="ic" aria-hidden="true" />
-              {write.state === "saving" ? "Writing…" : "Write the summary"}
+              {write.state === "saving" ? t("applicationPanels.writing") : t("applicationPanels.writeTheSummary")}
             </button>
-            {spent && <p className="help">This month’s drafts are used up. The count resets on {new Date(view.quota.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}.</p>}
+            {spent && <p className="help">{t("applicationPanels.thisMonthsDraftsAre", { date: new Date(view.quota.resetsAt).toLocaleDateString(intlLocale(), { month: "short", day: "numeric", timeZone: "UTC" }) })}</p>}
           </>
         ) : null}
-        {write.error !== null && <ErrorBanner error={write.error} title="The assistant could not write the summary" />}
+        {write.error !== null && <ErrorBanner error={write.error} title={t("applicationPanels.theAssistantCouldNot")} />}
       </div>
     </section>
   );
@@ -269,46 +271,46 @@ export function AssistantPanel({ app, rubricId, criterionLabel }: { app: InboxAp
     <section className="assist" aria-labelledby="assist-h">
       <div className="hd">
         <Sparkles className="ic" aria-hidden="true" style={{ color: "var(--s-agent-fg)" }} />
-        <span id="assist-h">Assistant</span>
-        <span className="draft-mark">Draft — review before use</span>
+        <span id="assist-h">{t("applicationPanels.assistant")}</span>
+        <span className="draft-mark">{t("applicationPanels.draftReviewBeforeUse")}</span>
         {latest && (
           <span className="quota">
-            {latest.used} of {latest.limit} this month
+            {t("applicationPanels.ofThisMonth", { used: latest.used, limit: latest.limit })}
           </span>
         )}
       </div>
       <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px" }}>
-        <p className="muted small">Drafts are written from this application’s answers. Nothing is saved, sent or scored; applicant text is quoted as written and has not been verified.</p>
+        <p className="muted small">{t("applicationPanels.draftsAreWrittenFrom")}</p>
         <div className="row wrap" style={{ gap: "8px" }}>
           <button
             type="button"
             className="btn btn-sm btn-secondary"
             disabled={spent || !rubricId || compare.state === "saving"}
-            title={rubricId ? undefined : "This stage has no rubric"}
+            title={rubricId ? undefined : t("applicationPanels.thisStageHasNo")}
             onClick={async () => {
               const r = await compare.run();
               if (r) setComparison(r);
             }}
           >
-            {compare.state === "saving" ? "Drafting…" : "Compare to rubric"}
+            {compare.state === "saving" ? t("applicationPanels.drafting") : t("applicationPanels.compareToRubric")}
           </button>
         </div>
-        {spent && <p className="help">This month’s drafts are used up. The count resets on {new Date(latest.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}.</p>}
-        {compare.error !== null && <ErrorBanner error={compare.error} title="The assistant could not draft this" />}
+        {spent && <p className="help">{t("applicationPanels.thisMonthsDraftsAre", { date: new Date(latest.resetsAt).toLocaleDateString(intlLocale(), { month: "short", day: "numeric", timeZone: "UTC" }) })}</p>}
+        {compare.error !== null && <ErrorBanner error={compare.error} title={t("applicationPanels.theAssistantCouldNot2")} />}
         {comparison && (
-          <div className="col" style={{ gap: "8px" }} aria-label="Rubric comparison draft" role="group">
-            <h4>Against the rubric</h4>
+          <div className="col" style={{ gap: "8px" }} aria-label={t("applicationPanels.rubricComparisonDraft")} role="group">
+            <h4>{t("applicationPanels.againstTheRubric")}</h4>
             {comparison.criteria.map((c) => (
               <div key={c.key} className="col" style={{ gap: "4px" }}>
                 <div className="b">{criterionLabel(c.key)}</div>
                 <p>{c.observations}</p>
                 {c.evidence.map((q, i) => (
                   <blockquote key={i} className="cmt" style={{ margin: 0 }}>
-                    <span className="fld-ref">Applicant-supplied · {q.field}</span>
+                    <span className="fld-ref">{t("applicationPanels.applicantSupplied", { field: q.field })}</span>
                     <span className="bd">“{q.text}”</span>
                   </blockquote>
                 ))}
-                {c.gaps.length > 0 && <DraftList title="Not addressed" items={c.gaps} />}
+                {c.gaps.length > 0 && <DraftList title={t("applicationPanels.notAddressed")} items={c.gaps} />}
               </div>
             ))}
             <Cautions items={comparison.cautions} />

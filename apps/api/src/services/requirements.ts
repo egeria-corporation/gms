@@ -4,7 +4,8 @@
 // consent. Status changes go through the requirement and submission machines; accepting a
 // requirement that releases a tranche makes that tranche due.
 import { buildPrefillSource, computeResponseStatus, mergeResponse, passportFieldPaths, prefill, validateResponse, type FormDefinition, type JsonObject, type Provenance } from "@gms/forms";
-import { DEFAULT_REMINDER_PLAN, DEFAULT_TEMPLATES, normalizePlan, renderEmail, runReminders, type ReminderLog } from "@gms/notify";
+import { DEFAULT_LOCALE, type Locale } from "@gms/i18n";
+import { DEFAULT_REMINDER_PLAN, defaultTemplate, localizeFields, normalizePlan, reminderTiming, renderEmail, reportSharedEmail, runReminders, type ReminderLog } from "@gms/notify";
 import { acceptRequirement, requirementMachine, submissionMachine, type RequirementAction, type RequirementContext, type RequirementStatus, type SubmissionAction, type SubmissionContext, type SubmissionStatus, type TrancheCondition, type TrancheStatus } from "@gms/workflow";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
@@ -15,6 +16,7 @@ import { primaryEmail } from "./apply.ts";
 import { namesShared, orgFacts, sharesWith, sharingWith, verificationShared } from "./profile.ts";
 import { STAFF_ROLES, emitFor, type Award } from "./awards.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { byLocale, memberAddressLocales } from "./recipient-locale.ts";
 import { toDefinition } from "./forms.ts";
 import { normalizePreferences } from "./notifications.ts";
 import type { PageRequest } from "./programs.ts";
@@ -228,9 +230,10 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: 
 
 async function reminderEmail(ctx: ServiceContext, r: Req, award: Award, offsetDays: number) {
   const f = await awardFields(ctx, award);
-  const timing = offsetDays < 0 ? `in ${-offsetDays} days` : offsetDays === 0 ? "today" : `${offsetDays} days ago`;
   const link = f.recipientHandle ? `${ctx.config.webBaseUrl}/w/${f.recipientHandle}/reports` : ctx.config.webBaseUrl;
-  return { to: f.recipientEmail, rendered: renderEmail(DEFAULT_TEMPLATES.report_reminder, { ...f.fields, requirement: { title: r.title, dueDate: day(r.due_at!), timing }, links: { requirement: link } }) };
+  // The reminder is always the GMS's own copy, in each recipient's language.
+  const rendered = (locale: Locale = DEFAULT_LOCALE) => renderEmail(defaultTemplate("report_reminder", locale), localizeFields({ ...f.fields, requirement: { title: r.title, dueDate: day(r.due_at!), timing: reminderTiming(offsetDays, locale) }, links: { requirement: link } }, locale));
+  return { to: f.recipientEmail, rendered };
 }
 
 /**
@@ -294,9 +297,13 @@ export async function sendDueReminders(ctx: ServiceContext, r: Req): Promise<{ s
         // when no member has opted in, so a reminder is never silently dropped.
         const list = who.immediate.length ? who.immediate : who.deferred > 0 ? [] : to.map((email, i) => ({ key: i ? `org${i}` : "org", email }));
         if (!list.length && who.deferred === 0) throw new Error("no_recipient_email");
+        // Each in their own language: a member by their preference, the organization's address by the member it belongs to.
+        const locales = await memberAddressLocales(ctx, award.recipient_workspace_id, list.map((x) => x.email));
         let first: string | null = null;
         for (const x of list) {
-          const sent = await mailer.send({ from, to: [x.email], subject: rendered.subject, html: rendered.html, text: rendered.text, idempotencyKey: `${key}:${x.key}` });
+          const locale = locales.get(x.email.toLowerCase()) ?? DEFAULT_LOCALE;
+          const mail = rendered(locale);
+          const sent = await mailer.send({ from, to: [x.email], subject: mail.subject, html: mail.html, text: mail.text, locale, idempotencyKey: `${key}:${x.key}` });
           first ??= sent.id;
         }
         return first ?? `digest:${key}`;
@@ -367,7 +374,14 @@ export async function remindNow(ctx: ServiceContext, requirementId: string) {
   const claim = await claimManualReminder(ctx, r);
   let id: string;
   try {
-    ({ id } = await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to, subject: rendered.subject, html: rendered.html, text: rendered.text }));
+    // One email per language among the organization's addresses, English first; the first one's id is the reminder's.
+    const groups = byLocale(to, await memberAddressLocales(ctx, award.recipient_workspace_id, to));
+    const ids: string[] = [];
+    for (const [locale, group] of groups) {
+      const mail = rendered(locale);
+      ids.push((await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: group, subject: mail.subject, html: mail.html, text: mail.text, locale })).id);
+    }
+    id = ids[0]!;
   } catch (e) {
     // Not sent: the claim is given back, so the person can try again.
     await claim.release().catch(() => undefined);
@@ -597,7 +611,10 @@ export async function shareSubmission(ctx: ServiceContext, submissionId: string,
   const sender = await ctx.repos.table("workspaces").one({ id: ws.id });
   const to = primaryEmail((target.org_projection as JsonObject | null) ?? {});
   if (ctx.ports.mailer && ctx.config.mailFrom && to) {
-    await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [to], subject: `${sender?.display_name ?? "A grantee"} shared a report with you`, text: `${sender?.display_name ?? "A grantee"} shared an accepted report with ${target.display_name}.${input.note ? `\n\n${input.note}` : ""}\n\nOpen it in Reporting: ${ctx.config.webBaseUrl}/w/${target.handle}/reporting`, html: `<p>${sender?.display_name ?? "A grantee"} shared an accepted report with ${target.display_name}.</p><p><a href="${ctx.config.webBaseUrl}/w/${target.handle}/reporting">Open it in Reporting</a></p>` }).catch(() => undefined);
+    // The funder's own address: its staff's language when the address is a member's, English otherwise.
+    const locale = (await memberAddressLocales(ctx, target.id, [to])).get(to.toLowerCase()) ?? DEFAULT_LOCALE;
+    const mail = reportSharedEmail({ sender: sender?.display_name ?? null, funder: target.display_name, note: input.note ?? null, link: `${ctx.config.webBaseUrl}/w/${target.handle}/reporting`, locale });
+    await ctx.ports.mailer.send({ from: ctx.config.mailFrom, to: [to], subject: mail.subject, text: mail.text, html: mail.html, locale }).catch(() => undefined);
   }
   return { sharedSubmissionId: apiId("submission", copy.id), funder: { workspaceId: target.id, name: target.display_name, handle: target.handle }, fields: input.fields ?? "all" };
 }

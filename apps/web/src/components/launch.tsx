@@ -5,21 +5,24 @@ import { Info } from "lucide-react";
 import type { FunderContact } from "../api/launch.ts";
 import { useLaunchQuery } from "../api/launchHooks.ts";
 
+import { intlLocale, translator } from "../i18n/index.tsx";
+
+const t = translator("shared");
 /** Shown wherever a payment could be released, while payments through Passport are switched off. */
 export function PaymentsOffNotice() {
   return (
     <div className="bnr bnr-info" role="note">
       <Info className="ic" aria-hidden="true" />
       <div>
-        <div className="t">Payments through Passport are not switched on yet</div>
-        <div className="d">Pay grantees the way you do today, then record each payment here. Readiness is shown for information: it tells you whether the grantee’s verified destination is in good standing before you pay.</div>
+        <div className="t">{t("launch.paymentsThroughPassportAreNot")}</div>
+        <div className="d">{t("launch.payGranteesTheWayYou")}</div>
       </div>
     </div>
   );
 }
 
 /** The label for recording a payment made elsewhere; the primary action while payments through Passport are off. */
-export const RECORD_OUTSIDE_LABEL = "Record a payment made outside the GMS";
+export const recordOutsideLabel = (): string => t("launch.recordOutsideLabel");
 
 /** One contact's name, address and telephone, as the funder listed them. */
 export function ContactLine({ contact }: { contact: FunderContact }) {
@@ -48,8 +51,8 @@ export function FunderContactRows({ handle, fallbackEmail }: { handle: string; f
   if (contacts.length === 0) {
     return (
       <>
-        <dt>Email</dt>
-        <dd>{fallbackEmail ? <a href={`mailto:${fallbackEmail}`}>{fallbackEmail}</a> : <span className="muted">Not published. Use the shared thread on an application.</span>}</dd>
+        <dt>{t("launch.email")}</dt>
+        <dd>{fallbackEmail ? <a href={`mailto:${fallbackEmail}`}>{fallbackEmail}</a> : <span className="muted">{t("launch.notPublishedUseTheShared")}</span>}</dd>
       </>
     );
   }
@@ -57,7 +60,7 @@ export function FunderContactRows({ handle, fallbackEmail }: { handle: string; f
     <>
       {contacts.map((c) => (
         <Fragment key={`${c.name}|${c.email}`}>
-          <dt>{c.title ?? "Contact"}</dt>
+          <dt>{c.title ?? t("launch.contact")}</dt>
           <dd>
             <ContactLine contact={c} />
           </dd>
@@ -78,7 +81,7 @@ export function quotaSpent(quota: { used?: number; limit?: number; remaining?: n
 export function QuotaSpentNote({ resetsAt }: { resetsAt?: string | null | undefined }) {
   return (
     <p className="help" role="status">
-      This month’s drafts are used up.{resetsAt ? ` The count resets on ${new Date(resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}.` : " The count resets at the start of next month."}
+      {t("launch.thisMonthSDraftsAre")} {resetsAt ? t("launch.theCountResetsOn", { date: new Date(resetsAt).toLocaleDateString(intlLocale(), { month: "short", day: "numeric", timeZone: "UTC" }) }) : t("launch.theCountResetsAtThe")}
     </p>
   );
 }

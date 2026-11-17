@@ -46,13 +46,21 @@ export async function navigate(page: Page, href: string): Promise<void> {
   }, href);
 }
 
+/** The sign-in screen's controls in either language (the every-route check runs in English and in Spanish). */
+export const SIGN_IN = {
+  email: /^(Work email|Correo de trabajo)$/,
+  send: /^(Send code|Enviar el código)$/,
+  code: /code|código/i,
+  verify: /^(Verify and continue|Verificar y continuar)$/,
+};
+
 /** Signs in with the emailed code, as the mock accepts it. */
 export async function signInWithCode(page: Page, email: string): Promise<void> {
-  await page.getByLabel("Work email").fill(email);
-  await page.getByRole("button", { name: "Send code" }).click();
-  const digits = page.getByRole("group", { name: /code/i }).getByRole("textbox");
+  await page.getByLabel(SIGN_IN.email).fill(email);
+  await page.getByRole("button", { name: SIGN_IN.send }).click();
+  const digits = page.getByRole("group", { name: SIGN_IN.code }).getByRole("textbox");
   for (let i = 0; i < 6; i++) await digits.nth(i).fill(String(i + 1));
-  await page.getByRole("button", { name: "Verify and continue" }).click();
+  await page.getByRole("button", { name: SIGN_IN.verify }).click();
 }
 
 /** A guest reviewer: someone new who accepts an invitation to review and signs in with a code. */
@@ -74,12 +82,12 @@ const asConsultant = (href: string) => async (page: Page) => {
   await navigate(page, href);
 };
 
-/** The funder lists its awards on its public page (off by default), then opens the list. */
+/** The funder lists its awards on its public page (off by default), then opens the list. Names in either language. */
 const listAwards = (then?: (page: Page) => Promise<void>) => async (page: Page) => {
-  const toggle = page.getByRole("switch", { name: "List awards on my public page" });
+  const toggle = page.getByRole("switch", { name: /List awards on my public page|Publicar las subvenciones en mi página pública/ });
   await toggle.click();
-  await page.getByRole("region", { name: "Grants awarded" }).getByText(/1 listed/).waitFor();
-  await page.getByRole("link", { name: "Open your grants-awarded page" }).click();
+  await page.getByRole("region", { name: /^(Grants awarded|Subvenciones otorgadas)$/ }).getByText(/1 listed|Publicadas: 1/).waitFor();
+  await page.getByRole("link", { name: /Open your grants-awarded page|Abrir su página de subvenciones otorgadas/ }).click();
   await page.waitForURL(/\/f\/riverbend\/awards$/);
   await then?.(page);
 };
@@ -124,9 +132,9 @@ export const ROUTES: Record<string, RouteCase[]> = {
     one("/signin?as=funder", "signed-out"),
     one("/signin?step=sso", "signed-out"),
     one("/signin", "signed-out", async (page) => {
-      await page.getByLabel("Work email").fill("sam@newcomer.example");
-      await page.getByRole("button", { name: "Send code" }).click();
-      await page.getByRole("group", { name: /code/i }).waitFor();
+      await page.getByLabel(SIGN_IN.email).fill("sam@newcomer.example");
+      await page.getByRole("button", { name: SIGN_IN.send }).click();
+      await page.getByRole("group", { name: SIGN_IN.code }).waitFor();
     }),
   ],
   "/auth/passport": [one("/auth/passport#token_hash=used-already&type=magiclink", "signed-out")],
@@ -151,13 +159,13 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/account/agents": [one("/account/agents", "funder-admin")],
   "/gallery/moderation": [one("/gallery/moderation", "funder-admin")],
   "/review/assignments": [one("/review/assignments", "funder-reviewer"), one("/", "guest-reviewer", asGuest("gms_inv_mock_guest_reviewer", async (page) => {
-    await page.getByRole("button", { name: "Start reviewing" }).click();
+    await page.getByRole("button", { name: /Start reviewing|Empezar a revisar/ }).click();
     await page.waitForURL(/\/review\/assignments/);
   }))],
   "/review/score/:appId": [one(`/review/score/${SCORING}`, "funder-reviewer")],
   "/review/welcome": [one("/", "guest-reviewer", asGuest("gms_inv_mock_guest_reviewer")), one("/", "guest-reviewer", asGuest("gms_inv_mock_guest_done"))],
   "/review/done": [one("/", "guest-reviewer", asGuest("gms_inv_mock_guest_done", async (page) => {
-    await page.getByRole("link", { name: "See what’s next" }).click();
+    await page.getByRole("link", { name: /See what’s next|Ver qué sigue/ }).click();
     await page.waitForURL(/\/review\/done/);
   }))],
 
@@ -253,62 +261,65 @@ export interface DialogCase {
   opener: string | RegExp;
   /** The dialog's accessible name, exactly. */
   dialog: string;
+  /** The same two names in Spanish: the dialogs are checked in both languages. Names of content (a form, a fund, a file) stay as written. */
+  es: { opener: string | RegExp; dialog: string };
   role?: "dialog" | "menu";
 }
 
 const ED = `${A}/applications/${APP_HEALTH}/edit`;
 const NW = "/invitations/draft?token=gms_inv_mock_cowriter";
 const OA5 = `${A}/grants/outside/${OAP(5)}`;
-const d = (path: string, who: Who, opener: string | RegExp, dialog: string, role?: "menu"): DialogCase => ({ path, who, opener, dialog, ...(role ? { role } : {}) });
+const es = (opener: string | RegExp, dialog: string) => ({ opener, dialog });
+const d = (path: string, who: Who, opener: string | RegExp, dialog: string, spanish: DialogCase["es"], role?: "menu"): DialogCase => ({ path, who, opener, dialog, es: spanish, ...(role ? { role } : {}) });
 
 /** Every distinct dialog the crawl reached (2026-11-16), plus the workspace menu. */
 export const DIALOGS: DialogCase[] = [
-  d(A, "applicant-admin", "Alder Creek Family Services Applicant", "Switch workspace", "menu"),
-  d(NW, "applicant-admin", "Mark as submitted", "Mark as submitted"),
-  d(NW, "applicant-admin", "Send to the funder", "Send to the funder"),
-  d(NW, "applicant-admin", "Get help writing this", "Get help writing this"),
-  d(NW, "applicant-admin", "Edit details", "Edit details"),
-  d(NW, "applicant-admin", "Paste questions", "Paste the funder’s questions"),
-  d(NW, "applicant-admin", "Invite a teammate", "Invite someone to help write this"),
-  d("/account/agents", "funder-admin", "Revoke Claude in Alder Creek Family Services", "Revoke Claude?"),
-  d("/review/assignments", "funder-reviewer", "Declare conflicts and open", "Conflict of interest declaration"),
-  d(`${A}/applications/${APP_HEALTH}`, "applicant-admin", "Withdraw application", "Withdraw this application?"),
-  d(`${F}/programs`, "funder-admin", "New program", "New program"),
-  d(`${F}/programs/${PROGRAM}`, "funder-admin", "Edit program", "Edit program"),
-  d(`${F}/opportunities/${OPP}/competition`, "funder-admin", "Edit stages", "Edit stages"),
-  d(`${F}/opportunities/${OPP}/competition`, "funder-admin", /^Share to the gallery\W+LOI screening rubric$/, "Share “LOI screening rubric” to the gallery"),
-  d(`${F}/forms/${FORM}/edit`, "funder-admin", "Version history", "Version history"),
-  d(`${F}/forms/${FORM}/edit`, "funder-admin", /^Share to the gallery\W+Letter of intent$/, "Share “Letter of intent” to the gallery"),
-  d(`${F}/competitions/${COMP}/panel`, "funder-admin", "Board docket…", "Board docket"),
-  d(`${A}/applications`, "applicant-admin", "New application", "New application"),
-  d(`${F}/reviews/assign`, "funder-admin", "Auto-assign…", "Auto-assign reviewers"),
-  d(`${F}/reviews/assign`, "funder-admin", "Invite external reviewer…", "Invite an external reviewer"),
-  d(`${F}/reviews/assign`, "funder-admin", "Conflict-of-interest policy…", "Conflict-of-interest policy"),
-  d(`${F}/reviews/assign`, "funder-admin", "Conflicts register…", "Conflicts register"),
-  d(`${F}/awards`, "funder-admin", "Countersign…", "Countersign the grant agreement"),
-  d(`${F}/awards/${AWD_F}/payments`, "funder-admin", "Edit schedule", "Edit the payment schedule"),
-  d(`${F}/awards/${AWD_F}/payments`, "funder-admin", "Hold", "Hold tranche 1"),
-  d(`${F}/awards/${AWD_F}/payments`, "funder-admin", "Cancel tranche", "Cancel tranche 1"),
-  d(`${F}/payments/due`, "funder-admin", "Record a payment made outside the GMS", "Record a payment made outside Passport"),
-  d(`${F}/payments/in-flight`, "funder-admin", "Match", "Match this bank transaction"),
-  d(`${F}/grantees`, "funder-admin", "Propose a change", "Propose a change to Alder Creek Family Services"),
-  d(`${F}/report-builder`, "funder-admin", "Save view", "Save view"),
-  d(`${F}/communications`, "funder-admin", "Send to 4", "Send “Standard decline v3” to 4 recipients?"),
-  d(`${A}/settings`, "applicant-admin", "Create token", "Create an API token"),
-  d(`${A}/settings`, "applicant-admin", "Leave workspace", "Leave Alder Creek Family Services?"),
-  d(`${F}/settings/funds`, "funder-admin", "New fund", "New fund"),
-  d(`${F}/settings/funds`, "funder-admin", "Edit Default fund", "Edit Default fund"),
-  d(`${F}/settings/funds`, "funder-admin", "Budget for Default fund", "Budget for Default fund"),
-  d(`${F}/settings/funds`, "funder-admin", "Invite an advisor for Default fund", "Advisor for Default fund"),
-  d(ED, "applicant-admin", "Submit…", "Ready to submit?"),
-  d(ED, "applicant-admin", "Insert from answer library", "Insert from answer library"),
-  d(OA5, "applicant-admin", "Add an obligation", "Add an obligation"),
-  d(OA5, "applicant-admin", "Mark submitted", "Mark the report submitted"),
-  d(OA5, "applicant-admin", "Edit Second payment", "Edit Second payment"),
-  d(`${A}/grants`, "applicant-admin", "Review and sign", "Sign the grant agreement"),
-  d(`${A}/reports?r=${REQ(3)}`, "applicant-admin", "Share this report", "Share “Mid-year progress report”"),
-  d(`${A}/funders`, "applicant-admin", "Add a funder", "Add a funder"),
-  d(`${A}/outside/${OAP(3)}?tab=submission`, "applicant-admin", "Record decision", "Record the decision"),
-  d(`${A}/organization/documents`, "applicant-admin", "Add a document", "Add a document to the vault"),
-  d(`${A}/organization/documents`, "applicant-admin", "Edit Board of directors 2026.pdf", "Board of directors 2026.pdf"),
+  d(A, "applicant-admin", "Alder Creek Family Services Applicant", "Switch workspace", es("Alder Creek Family Services Solicitante", "Cambiar de espacio de trabajo"), "menu"),
+  d(NW, "applicant-admin", "Mark as submitted", "Mark as submitted", es("Marcar como enviada", "Marcar como enviada")),
+  d(NW, "applicant-admin", "Send to the funder", "Send to the funder", es("Enviar al financiador", "Enviar al financiador")),
+  d(NW, "applicant-admin", "Get help writing this", "Get help writing this", es("Pedir ayuda para escribirla", "Pedir ayuda para escribirla")),
+  d(NW, "applicant-admin", "Edit details", "Edit details", es("Editar detalles", "Editar detalles")),
+  d(NW, "applicant-admin", "Paste questions", "Paste the funder’s questions", es("Pegar preguntas", "Pegar las preguntas del financiador")),
+  d(NW, "applicant-admin", "Invite a teammate", "Invite someone to help write this", es("Invitar a alguien del equipo", "Invitar a alguien a ayudar a escribir esto")),
+  d("/account/agents", "funder-admin", "Revoke Claude in Alder Creek Family Services", "Revoke Claude?", es("Revocar Claude en Alder Creek Family Services", "¿Revocar Claude?")),
+  d("/review/assignments", "funder-reviewer", "Declare conflicts and open", "Conflict of interest declaration", es("Declarar conflictos y abrir", "Declaración de conflicto de intereses")),
+  d(`${A}/applications/${APP_HEALTH}`, "applicant-admin", "Withdraw application", "Withdraw this application?", es("Retirar la solicitud", "¿Retirar esta solicitud?")),
+  d(`${F}/programs`, "funder-admin", "New program", "New program", es("Nuevo programa", "Nuevo programa")),
+  d(`${F}/programs/${PROGRAM}`, "funder-admin", "Edit program", "Edit program", es("Editar el programa", "Editar el programa")),
+  d(`${F}/opportunities/${OPP}/competition`, "funder-admin", "Edit stages", "Edit stages", es("Editar las etapas", "Editar las etapas")),
+  d(`${F}/opportunities/${OPP}/competition`, "funder-admin", /^Share to the gallery\W+LOI screening rubric$/, "Share “LOI screening rubric” to the gallery", es(/^Compartir en la galería\W+LOI screening rubric$/, "Compartir «LOI screening rubric» en la galería")),
+  d(`${F}/forms/${FORM}/edit`, "funder-admin", "Version history", "Version history", es("Historial de versiones", "Historial de versiones")),
+  d(`${F}/forms/${FORM}/edit`, "funder-admin", /^Share to the gallery\W+Letter of intent$/, "Share “Letter of intent” to the gallery", es(/^Compartir en la galería\W+Letter of intent$/, "Compartir «Letter of intent» en la galería")),
+  d(`${F}/competitions/${COMP}/panel`, "funder-admin", "Board docket…", "Board docket", es("Carpeta para la junta…", "Carpeta para la junta")),
+  d(`${A}/applications`, "applicant-admin", "New application", "New application", es("Nueva solicitud", "Nueva solicitud")),
+  d(`${F}/reviews/assign`, "funder-admin", "Auto-assign…", "Auto-assign reviewers", es("Asignar automáticamente…", "Asignar revisores automáticamente")),
+  d(`${F}/reviews/assign`, "funder-admin", "Invite external reviewer…", "Invite an external reviewer", es("Invitar a un(a) revisor(a) externo(a)…", "Invitar a un(a) revisor(a) externo(a)")),
+  d(`${F}/reviews/assign`, "funder-admin", "Conflict-of-interest policy…", "Conflict-of-interest policy", es("Política de conflictos de intereses…", "Política de conflictos de intereses")),
+  d(`${F}/reviews/assign`, "funder-admin", "Conflicts register…", "Conflicts register", es("Registro de conflictos…", "Registro de conflictos")),
+  d(`${F}/awards`, "funder-admin", "Countersign…", "Countersign the grant agreement", es("Refrendar…", "Refrendar el convenio de subvención")),
+  d(`${F}/awards/${AWD_F}/payments`, "funder-admin", "Edit schedule", "Edit the payment schedule", es("Editar el calendario", "Editar el calendario de pagos")),
+  d(`${F}/awards/${AWD_F}/payments`, "funder-admin", "Hold", "Hold tranche 1", es("Retener", "Retener el tramo 1")),
+  d(`${F}/awards/${AWD_F}/payments`, "funder-admin", "Cancel tranche", "Cancel tranche 1", es("Cancelar el tramo", "Cancelar el tramo 1")),
+  d(`${F}/payments/due`, "funder-admin", "Record a payment made outside the GMS", "Record a payment made outside Passport", es("Registrar un pago hecho fuera del GMS", "Registrar un pago hecho fuera de Passport")),
+  d(`${F}/payments/in-flight`, "funder-admin", "Match", "Match this bank transaction", es("Conciliar", "Conciliar esta transacción bancaria")),
+  d(`${F}/grantees`, "funder-admin", "Propose a change", "Propose a change to Alder Creek Family Services", es("Proponer un cambio", "Proponer un cambio a Alder Creek Family Services")),
+  d(`${F}/report-builder`, "funder-admin", "Save view", "Save view", es("Guardar la vista", "Guardar la vista")),
+  d(`${F}/communications`, "funder-admin", "Send to 4", "Send “Standard decline v3” to 4 recipients?", es("Enviar a 4", "¿Enviar «Standard decline v3» a 4 destinatarios?")),
+  d(`${A}/settings`, "applicant-admin", "Create token", "Create an API token", es("Crear el token", "Crear un token de API")),
+  d(`${A}/settings`, "applicant-admin", "Leave workspace", "Leave Alder Creek Family Services?", es("Salir del espacio de trabajo", "¿Salir de Alder Creek Family Services?")),
+  d(`${F}/settings/funds`, "funder-admin", "New fund", "New fund", es("Nuevo fondo", "Nuevo fondo")),
+  d(`${F}/settings/funds`, "funder-admin", "Edit Default fund", "Edit Default fund", es("Editar Default fund", "Editar Default fund")),
+  d(`${F}/settings/funds`, "funder-admin", "Budget for Default fund", "Budget for Default fund", es("Presupuesto de Default fund", "Presupuesto de Default fund")),
+  d(`${F}/settings/funds`, "funder-admin", "Invite an advisor for Default fund", "Advisor for Default fund", es("Invitar a un(a) asesor(a) para Default fund", "Asesor(a) de Default fund")),
+  d(ED, "applicant-admin", "Submit…", "Ready to submit?", es("Enviar…", "¿Lista para enviar?")),
+  d(ED, "applicant-admin", "Insert from answer library", "Insert from answer library", es("Insertar desde la biblioteca de respuestas", "Insertar desde la biblioteca de respuestas")),
+  d(OA5, "applicant-admin", "Add an obligation", "Add an obligation", es("Agregar una obligación", "Agregar una obligación")),
+  d(OA5, "applicant-admin", "Mark submitted", "Mark the report submitted", es("Marcar como enviado", "Marcar el informe como enviado")),
+  d(OA5, "applicant-admin", "Edit Second payment", "Edit Second payment", es("Editar Second payment", "Editar Second payment")),
+  d(`${A}/grants`, "applicant-admin", "Review and sign", "Sign the grant agreement", es("Revisar y firmar", "Firmar el convenio de subvención")),
+  d(`${A}/reports?r=${REQ(3)}`, "applicant-admin", "Share this report", "Share “Mid-year progress report”", es("Compartir este informe", "Compartir «Mid-year progress report»")),
+  d(`${A}/funders`, "applicant-admin", "Add a funder", "Add a funder", es("Agregar un financiador", "Agregar un financiador")),
+  d(`${A}/outside/${OAP(3)}?tab=submission`, "applicant-admin", "Record decision", "Record the decision", es("Registrar la decisión", "Registrar la decisión")),
+  d(`${A}/organization/documents`, "applicant-admin", "Add a document", "Add a document to the vault", es("Agregar un documento", "Agregar un documento al archivo")),
+  d(`${A}/organization/documents`, "applicant-admin", "Edit Board of directors 2026.pdf", "Board of directors 2026.pdf", es("Editar Board of directors 2026.pdf", "Board of directors 2026.pdf")),
 ];
