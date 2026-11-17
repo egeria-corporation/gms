@@ -170,6 +170,11 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   history_applications: () => ({ organization_workspace_id: null, award_id: null, program_id: null, program_name: null, call_title: null, submitted_on: null, outcome_label: null, currency: "USD", requested_amount_minor: null, awarded_amount_minor: null, answers: [], source_key: null, source_system: null, import_run_id: null }),
   history_reviews: () => ({ application_id: null, application_key: null, application_title: null, organization_name: null, reviewer_name: null, scores: [], total_score: null, recommendation: null, comment: null, reviewed_on: null, source_key: null, source_system: null, import_run_id: null }),
   history_reports: () => ({ award_id: null, organization_workspace_id: null, award_title: null, organization_name: null, due_on: null, submitted_on: null, report_state_label: null, source_key: null, source_system: null, import_run_id: null }),
+  // 0047: funder loops (E4).
+  peer_invitations: () => ({ status: "sending", sent_at: null, joined_count: 0, first_joined_at: null }),
+  referral_links: () => ({ logo_storage: null, logo_path: null, logo_mime: null, logo_sha256: null, logo_alt: null, revoked_at: null, created_by: null }),
+  referral_joins: () => ({ source_workspace_id: null, peer_invitation_id: null, referral_link_id: null }),
+  directory_listings: (at) => ({ status: "pending", submitted_at: at, decided_by: null, decided_at: null, decision_reason: null, withdrawn_at: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -221,6 +226,11 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   calendar_links: [{ columns: ["workspace_id", "user_id"] }],
   // One submission per call and listing service (0045).
   syndication_sends: [{ columns: ["opportunity_id", "target"] }],
+  // 0047: one invitation per address per workspace, the weekly places, one live link of each kind.
+  peer_invitations: [{ columns: ["workspace_id", "email_hash"] }, { columns: ["workspace_id", "week_start", "slot"] }, { columns: ["token_hash"] }],
+  referral_links: [{ columns: ["token"] }, { columns: ["workspace_id", "kind"], whereNull: "revoked_at" }],
+  referral_joins: [{ columns: ["joined_workspace_id"] }],
+  directory_listings: [{ columns: ["workspace_id"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };

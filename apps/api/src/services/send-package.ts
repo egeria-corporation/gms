@@ -21,7 +21,7 @@
 import { renderPdf, sha256Hex, type Block } from "@gms/documents";
 import { sensitiveValue, type DropReason } from "@gms/importers";
 import { DEFAULT_LOCALE, INTL_LOCALE, type Locale } from "@gms/i18n";
-import { base64Of, cleanLine, cleanText, emailDate, emailT, fromWithName, PACKAGE_FOOTER, PACKAGE_MESSAGE_MAX, packageFooter, sendPackageEmail, sendsAttachments, type EmailAttachment, type EmailKey, type OutboundEmailWithAttachments } from "@gms/notify";
+import { base64Of, cleanLine, cleanText, emailDate, emailT, fromWithName, PACKAGE_MESSAGE_MAX, packageFooterWithLink, packagePdfFooterWithLink, sendPackageEmail, sendsAttachments, type EmailAttachment, type EmailKey, type OutboundEmailWithAttachments } from "@gms/notify";
 import { toMoney } from "@gms/protocol";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
@@ -30,6 +30,7 @@ import { printMoney } from "./awards.ts";
 import { audit, authorize, type ServiceContext } from "./context.ts";
 import { loadOutside, questionsWithAnswers, requirePerson, writable } from "./outside.ts";
 import { poweredByOf } from "./powered-by.ts";
+import { forFundersLink } from "./for-funders.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 import { zipStored } from "./send-package-zip.ts";
 import { requiredOf, SENSITIVE_FILENAME } from "./vault.ts";
@@ -178,6 +179,8 @@ async function gather(ctx: ServiceContext, row: Oa, opts: { screen: boolean }) {
   return {
     organization,
     footer: ws ? poweredByOf(ws) : true,
+    // E4: the footer links funders to "for funders" with this applicant's package link.
+    footerLink: await forFundersLink(ctx, row.workspace_id),
     questions,
     blocked,
     files,
@@ -227,7 +230,7 @@ async function packagePdf(row: Oa, g: Gathered, locale: Locale = DEFAULT_LOCALE)
   }
   blocks.push({ type: "heading", level: 2, text: t("pdf.package.attachments") });
   blocks.push(g.files.length ? { type: "list", ordered: true, items: g.files.map((f) => (f.requiredFor ? `${f.name} (${f.requiredFor})` : f.name)) } : { type: "paragraph", text: t("pdf.package.noFiles") });
-  return renderPdf({ title: row.title, header: g.organization, ...(g.footer ? { footer: packageFooter(locale) } : {}), createdAt: g.asOf, blocks, lang: INTL_LOCALE[locale], pageLabel: (page, total) => t("pdf.page", { page, total }) });
+  return renderPdf({ title: row.title, header: g.organization, ...(g.footer ? { footer: packagePdfFooterWithLink(g.footerLink, locale) } : {}), createdAt: g.asOf, blocks, lang: INTL_LOCALE[locale], pageLabel: (page, total) => t("pdf.page", { page, total }) });
 }
 
 /** `answers.txt`: the questions and answers as plain text, to paste into a funder's portal. */
@@ -235,7 +238,7 @@ function answersText(row: Oa, g: Gathered, locale: Locale = DEFAULT_LOCALE): str
   const t = emailT(locale);
   const head = [row.title, t("pdf.package.answersOrganization", { value: g.organization }), ...(row.funder_name ? [t("pdf.package.answersFunder", { value: row.funder_name })] : []), ...(row.program_name ? [t("pdf.package.answersProgram", { value: row.program_name })] : [])].join("\n");
   const body = g.questions.map((q) => `${q.number}. ${cleanLine(q.prompt)}\n\n${cleanText(q.answer) || t("pdf.package.answersNoAnswer")}`);
-  return [head, ...body, ...(g.footer ? [`--\n${packageFooter(locale)}`] : [])].join("\n\n") + "\n";
+  return [head, ...body, ...(g.footer ? [`--\n${packageFooterWithLink(g.footerLink, locale)}`] : [])].join("\n\n") + "\n";
 }
 
 async function fileBytes(ctx: ServiceContext, f: PackageFile): Promise<Uint8Array> {
@@ -284,7 +287,7 @@ export async function packageSummary(ctx: ServiceContext, id: string) {
     budget: g.budget ? { byYear: g.budget.byYear.map((y) => ({ year: y.year, amount: y.amount })), total: g.budget.total } : null,
     attachments: g.files.map(fileView),
     notIncluded: g.notIncluded.map(({ documentId, name, reason, message }) => ({ documentId, name, reason, message })),
-    footer: { shown: g.footer, text: PACKAGE_FOOTER, canChange: ctx.actor.kind === "user" && ws.role === "admin" },
+    footer: { shown: g.footer, text: packageFooterWithLink(g.footerLink), canChange: ctx.actor.kind === "user" && ws.role === "admin" },
     blocked: g.blocked.map(({ questionId, number, prompt, reason, message }) => ({ questionId, number, prompt, reason, message })),
     files: { pdf: g.filenames.pdf, zip: g.filenames.zip, contents: [g.filenames.pdf, ...g.files.map((f) => f.name), "answers.txt"] },
     totalBytes: total,
@@ -358,7 +361,7 @@ async function composeEmail(ctx: ServiceContext, id: string, input: z.output<typ
   const attachments: (EmailAttachment & { sha256: string })[] = [{ filename: g.filenames.pdf, content: base64Of(pdf), contentType: "application/pdf", sha256: await sha256Hex(pdf) }];
   for (const f of g.files) attachments.push({ filename: f.name, content: base64Of(await fileBytes(ctx, f)), contentType: f.mime, sha256: f.sha256 });
   const deadline = g.deadlines.length ? g.deadlines.map((d) => deadlineIn(d, locale).join(" ")).join("; ") : null;
-  const mail = sendPackageEmail({ sender, organization: g.organization, title: row.title, funder: row.funder_name, program: row.program_name, ask: g.ask, deadline, message: input.message || null, attachments: attachments.map((a) => a.filename), footer: g.footer, locale });
+  const mail = sendPackageEmail({ sender, organization: g.organization, title: row.title, funder: row.funder_name, program: row.program_name, ask: g.ask, deadline, message: input.message || null, attachments: attachments.map((a) => a.filename), footer: g.footer, footerLink: g.footerLink, locale });
   const email = { from: fromWithName(sender.name, mailFrom), to: input.to.toLowerCase(), replyTo: sender.email, subject: mail.subject, text: mail.text, html: mail.html, ...(locale === DEFAULT_LOCALE ? {} : { locale }) };
   const digest = await sha256Hex(new TextEncoder().encode(JSON.stringify({ ...email, attachments: attachments.map((a) => [a.filename, a.contentType, a.sha256]) })));
   return { ws, row, g, email, attachments, digest, sender };

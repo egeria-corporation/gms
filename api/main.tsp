@@ -23,6 +23,8 @@ import "./importer-adapters.tsp";
 import "./connectors.tsp";
 import "./syndication.tsp";
 import "./history.tsp";
+// E4: funder loops.
+import "./loops.tsp";
 
 using TypeSpec.Http;
 

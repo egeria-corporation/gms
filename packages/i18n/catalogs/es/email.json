@@ -481,5 +481,14 @@
   "csv.col.history.score": "Puntuación total",
   "csv.col.history.reviews": "Revisiones",
   "csv.col.history.award": "Subvención vinculada",
-  "csv.col.history.importedFrom": "Sistema de origen"
+  "csv.col.history.importedFrom": "Sistema de origen",
+  "peerInvite.subject": "{inviter} le invitó al OpenGrants Grant Management System",
+  "peerInvite.noteFrom": "Una nota de {inviter}:",
+  "peerInvite.intro": "{inviter}, de {funder}, usa el OpenGrants Grant Management System para gestionar sus subvenciones y le invitó a probarlo.",
+  "peerInvite.what": "Es gratuito y de código abierto, para financiadores y las organizaciones que financian: publique una convocatoria, reciba solicitudes, revíselas con un comité de revisión y dé seguimiento a las subvenciones otorgadas y los informes en un solo lugar.",
+  "peerInvite.how": "Para configurar su espacio de trabajo de financiador, abra este enlace:",
+  "peerInvite.link": "Configurar su espacio de trabajo de financiador",
+  "peerInvite.once": "Este es el único correo que recibirá sobre esta invitación: no habrá recordatorios. Para responder a {inviter}, responda a este correo.",
+  "sendPackage.footerLink": "Preparado con el OpenGrants Grant Management System, gratuito para financiadores y solicitantes · {link}",
+  "sendPackage.footerPdf": "OpenGrants GMS, gratis para financiadores · {link}"
 }

@@ -114,7 +114,8 @@ describe("FormView · edit widgets", () => {
     expect(legal).toHaveAttribute("readonly");
     expect(legal).toHaveValue("Alder Creek Family Services");
     expect(screen.getByRole("link", { name: "Edit in Passport" })).toHaveAttribute("href", "https://passport.example/org");
-    expect(screen.getAllByText("From Passport").length).toBeGreaterThan(0);
+    // E4: the applicant reads a field filled from their profile as theirs, verified through Passport.
+    expect(screen.getAllByText("From your profile (verified)").length).toBeGreaterThan(0);
     expect(screen.getByText("From library")).toBeInTheDocument();
     expect(screen.getByText("Agent draft")).toBeInTheDocument();
   });

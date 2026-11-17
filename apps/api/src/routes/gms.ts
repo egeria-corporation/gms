@@ -40,6 +40,8 @@ import { sendPackageRoutes } from "./gms/send-package.ts";
 import { guestReviewRoutes } from "./gms/guest-review.ts";
 import { connectedAppRoutes } from "./gms/connected-apps.ts";
 import { historyRoutes } from "./gms/history.ts";
+// E4: funder loops.
+import { loopRoutes } from "./gms/loops.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
@@ -199,6 +201,8 @@ gms.route("/", guestReviewRoutes);
 gms.route("/", connectedAppRoutes);
 // Share this call: feeds, the OpenGrants index and Philanthropy News Digest (E2).
 gms.route("/", syndicationRoutes);
+// Funder loops (E4): peer invitations, "for funders", onboarding links, the partner directory, the reusable profile.
+gms.route("/", loopRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

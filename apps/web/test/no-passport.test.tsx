@@ -276,12 +276,12 @@ describe("forms for an applicant without Passport (NP-15)", () => {
     expect(screen.getByText("Edit in Passport")).toBeInTheDocument();
   });
 
-  it("calls the applicant's own details Self-reported to a funder, You entered to the applicant", () => {
+  it("calls the applicant's own details Self-reported to a funder, From your profile to the applicant", () => {
     const { unmount } = render(<FormView form={form} response={{ ein: "123456789" }} mode="funder" provenance={{ "/ein": "self_declared" }} />);
     expect(screen.getByText("Self-reported")).toBeInTheDocument();
-    expect(screen.queryByText("You entered")).not.toBeInTheDocument();
+    expect(screen.queryByText("From your profile")).not.toBeInTheDocument();
     unmount();
     render(<FormView form={form} response={{ ein: "123456789" }} mode="edit" provenance={{ "/ein": "self_declared" }} passportLinked={false} />);
-    expect(screen.getByText("You entered")).toBeInTheDocument();
+    expect(screen.getByText("From your profile")).toBeInTheDocument();
   });
 });

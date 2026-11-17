@@ -481,5 +481,14 @@
   "csv.col.history.score": "Total score",
   "csv.col.history.reviews": "Reviews",
   "csv.col.history.award": "Linked award",
-  "csv.col.history.importedFrom": "From system"
+  "csv.col.history.importedFrom": "From system",
+  "peerInvite.subject": "{inviter} invited you to the OpenGrants Grant Management System",
+  "peerInvite.noteFrom": "A note from {inviter}:",
+  "peerInvite.intro": "{inviter} at {funder} uses the OpenGrants Grant Management System to run their grants and invited you to try it.",
+  "peerInvite.what": "It is free and open source, for funders and the organizations they fund: publish a call, take applications, review them with a panel, and keep track of awards and reports in one place.",
+  "peerInvite.how": "To set up your funder workspace, open this link:",
+  "peerInvite.link": "Set up your funder workspace",
+  "peerInvite.once": "This is the only email you will get about this invitation: no reminders follow. To answer {inviter}, reply to this email.",
+  "sendPackage.footerLink": "Prepared with the OpenGrants Grant Management System, free for funders and applicants · {link}",
+  "sendPackage.footerPdf": "OpenGrants GMS, free for funders · {link}"
 }

@@ -128,7 +128,7 @@ describe("reports", () => {
     expect(families).toHaveValue(212);
     // Every carried value says where it came from.
     expect(screen.getAllByText("From prior report").length).toBeGreaterThan(2);
-    expect(screen.getByText("From Passport")).toBeInTheDocument();
+    expect(screen.getByText("From your profile (verified)")).toBeInTheDocument();
     const draft = more.submissions.at(-1)!;
     expect(draft.status).toBe("draft");
     expect(draft.form.provenance["/familiesServed"]).toBe("prior_submission");

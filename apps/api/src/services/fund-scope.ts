@@ -149,6 +149,12 @@ const RULES: { [T in TableName]: Rule } = {
   outside_questions: OPEN,
   // 0040: an applicant's own sends of its outside applications (funder workspaces have none).
   package_sends: OPEN,
+  // 0047: funder loops (E4). Invitations, links and the directory listing are an admin's (no fund
+  // advisor reaches them); a join is read by the API alone.
+  peer_invitations: OPEN,
+  referral_links: OPEN,
+  referral_joins: OPEN,
+  directory_listings: OPEN,
   passport_account_links: OPEN,
   passport_link_requests: OPEN,
   passport_links: OPEN,

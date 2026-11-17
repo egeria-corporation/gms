@@ -68,6 +68,11 @@ export interface Env {
    * Unset, nobody moderates and nothing new is published.
    */
   GALLERY_MODERATORS?: string;
+  /**
+   * Who moderates the partner directory (E4): comma-separated user ids or email addresses, a
+   * Wrangler secret like GALLERY_MODERATORS, which it falls back to while it is not set.
+   */
+  DIRECTORY_MODERATORS?: string;
   /** Social posting through Zernio: on only when both are set (docs/social.md). */
   ZERNIO_API_KEY?: string;
   ZERNIO_WEBHOOK_SECRET?: string;
