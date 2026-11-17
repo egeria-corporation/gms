@@ -38,7 +38,9 @@ select tables_are(
     'syndication_sends',
     'history_applications', 'history_reviews', 'history_reports',
     'peer_invitations', 'referral_links', 'referral_joins', 'directory_listings',
-    'share_kit_profiles', 'social_reminder_prompts'
+    'share_kit_profiles', 'social_reminder_prompts',
+    -- 0052: the operators' growth measures (deals lost by reason, the Search Console property).
+    'lost_deals', 'operator_settings'
   ],
   'public schema has exactly the GMS tables'
 );
