@@ -20,6 +20,7 @@ import "./send-package.tsp";
 import "./guest-review.tsp";
 import "./digests.tsp";
 import "./importer-adapters.tsp";
+import "./connectors.tsp";
 
 using TypeSpec.Http;
 
