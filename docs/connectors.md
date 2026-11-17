@@ -13,6 +13,10 @@ in `connector_accounts`; they are never returned or logged.
 | Mercury (`mercury`) | `BankFeed` | `MercuryBankFeed` | Yes, 2026-11-10 (see below) | **No** |
 | Google Workspace (`google_workspace`) | `WorkspaceApps` | `GoogleWorkspaceConnector` (Composio) | Yes, 2026-11-10 (see below) | No |
 | Google Sheets import (`google_sheets`) | `SheetsSource` | `ComposioSheetsSource` (Composio tools) | Yes, 2026-11-15 (see below) | **No** |
+| Slack alerts (`slack`) | `SlackAlerts` | `ComposioSlackAlerts` (Composio tools) | Tool slugs and schemas, 2026-11-17 | **No** |
+| Google Calendar (`google_calendar`) | `CalendarSync` | `ComposioCalendarSync` (Composio tools) | Tool slugs and schemas, 2026-11-17 | **No** |
+| Google Drive, applicants (`google_drive`) | `DriveFiles` | `ComposioDriveFiles` (Composio tools and proxy) | Tool slugs and schemas, 2026-11-17 | **No** |
+| Salesforce import (`salesforce`) | `SalesforceSource` | `ComposioSalesforceSource` (Composio tools) | Tool slugs and schemas, 2026-11-17 | **No** |
 | Airtable import (`airtable`) | `AirtableSource` | `ComposioAirtableSource` (Composio tools) | Yes, 2026-11-15 (see below) | **No** |
 | OpenGrants discovery | `OpenGrantsClient` | `RestOpenGrantsClient` | Yes, 2026-11-11 (OpenAPI 1.2.0) | **Yes**, 2026-11-11: search and match against the live API |
 | Custom MCP servers | `McpDirectory` | `HttpMcpDirectory` (`tools/list`, `tools/call`) | MCP Streamable HTTP, stateless JSON-RPC | Against in-process fakes only |
@@ -326,3 +330,187 @@ run, and the wizard shows them.
 Grant history pulled straight from Fluxx or Zengine does not go through Composio: the funder hands
 the GMS its own read-only credentials, kept encrypted and deleted when the import is done. See
 `docs/importers.md` (Fluxx and Zengine).
+
+## Connected apps (v1.12.0): Slack, Google Calendar, Google Drive, Salesforce
+
+Code: `packages/connectors/src/apps.ts` (the four connectors, their fixtures, scope rules and
+`connectedAppPorts`), `apps/api/src/services/connector-alerts.ts` (Slack alerts),
+`apps/api/src/services/calendar-sync.ts` (Google Calendar), `apps/api/src/services/integrations.ts`
+(connect and disconnect, Drive copy and save), `packages/importers/src/sources/salesforce.ts` and
+`apps/api/src/services/imports.ts` (the Salesforce source), routes in
+`apps/api/src/routes/gms/connected-apps.ts` and `/gms/connectors/{provider}`, the jobs in
+`apps/jobs/src/index.ts`, migration `0044_connected_apps.sql`, the screen
+`apps/web/src/screens/shared/ConnectedApps.tsx` (Settings › Connected apps), and
+`apps/web/src/components/DriveAttach.tsx`.
+
+Every app is **hidden until configured**: without `COMPOSIO_API_KEY` and the app's own auth config,
+its port is absent, `/gms/config` reports `available.<app>: false`, the screen does not show it, and
+its routes answer `503 connector_not_configured`.
+
+### Who does what
+
+| Act | Who |
+|---|---|
+| Connect or disconnect Slack, Google Drive, Salesforce (`POST`/`DELETE /gms/connectors/{provider}`) | A workspace admin, signed in. Google Drive: applicant workspaces only |
+| Choose the Slack channel and events, turn alerts on or off (`PUT`/`DELETE /gms/connected-apps/slack`) | A workspace admin, signed in |
+| Connect my Google Calendar, choose a calendar, update now, disconnect | Each person, for themselves: funder staff (admin, program officer, finance, auditor) and applicant members (admin, editor, finance, viewer). Reviewers and consultants are left out |
+| Attach a file from Google Drive, save the as-submitted copy | Applicant admins, editors and finance, signed in |
+| Read the Slack settings (`GET /gms/connected-apps/slack`, MCP `get_slack_alerts`) | Workspace admins; agents with `workspace:admin` |
+
+Agents and API clients get `403 person_required` on every connect, choose, post, write and copy:
+there is no MCP tool for any of them. The only MCP tool is `get_slack_alerts`, read only.
+
+### Composio
+
+One auth config per toolkit, each from its own Wrangler secret on the API Worker (and, for Slack
+and Calendar, the jobs Worker). The Composio `user_id` is the GMS workspace id.
+
+| Secret | Toolkit | Scopes, exactly | Notes |
+|---|---|---|---|
+| `COMPOSIO_SLACK_AUTH_CONFIG_ID` | `slack` | `chat:write`, `channels:read` | Bot scopes. Never `*:history`, `users:*`, `groups:*`, `im:*`, `chat:write.public`. The app must be invited to the channel |
+| `COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID` | `googlecalendar` | `https://www.googleapis.com/auth/calendar.calendarlist.readonly`, `https://www.googleapis.com/auth/calendar.events.owned` (+ `openid email profile`) | The narrowest pair that lists the person's calendars and writes events on calendars they own. `calendar`, `calendar.readonly`, `calendar.events` are refused. One connected account per person on the workspace's entity; `calendar_links.composio_account_id` names it, and every call uses that account only |
+| `COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID` | `googledrive` | `https://www.googleapis.com/auth/drive.file` (+ `openid email profile`) | **Must use the same Google OAuth client** (same Google Cloud project) as the Picker's `VITE_GOOGLE_OAUTH_CLIENT_ID`: a file picked in the Picker is granted to that project, and only then can the connection read it. `COMPOSIO_GOOGLE_AUTH_CONFIG_ID` is not reused: it also asks for `admin.directory.user.readonly`, which an applicant does not need |
+| `COMPOSIO_SALESFORCE_AUTH_CONFIG_ID` | `salesforce` | `api` (+ `refresh_token`, `offline_access`, `id`, `openid`, `profile`, `email`) | Salesforce has no read-only OAuth scope. The GMS only ever runs a SOQL SELECT through `SALESFORCE_RUN_SOQL_QUERY` and follows its pages; recommend connecting as a Salesforce user whose profile is read-only. `full`, `web`, `visualforce`, `chatter_api`, `wave_api`, `cdp_*` and the like are refused |
+
+The scopes are read from Composio and checked **before every use**, as for Google Workspace. A
+connection holding anything else is deleted at Composio (`422 connector_scope_rejected`); one that
+reports no scopes or lacks a required one is left in place and not used
+(`422 connector_scope_unverified`). The connected account must be on the GMS's auth config and, when
+Composio names it, on this workspace's entity.
+
+**Tools executed** (`POST /api/v3.1/tools/execute/{slug}`, body `{ connected_account_id, user_id, arguments }`;
+never `instant_account`). Slugs and argument names were checked with Composio's tool search and
+schema tools on 2026-11-17; no tool was executed.
+
+| Tool | Arguments the GMS sends | Read from `data` |
+|---|---|---|
+| `SLACK_LIST_ALL_CHANNELS` | `types: "public_channel"`, `exclude_archived: true`, `limit: 200`, `cursor` on later pages (10 at most) | `channels[].id`, `name`, `is_member`, `is_archived`, `is_private`; `response_metadata.next_cursor` |
+| `SLACK_SEND_MESSAGE` | `channel` (the id), `markdown_text` (at most 1,000 characters), `unfurl_links: false`, `unfurl_media: false` | `ts` |
+| `GOOGLECALENDAR_LIST_CALENDARS` | `min_access_role: "owner"`, `max_results: 100`, `page_token` (5 pages at most) | `calendars[].id`, `summary`, `summaryOverride`, `primary`, `accessRole`, `deleted`; `next_page_token` |
+| `GOOGLECALENDAR_CREATE_EVENT` | `calendar_id`, `summary`, `description`, `start_date`, `end_date` (the next day: an all-day event), `create_meeting_room: false`, `send_updates: "none"`, `exclude_organizer: true`, `transparency: "transparent"` | `response_data.id` |
+| `GOOGLECALENDAR_PATCH_EVENT` | `calendar_id`, `event_id`, `summary`, `description`, `start_time`, `end_time` (dates), `send_updates: "none"` | nothing; a failure means the event is gone and it is written again |
+| `GOOGLECALENDAR_DELETE_EVENT` | `calendar_id`, `event_id`, `send_updates: "none"` | nothing; already gone is fine |
+| `GOOGLEDRIVE_GET_FILE_METADATA` | `fileId`, `fields: "id,name,mimeType,size"`, `supportsAllDrives: true` | `name`, `mimeType`, `size` |
+| `GOOGLEDRIVE_DOWNLOAD_FILE` | `fileId`, and `mime_type: "application/pdf"` for a Google Doc, Sheet, Slides or Drawing | `downloaded_file_content.{name, mimetype, s3url}`, `export_size_limit_exceeded` |
+| `SALESFORCE_RUN_SOQL_QUERY` | `query` | `records[]`, `done`, `nextRecordsUrl` |
+| `SALESFORCE_QUERY_MORE` | `next_records_url` (only a `/services/data/vNN.N/query/<locator>` path Salesforce returned) | the same |
+
+Calendar's `UPDATE_EVENT` is not used: it takes timed events only and would add a Meet link by
+default. Saving the as-submitted PDF to Drive uses the proxy (`POST
+https://www.googleapis.com/upload/drive/v3/files`, `uploadType=multipart`, `fields=id,webViewLink`,
+the same request as the funder's Drive export): `GOOGLEDRIVE_UPLOAD_FILE` needs the file in
+Composio's own storage first.
+
+### Slack alerts
+
+Funder teams can hear about: a new application, a review assigned, an opportunity closing within
+three days, a report due, a payment due. Applicant teams: a deadline within three days (outside and
+on-platform applications), a report due, a payment due. The jobs Worker runs
+`sendConnectorAlerts` every fifteen minutes (`connector-alerts`).
+
+- **What is posted.** One message per event: the event's name, the record's title and a link to the
+  GMS (`*New application*: <title>` and `[Open in the GMS](<link>)`), in the language of the admin
+  who saved the settings. Never an applicant's answers, an email address, a person's name or an
+  amount. Titles are written by applicants, so they are flattened to plain words first: no markup,
+  no `<!channel>`, `@here` or links.
+- **Once per event.** Before posting, the event is claimed in `alert_deliveries` (unique per
+  subscription and event key, e.g. `new_application:<id>`, `deadline_soon:opp:<id>:<date>`). A second
+  run or a second Worker finds the claim and posts nothing. A post Slack refuses is tried again on
+  later runs, three times in all. The message text is not kept.
+- **Stops at once.** The subscription is read again before every post: turning alerts off,
+  unticking the event, choosing another channel, or disconnecting Slack (which deletes the
+  settings) stops the next post. Turning alerts on starts from that moment; nothing older than seven
+  days is ever alerted. At most 20 posts per channel per run.
+
+### Google Calendar
+
+`syncCalendars` runs every hour at :30 (`calendar-sync`); "Update now" and choosing a calendar run it
+for one person at once.
+
+- **What is written.** Funders: each opportunity's close date (`key_dates.closeDate`), within the
+  funds a fund advisor may see. Applicants: outside applications' letter of inquiry, full and
+  internal deadlines, built-in applications' stage closes, and reports due (the same dates as the
+  `.ics` feed, which stays). All-day events: a title, the date, and a link to the GMS; no guests, no
+  Meet link, no emails, shown as free time. In the person's language.
+- **One-way and idempotent.** `calendar_links.event_map` keeps, per deadline (keyed without its date),
+  the Google event id, the date and a digest of the title and description. New → create; a changed
+  date or wording → patch; removed → delete; the same → nothing. An event the person deleted in Google
+  is written again only when its deadline changes. Deadlines more than 60 days past are left alone,
+  never deleted. At most 50 writes per person per run; the rest follow. The map is saved after every
+  write.
+- **Disconnecting** deletes the events written, then the connection at Composio, then the link.
+  Choosing another calendar removes the events from the first.
+
+### Google Drive (applicants)
+
+- **Attach from Google Drive** sits beside the upload in the application editor, an outside
+  application's attachments and the document vault. The browser opens the Google Picker with a
+  short-lived `drive.file` token from Google Identity Services (refused if Google returns any broader
+  Drive scope), the person picks one file, and the GMS copies it through the workspace's Drive
+  connection (`POST /gms/connected-apps/google-drive/fetch`, at most 25 MB; Google Docs, Sheets and
+  Slides come as PDF; folders and forms are refused). The bytes go back to the browser, which hands
+  them to **the same upload** as a file from the computer, with the same size and type checks.
+  Nothing is stored by the fetch itself.
+- **Save the as-submitted copy to Google Drive** on a submitted application (the PDF of the forms as
+  submitted) and on an outside application with its as-submitted PDF: created in My Drive through
+  `drive.file`.
+- The person should pick while signed in to Google as the account that connected (grants under
+  `drive.file` are per Google account and project).
+
+### Salesforce (import source)
+
+Picked in the import wizard. Read once, at the person's request, through the same framework as every
+source: sensitive columns dropped first, the dry run with its reconciliation, the commit, 5,000 rows
+a run (the query asks for 5,001 and a run over 5,000 is refused).
+
+- **Presets.** `npsp_grants`: Nonprofit Success Pack Opportunities whose record type is named like
+  "Grant" (`Id, Name, Account.Name, StageName, Amount, npsp__Requested_Amount__c, CloseDate,
+  npsp__Next_Grant_Deadline_Due_Date__c, npsp__Grant_Period_Start_Date__c,
+  npsp__Grant_Period_End_Date__c, npsp__Grant_Program_Area_s__c, npsp__Grant_Requirements_Website__c,
+  RecordType.Name, Description`); for grant history only the won ones (`IsWon = true`). The columns
+  are named so the targets recognise them (the Account is the funder for an applicant, the grantee
+  for a funder). Salesforce's stage names are not the GMS's, so for applications the stage column
+  keeps its Salesforce name and is mapped only if the person chooses to. `accounts`: Accounts (`Id,
+  Name, Type, Website, BillingCity, BillingState, BillingCountry, Description`).
+- **A query of the person's own** is checked first (`checkSoql`): one SELECT, no semicolon, no
+  `FOR UPDATE`, `FOR VIEW`, `FOR REFERENCE`, `UPDATE TRACKING` or `UPDATE VIEWSTAT` (they lock records
+  or record a view), no data-changing verb, at most 4,000 characters; a `LIMIT 5001` is added when it
+  has none. Refused: `422 invalid_query`. Relationship fields become `Account.Name` columns; child
+  subqueries are left out.
+
+### Owner setup
+
+1. **Composio:** create the four auth configs above on your own OAuth apps (Slack app with bot
+   scopes `chat:write channels:read`; a Google OAuth client with the Calendar API enabled for
+   Calendar; the Picker's Google OAuth client with the Drive API and the Google Picker API enabled
+   for Drive; a Salesforce connected app with `api refresh_token`). Set their ids as Wrangler
+   secrets: `COMPOSIO_SLACK_AUTH_CONFIG_ID`, `COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID`,
+   `COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID`, `COMPOSIO_SALESFORCE_AUTH_CONFIG_ID` on the API Worker,
+   and `COMPOSIO_API_KEY`, `COMPOSIO_SLACK_AUTH_CONFIG_ID`, `COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID`
+   on the jobs Worker too.
+2. **Google Cloud (the Picker's project):** OAuth consent screen with the `drive.file` scope; the
+   OAuth client's authorised JavaScript origin is the web app's origin (`https://gms.opengrants.io`);
+   an API key restricted to the Google Picker API and to that origin. Public build variables on the
+   web app: `VITE_GOOGLE_OAUTH_CLIENT_ID` and `VITE_GOOGLE_PICKER_API_KEY` (already used by the
+   funder's Drive export). The Content-Security-Policy must allow `https://accounts.google.com`,
+   `https://apis.google.com` and `https://docs.google.com`.
+3. **Composio callback:** each auth config returns to `{WEB_BASE_URL}/w/<handle>/settings/apps`
+   (Slack, Drive, Calendar) or the import page (Salesforce), with `?connected=<provider>`.
+
+### Not verified
+
+- Nothing has run against Composio, Slack, Google or Salesforce. The connectors were tested against a
+  fake Composio (an in-process `fetch`) with the slugs and arguments above; the API against fixtures.
+- The nesting of each tool's `data`; the reader looks for its keys up to three levels down.
+- Whether Composio reports these toolkits' granted scopes in `state.val.scope` or `requested_scopes`
+  (if neither, every connection is treated as unusable, the intended failure), and whether a Slack
+  bot connection reports its bot scopes there.
+- `GOOGLEDRIVE_DOWNLOAD_FILE`'s `s3url`: its host (the Worker fetches any HTTPS URL on a public host
+  it returns) and how long it lives.
+- That `GOOGLECALENDAR_PATCH_EVENT` takes all-day `YYYY-MM-DD` dates in `start_time`/`end_time` as
+  its schema says, and that `calendar.events.owned` is enough for create, patch and delete through
+  Composio's tools.
+- The NPSP field API names in the grants preset (`npsp__…`) were taken from NPSP's documentation as
+  remembered, not from a live org; an org without NPSP should use the Accounts preset or its own
+  query. `CurrencyIsoCode` is left out (single-currency orgs do not have it).
+- The jobs Worker's Slack posts and calendar writes in workerd.
