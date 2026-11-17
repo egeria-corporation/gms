@@ -57,6 +57,46 @@ Length limits (characters; X counts every link as 23, Bluesky counts what a read
 | Bluesky | 300 | |
 | Threads | 500 | |
 
+## "Meet our grantees" (v1.12.0)
+
+On the funder's award screen, **Meet our grantees** opens the composer for the award's program: one
+post introducing the program's grantees.
+
+- It lists only the program's awards that award sharing's `isPubliclyListable` says may be public:
+  never a confidential award, never one while the funder does not list awards, never one to an
+  individual or not yet accepted, and never one whose grantee chose **Don't list us publicly**. At
+  most ten, newest first (`MEET_GRANTEES_MAX`).
+- A grantee's page is tagged (its `@handle` written beside its name) only when the grantee gave its
+  page's link in its share-kit settings **and** agreed to be tagged ([award-sharing.md](award-sharing.md#share-kit-settings)).
+- The person keeps or drops each grantee's line; the text is written again from the lines kept, and
+  can be edited. The picture is the funder's grants-awarded card (`/og/f/{handle}/awards.png`); the
+  link is the grants-awarded page with `utm_source=social`.
+- Preview and the click on Post, as for every post. The post's subject is the program
+  (`subject_type = 'program'`, migration 0048); the database checks the program is the funder's own.
+
+`GET /gms/social/compose?subjectType=program&subjectId={program}` returns the draft with `grantees`
+(each line, name and tag) and `parts` (the opening and closing lines). A grantee workspace has no
+such draft (404).
+
+## "Two weeks left" (v1.12.0)
+
+- **The prompt.** The jobs Worker's `social-reminders` run (14:40 UTC daily, before the daily digest;
+  `promptSocialReminders`) records one prompt (`social_reminder_prompts`) per open, published call
+  with its public page on, whose deadline (`closeDate`) is 14 days away (`REMINDER_LEAD_DAYS`; a run
+  missed by a day still catches it at 13, `REMINDER_WINDOW_DAYS`), in a workspace with a connected
+  account. **Once per call**: a call never gets a second prompt, even if its deadline moves. It writes
+  a record and the ledger line `social.reminder_prompted`; it never calls Zernio and never posts.
+- **Who sees it.** The call's funder **admins**: in their notifications ("Post a reminder? Two weeks
+  left: {call}", category `social_reminder`) and, if they chose a daily or weekly digest, as a line in
+  it. It is hidden once dismissed, once the deadline has passed or the call is no longer open, and on
+  a server where social posting is not set up.
+- **What it does.** The notification opens the call's Publish step with the composer on the
+  reminder ("Two weeks left to apply: {call}, from {funder}. Apply by {date}." and the link). The
+  panel shows **Two weeks left** with **Post a reminder** and **Dismiss**. Posting is the person's
+  click on Post after the preview, as always.
+- **Dismiss** (`POST /gms/social/reminders/{id}/dismiss`): a funder admin, in person; the prompt is
+  gone for the workspace and never comes back for that call. Ledger `social.reminder_dismissed`.
+
 ## Who may do what
 
 | Action | Who | Agents and API clients |
@@ -64,6 +104,7 @@ Length limits (characters; X counts every link as 23, Bluesky counts what a read
 | Read accounts, drafts, posts and reach | Funder staff (`analytics:read`), applicant staff (`awards:read`) | Yes, with the scope. MCP: `list_social_posts` |
 | Preview, post, schedule | A signed-in person who is an admin or editor (funder: admin, program officer; applicant: admin, editor) | Refused: 403 `human_only` |
 | Connect, disconnect | A signed-in workspace admin | Refused: 403 `human_only` |
+| Dismiss a "Two weeks left" prompt | A signed-in funder admin | Refused: 403 `human_only` |
 
 There is no MCP tool that posts, schedules or connects an account. An agent may draft text through
 the existing assistant tools and read the composer's starting draft (`GET /gms/social/compose`). It
@@ -192,8 +233,15 @@ the person starts again.
 - `POST /gms/social/posts` (with an `Idempotency-Key` header): post or schedule.
 - `GET /gms/social/posts?subjectType=&subjectId=`: the reach report.
 - `POST /webhooks/zernio`: Zernio's events.
+- `POST /gms/social/reminders/{id}/dismiss` (v1.12.0): dismiss a call's "Two weeks left" prompt.
 
-The TypeSpec is in `api/social.tsp`.
+The TypeSpec is in `api/social.tsp` and (v1.12.0) `api/award-kit.tsp`.
+
+## What is stored (migration 0048)
+
+- `social_reminder_prompts`: workspace, call, the deadline it was made for, when, and who dismissed it
+  and when. One per call (unique). Read by the workspace's staff; written by the API and the jobs Worker.
+- `social_posts.subject_type` takes `program`.
 
 ## Code
 
