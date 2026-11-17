@@ -54,7 +54,7 @@ describe("the federal share statement", () => {
     expect((await panel(s)).kit!.federalStatement).toBeNull();
 
     // Marked, with the amount only: no statement, nothing guessed.
-    let res = await federal(s, { federallyFunded: true, amount: "80000" });
+    const res = await federal(s, { federallyFunded: true, amount: "80000" });
     expect(res.status).toBe(200);
     let p = await data<sharing.AwardSharing>(res);
     expect(p.federal).toMatchObject({ funded: true, amount: "80000.00", percent: null, statement: null });

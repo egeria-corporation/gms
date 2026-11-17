@@ -18,7 +18,6 @@ import { demoSession } from "../src/mocks/auth.ts";
 import { MOCK_IDS } from "../src/mocks/funder.ts";
 
 const SLOW = { timeout: 8000 };
-const HOUSING = "opp_50000000-0000-7000-8000-000000000002";
 
 async function axeCheck() {
   const result = await axe.run(document.body, {
