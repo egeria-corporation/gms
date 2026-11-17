@@ -393,11 +393,13 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
   const problems = useMemo(() => localProblems(model), [model]);
   const counts = countForm(model);
   const parts = useMemo(() => compileForm(model), [model]);
-  const translations = useMemo(() => compileTranslations(model, tm, title), [model, tm, title]);
+  // Translations are stamped with the title as it is saved (trimmed).
+  const savedTitle = title.trim();
+  const translations = useMemo(() => compileTranslations(model, tm, savedTitle), [model, tm, savedTitle]);
   const definition = useMemo<FormDefinition>(() => ({ id: form.id, version: form.version, title, ...parts, translations }), [form.id, form.version, title, parts, translations]);
   // One language beside the form's own in this release.
   const added = tm.languages[0] ?? null;
-  const progress = useMemo(() => (added ? translationRows(model, tm, title, added) : null), [added, model, tm, title]);
+  const progress = useMemo(() => (added ? translationRows(model, tm, savedTitle, added) : null), [added, model, tm, savedTitle]);
   const assistStatus = useApiQuery((api) => api.assistStatus(), []);
   const assistOn = assistStatus.status === "ready" && assistStatus.data.enabled;
   const field = model.sections.flatMap((s) => s.fields).find((f) => f.key === selected) ?? null;
@@ -451,7 +453,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
     setAssistError(null);
     try {
       const result = await translationsApi.draftForm(ws.id, form.id, added);
-      const next = applyDrafts(model, tm, title, added, result.items);
+      const next = applyDrafts(model, tm, savedTitle, added, result.items);
       if (next.applied) editLanguages(next.tm);
       setDrafted(next.applied);
       assistStatus.reload();
@@ -690,7 +692,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
             <TranslateView
               model={model}
               tm={tm}
-              title={title}
+              title={savedTitle}
               language={added}
               readOnly={readOnly}
               onChange={editLanguages}

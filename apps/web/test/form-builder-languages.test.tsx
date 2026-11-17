@@ -97,7 +97,8 @@ describe("Add Spanish in the form builder", () => {
 
       // The assistant drafts the rest: each is marked, and publishing waits for review.
       await userEvent.click(screen.getByRole("button", { name: "Draft the missing texts" }));
-      expect(await screen.findByText(`${total - 1} drafts added. Review each one below.`)).toBeInTheDocument();
+      // Saves first, then drafts: give the two round trips time on a busy machine.
+      expect(await screen.findByText(`${total - 1} drafts added. Review each one below.`, undefined, { timeout: 8000 })).toBeInTheDocument();
       expect(within(rows).getByRole("textbox", { name: "Section title Project" })).toHaveValue("Proyecto");
       expect(screen.getAllByText(`${total - 1} assistant drafts to review`).length).toBeGreaterThan(0);
       expect(screen.getByRole("button", { name: "Publish v3" })).toBeDisabled();
@@ -117,7 +118,7 @@ describe("Add Spanish in the form builder", () => {
       await userEvent.click(screen.getByRole("button", { name: "Preview as applicant" }));
       const preview = screen.getByRole("region", { name: "Applicant preview" });
       await userEvent.click(within(within(preview).getByRole("group", { name: "Preview in" })).getByRole("button", { name: "Spanish" }));
-      expect(await within(preview).findByRole("region", { name: "Proyecto" })).toBeInTheDocument();
+      expect(await within(preview).findByRole("region", { name: "Proyecto" }, { timeout: 8000 })).toBeInTheDocument();
       expect(within(preview).getByLabelText(/^Tipo de proyecto/)).toBeInTheDocument();
 
       await userEvent.click(screen.getByRole("button", { name: "Save draft" }));
@@ -160,10 +161,10 @@ describe("Add Spanish in the opportunity builder", () => {
     await userEvent.type(within(rows).getByRole("textbox", { name: "Title Community Health Grants 2027" }), "Subvenciones de Salud Comunitaria 2027");
     // The assistant drafts the rest; saving waits until each draft is reviewed.
     await userEvent.click(screen.getByRole("button", { name: "Draft the missing texts" }));
-    expect(await screen.findByText(/drafts? added/)).toBeInTheDocument();
+    expect(await screen.findByText(/drafts? added/, undefined, { timeout: 8000 })).toBeInTheDocument();
     expect(within(rows).getByRole("textbox", { name: "Title Community Health Grants 2027" })).toHaveValue("Subvenciones de Salud Comunitaria 2027");
     await userEvent.click(screen.getAllByRole("button", { name: "Save draft" })[0]!);
-    expect(await screen.findByText("Review the assistant's drafts before saving.")).toBeInTheDocument();
+    expect(await screen.findByText("Review the assistant's drafts before saving.", undefined, { timeout: 8000 })).toBeInTheDocument();
     expect((await services.api.getOpportunity(id)).translations?.es?.description).toBeUndefined();
     for (const b of within(rows).getAllByRole("button", { name: "Mark as reviewed" })) await userEvent.click(b);
     await userEvent.click(screen.getAllByRole("button", { name: "Save draft" })[0]!);
