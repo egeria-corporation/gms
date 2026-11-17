@@ -13729,6 +13729,11 @@ export interface components {
                 year: number;
                 amount: components["schemas"]["CommonGrants.Fields.Money"] | null;
                 verified: boolean;
+                /**
+                 * Format: uri
+                 * @description The same card at a public address, for a post that takes a portrait image (Instagram, through Zernio); add `?amount=1` to draw the amount, shown only while the funder shows amounts.
+                 */
+                imageUrl: string;
             };
             /** @description The other side's page, only when that side gave the link and agreed to be tagged. */
             tags: {
@@ -13817,6 +13822,11 @@ export interface components {
                 year: number;
                 amount: components["schemas"]["CommonGrants.Fields.Money"] | null;
                 verified: boolean;
+                /**
+                 * Format: uri
+                 * @description The same card at a public address, for a post that takes a portrait image (Instagram, through Zernio); add `?amount=1` to draw the amount, shown only while the funder shows amounts.
+                 */
+                imageUrl: string;
             };
             /** @description The other side's page, only when that side gave the link and agreed to be tagged. */
             tags: {

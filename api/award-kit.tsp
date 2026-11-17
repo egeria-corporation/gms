@@ -164,6 +164,9 @@ namespace GMS.Models {
       year: int32;
       amount: CommonGrants.Fields.Money | null;
       verified: boolean;
+
+      /** The same card at a public address, for a post that takes a portrait image (Instagram, through Zernio); add `?amount=1` to draw the amount, shown only while the funder shows amounts. */
+      imageUrl: url;
     };
 
     /** The other side's page, only when that side gave the link and agreed to be tagged. */

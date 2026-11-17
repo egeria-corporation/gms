@@ -810,7 +810,7 @@ export interface KitExtras {
   /** The pages of the carousel PDF and their alt text; `path` downloads it (signed in). */
   carousel: { pages: { heading: string; alt: string }[]; path: string; fileName: string };
   /** What the portrait card (1080 × 1350) shows; the amount is null when the funder hides amounts. */
-  portrait: { funder: string; recipient: string; program: string | null; purpose: string; year: number; amount: Money | null; verified: boolean };
+  portrait: { funder: string; recipient: string; program: string | null; purpose: string; year: number; amount: Money | null; verified: boolean; imageUrl: string };
   /** The other side's page to tag, only when that side gave the link and agreed to be tagged. */
   tags: { funder: SocialTag | null; grantee: SocialTag | null };
 }
@@ -906,7 +906,8 @@ async function kitExtras(ctx: ServiceContext, row: Award, found: { award: Public
     pressRelease: pressRelease(w, a, audience),
     federalStatement: w.federal,
     carousel: { pages: carouselPages(w, a, audience, awardsPage).map((p) => ({ heading: p.heading, alt: p.alt })), path: audience === "funder" ? `/gms/awards/${id}/sharing/carousel.pdf` : `/gms/my/awards/${id}/sharing/carousel.pdf`, fileName: `${a.slug}-carousel.pdf` },
-    portrait: { funder: w.funder, recipient: w.recipient, program: a.program, purpose: a.purpose, year: a.year, amount: a.amount, verified: funderVerified(found.funder) },
+    // The front Worker serves the same card at a public address, under the award page's rules (apps/web/src/edge/front.ts).
+    portrait: { funder: w.funder, recipient: w.recipient, program: a.program, purpose: a.purpose, year: a.year, amount: a.amount, verified: funderVerified(found.funder), imageUrl: `${ctx.config.webBaseUrl}/og/f/${found.funder.handle}/awards/${a.slug}/portrait.png` },
     tags: { funder: tagOf(w.profiles.get(row.workspace_id), w.funder), grantee: row.recipient_workspace_id ? tagOf(w.profiles.get(row.recipient_workspace_id), w.recipient) : null },
   };
 }

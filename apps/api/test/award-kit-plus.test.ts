@@ -188,7 +188,10 @@ describe("the carousel", () => {
 describe("the portrait card", () => {
   it("carries both names and the program, and no amount the funder hides", async () => {
     const s = await setup();
-    expect((await panel(s)).kit!.portrait).toEqual({ funder: "Riverbend Community Foundation", recipient: "Alder Creek Family Services", program: "Community Health 2027", purpose: "Mobile Health Navigation for Rural Families", year: 2027, amount: { amount: "150000.00", currency: "USD" }, verified: true });
+    const kit = (await panel(s)).kit!;
+    expect(kit.portrait).toEqual({ funder: "Riverbend Community Foundation", recipient: "Alder Creek Family Services", program: "Community Health 2027", purpose: "Mobile Health Navigation for Rural Families", year: 2027, amount: { amount: "150000.00", currency: "USD" }, verified: true, imageUrl: expect.stringMatching(/\/og\/f\/riverbend\/awards\/[a-z0-9-]+\/portrait\.png$/) });
+    // The public address is the landscape card's, with /portrait.png (served by the front Worker under the same rules).
+    expect(kit.portrait.imageUrl).toBe(kit.links.image.replace(/\.png$/, "/portrait.png"));
     await put(s, "/gms/award-sharing/settings", s.admin, { showAmounts: false });
     expect((await panel(s)).kit!.portrait.amount).toBeNull();
   });

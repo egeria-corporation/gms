@@ -3,8 +3,9 @@
 // Award sharing through the front Worker as deployed (built by scripts/build-front-worker.mjs, run
 // in workerd with the real API in-process behind its service binding): the grants-awarded page and
 // an award's page get their own meta, schema.org data and share card; the "Funded by" badge is
-// served at /badge/{slug}.svg and kept for an hour; a confidential award shows nowhere, with the
-// default meta and the same 404 as an award that does not exist.
+// served at /badge/{slug}.svg and kept for an hour; the award kit's portrait card is served at
+// /og/f/{handle}/awards/{slug}/portrait.png; a confidential award shows nowhere, with the default
+// meta and the same 404 as an award that does not exist.
 import { execFileSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -106,6 +107,37 @@ describe("front Worker: award pages", () => {
     expect(titleOf(page)).toBe(DEFAULT_TITLE);
     expect(page).not.toContain("Confidential Shelter Project");
     expect((await get(`/og/f/riverbend/awards/${secret}.png`)).status).toBe(404);
+  });
+
+  it("serves the award kit's portrait card at a public address, for posts that take a portrait image", async () => {
+    const png = await get(`/og/f/riverbend/awards/${listed}/portrait.png`);
+    expect(png.status).toBe(200);
+    expect(png.headers.get("Content-Type")).toBe("image/png");
+    expect(pngSize(new Uint8Array(await png.arrayBuffer()))).toEqual({ width: 1080, height: 1350 });
+    // The amount only when asked for: a different image, drawn on request.
+    const withAmount = await get(`/og/f/riverbend/awards/${listed}/portrait.png?amount=1`);
+    expect(withAmount.status).toBe(200);
+    expect(pngSize(new Uint8Array(await withAmount.arrayBuffer()))).toEqual({ width: 1080, height: 1350 });
+    const spanish = await get(`/og/f/riverbend/awards/${listed}/portrait.png?lang=es`);
+    expect(spanish.status).toBe(200);
+    expect(pngSize(new Uint8Array(await spanish.arrayBuffer()))).toEqual({ width: 1080, height: 1350 });
+    const head = await get(`/og/f/riverbend/awards/${listed}/portrait.png`, { method: "HEAD" });
+    expect(head.status).toBe(200);
+    await head.arrayBuffer();
+  });
+
+  it("answers 404 for a confidential award's portrait card, as for one that does not exist", async () => {
+    const hidden = await get(`/og/f/riverbend/awards/${secret}/portrait.png`);
+    const missing = await get("/og/f/riverbend/awards/nothing-000000000000/portrait.png");
+    expect(hidden.status).toBe(404);
+    expect(missing.status).toBe(404);
+    expect(await hidden.text()).toBe(await missing.text());
+    // Another funder's handle does not reach the award either, nor an address that is not a slug.
+    for (const path of [`/og/f/someone-else/awards/${listed}/portrait.png`, "/og/f/riverbend/awards/Not_A_Slug/portrait.png"]) {
+      const res = await get(path);
+      expect(res.status, path).toBe(404);
+      await res.arrayBuffer();
+    }
   });
 });
 

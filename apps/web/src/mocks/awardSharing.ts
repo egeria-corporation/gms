@@ -250,7 +250,7 @@ export function createMockAwardSharingApi(opts: MockAwardSharingOptions): AwardS
       pressRelease: press,
       federalStatement: federal,
       carousel: { pages: pages.map((p, i) => ({ heading: p.heading, alt: `Slide ${i + 1} of ${pages.length}: ${p.heading}. ${p.body.join(" ")}` })), path: side === "funder" ? `/gms/awards/${id}/sharing/carousel.pdf` : `/gms/my/awards/${id}/sharing/carousel.pdf`, fileName: `${award.slug}-carousel.pdf` },
-      portrait: { funder: f.name, recipient: a.recipient, program: a.program, purpose: a.purpose, year: award.year, amount: award.amount, verified },
+      portrait: { funder: f.name, recipient: a.recipient, program: a.program, purpose: a.purpose, year: award.year, amount: award.amount, verified, imageUrl: award.links.image.replace(/\.png$/, "/portrait.png") },
       tags: { funder: tagFor(fp, f.name), grantee: tagFor(profileOf(s, a.recipientHandle), a.recipient) },
     };
   }

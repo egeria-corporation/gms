@@ -16,6 +16,7 @@ import {
   apiPathOf,
   awardCard,
   awardMeta,
+  awardPortrait,
   awardsCard,
   awardsMeta,
   badgeApiPathOf,
@@ -29,6 +30,7 @@ import {
   landingMeta,
   opportunityCard,
   opportunityMeta,
+  portraitRouteOf,
   robotsTxt,
   routeOf,
   switchMeta,
@@ -45,6 +47,7 @@ import {
   type PublicRoute,
 } from "./meta.ts";
 import { loadCardAssets, renderCard, type CardAssets, type CardText } from "./og/card.ts";
+import { renderPortraitCard } from "./og/portrait.ts";
 
 // The only catalogs the front Worker reads: its pages' meta and cards (`public`, `shared`; English
 // `shared` is always there). Imported, not loaded, so the Worker's script carries no others.
@@ -320,6 +323,34 @@ export function createFront(config: FrontConfig) {
     return res;
   }
 
+  /**
+   * The award kit's portrait card at a public address, under the award page's rules: the same 404 as
+   * the landscape card for an award that is not public. An API or drawing failure is a 503 that is
+   * not kept (a landscape default would be the wrong shape for a portrait post).
+   */
+  async function portraitImage(route: { kind: "award"; handle: string; slug: string }, request: Request, env: FrontEnv, ctx: FrontContext): Promise<Response> {
+    const cache = edgeCache();
+    const url = new URL(request.url);
+    const key = new Request(url.toString());
+    const hit = cache ? await cache.match(key).catch(() => undefined) : undefined;
+    if (hit) return hit;
+    const plain = (status: number, text: string, cacheControl: string) => new Response(text, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": cacheControl } });
+    let png: Uint8Array<ArrayBuffer>;
+    try {
+      const d = await pageData<AwardPageData>(apiPathOf(route), request, env, ctx);
+      if (!d?.funder || !d.award) return plain(404, "Not found", "public, max-age=60");
+      const locale = localeFromTag(url.searchParams.get(LOCALE_QUERY)) ?? DEFAULT_LOCALE;
+      png = await renderPortraitCard(awardPortrait(d, config.host, locale, url.searchParams.get("amount") === "1"), await cardAssets());
+    } catch {
+      return plain(503, "Unavailable", "no-store");
+    }
+    const headers = new Headers({ "Content-Type": "image/png", "Cache-Control": `public, max-age=${EDGE_TTL_SECONDS}` });
+    applyHeaderRules(headers, config.headerRules, url.pathname);
+    const res = new Response(png, { headers });
+    if (cache) ctx.waitUntil(cache.put(key, res.clone()).catch(() => undefined));
+    return res;
+  }
+
   return {
     async fetch(request: Request, env: FrontEnv, ctx: FrontContext): Promise<Response> {
       const url = new URL(request.url);
@@ -340,6 +371,11 @@ export function createFront(config: FrontConfig) {
       const badgeSlug = badgeRouteOf(url.pathname);
       if (badgeSlug) {
         const res = await badge(badgeSlug, request, env, ctx);
+        return head ? new Response(null, res) : res;
+      }
+      const portrait = portraitRouteOf(url.pathname);
+      if (portrait) {
+        const res = await portraitImage(portrait, request, env, ctx);
         return head ? new Response(null, res) : res;
       }
       const imageRoute = imageRouteOf(url.pathname);
