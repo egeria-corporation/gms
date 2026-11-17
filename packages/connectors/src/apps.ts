@@ -7,6 +7,7 @@
 //   COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID  googlecalendar  calendar.calendarlist.readonly, calendar.events.owned
 //   COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID     googledrive     drive.file
 //   COMPOSIO_SALESFORCE_AUTH_CONFIG_ID       salesforce      api (read through SOQL only)
+//   COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID       quickbooks      com.intuit.quickbooks.accounting (v1.13.0, ./quickbooks.ts)
 // The Composio entity (`user_id`) is the GMS workspace id. Slack, Drive and Salesforce are one
 // connection per workspace; Google Calendar is one connection per person, on the same entity, and
 // the GMS keeps that person's connected account id (calendar_links) so it only ever acts on it.
@@ -22,16 +23,19 @@
 // docs/connectors.md lists what is still unverified. Nothing here has run against Composio.
 import { ComposioClient, ComposioError, ConnectorScopeError, ConnectorScopeUnverifiedError, driveMultipart, GOOGLE_API, GOOGLE_DRIVE_FILE, normalizeScopes, type ConnectedAccount, type FetchLike } from "./composio.ts";
 import { ConnectorAuthError, ConnectorUnavailableError, isRegistrableMcpUrl } from "./index.ts";
+import type { QuickBooksTool } from "./quickbooks.ts";
 import { dig, SourceReadError } from "./tabular.ts";
 
-export type AppProvider = "slack" | "google_calendar" | "google_drive" | "salesforce";
-export const APP_PROVIDERS: readonly AppProvider[] = ["slack", "google_calendar", "google_drive", "salesforce"];
+export type AppProvider = "slack" | "google_calendar" | "google_drive" | "salesforce" | "quickbooks";
+export const APP_PROVIDERS: readonly AppProvider[] = ["slack", "google_calendar", "google_drive", "salesforce", "quickbooks"];
 
 export const SLACK_CHAT_WRITE = "chat:write";
 export const SLACK_CHANNELS_READ = "channels:read";
 export const GOOGLE_CALENDARLIST_READONLY = "https://www.googleapis.com/auth/calendar.calendarlist.readonly";
 export const GOOGLE_CALENDAR_EVENTS_OWNED = "https://www.googleapis.com/auth/calendar.events.owned";
 export const SALESFORCE_API = "api";
+/** QuickBooks Online's accounting API (Intuit has no narrower scope for writing an entry). Never the Payments or Payroll scopes. */
+export const QUICKBOOKS_ACCOUNTING = "com.intuit.quickbooks.accounting";
 
 /** The tools these connectors may execute. Nothing else is ever sent to Composio's tool endpoint. */
 export const APP_TOOLS = {
@@ -46,7 +50,8 @@ export const APP_TOOLS = {
   salesforceQuery: "SALESFORCE_RUN_SOQL_QUERY",
   salesforceMore: "SALESFORCE_QUERY_MORE",
 } as const;
-type AppTool = (typeof APP_TOOLS)[keyof typeof APP_TOOLS];
+/** A tool a connected app may execute: APP_TOOLS here, QUICKBOOKS_TOOLS in ./quickbooks.ts. */
+export type AppTool = (typeof APP_TOOLS)[keyof typeof APP_TOOLS] | QuickBooksTool;
 
 const IDENTITY = ["openid", "email", "profile", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"];
 
@@ -91,6 +96,14 @@ export const APP_SCOPE_RULES: Record<AppProvider, ScopeRules> = {
     forbidden: [/^full$/, /^web$/, /^visualforce$/, /^chatter_api$/, /^wave_api$/, /^cdp_/, /^custom_permissions$/, /^pardot_api$/, /^eclair_api$/, /^lightning$/, /^content$/, /^sfap_api$/, /^interaction_api$/],
     required: [SALESFORCE_API],
   },
+  // v1.13.0: record-keeping only. Intuit's Payments scope (charges, refunds, bank transfers) and
+  // Payroll are refused outright; so is anything else Intuit may add.
+  quickbooks: {
+    label: "QuickBooks",
+    allowed: new Set([QUICKBOOKS_ACCOUNTING, "openid", "profile", "email"]),
+    forbidden: [/^com\.intuit\.quickbooks\.payment/, /payroll/i, /^com\.intuit\.quickbooks\.(?!accounting$)/, /^phone$/, /^address$/, /^project-management/],
+    required: [QUICKBOOKS_ACCOUNTING],
+  },
 };
 
 export interface AppScopeCheck {
@@ -113,6 +126,7 @@ export const APP_SCOPE_NAMES: Record<AppProvider, string[]> = {
   google_calendar: ["calendar.calendarlist.readonly", "calendar.events.owned"],
   google_drive: ["drive.file"],
   salesforce: ["api (SOQL read only)"],
+  quickbooks: ["com.intuit.quickbooks.accounting"],
 };
 
 // ------------------------------------------------------------------------------------- shared
@@ -136,7 +150,8 @@ export interface Connection {
   disconnect(entityId: string): Promise<void>;
 }
 
-abstract class ComposioApp implements Connection {
+/** The checks every Composio connected app shares (scopes, entity, auth config). QuickBooks extends it in ./quickbooks.ts. */
+export abstract class ComposioApp implements Connection {
   abstract readonly provider: AppProvider;
   constructor(protected readonly cfg: AppConfig) {
     if (!cfg.authConfigId) throw new Error("The Composio auth config id is not set");

@@ -40,6 +40,8 @@ import { socialRoutes } from "./gms/social.ts";
 import { sendPackageRoutes } from "./gms/send-package.ts";
 import { guestReviewRoutes } from "./gms/guest-review.ts";
 import { connectedAppRoutes } from "./gms/connected-apps.ts";
+// F2: QuickBooks sync (record-keeping only).
+import { accountingRoutes } from "./gms/accounting.ts";
 import { historyRoutes } from "./gms/history.ts";
 // E4: funder loops.
 import { loopRoutes } from "./gms/loops.ts";
@@ -86,6 +88,8 @@ const features = (c: Parameters<typeof config>[0]) => {
       googleCalendar: !!ports.calendar,
       googleDrive: !!ports.drive,
       salesforce: !!ports.salesforce,
+      // QuickBooks sync (v1.13.0): COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID.
+      quickbooks: !!ports.quickbooks,
     },
   };
 };
@@ -202,6 +206,8 @@ gms.route("/", sendPackageRoutes);
 gms.route("/", guestReviewRoutes);
 // Connected apps (v1.12.0): Slack alerts, Google Calendar, Google Drive.
 gms.route("/", connectedAppRoutes);
+// QuickBooks sync (F2): the mapping, the switch and the reconciliation view.
+gms.route("/", accountingRoutes);
 // Share this call: feeds, the OpenGrants index and Philanthropy News Digest (E2).
 gms.route("/", syndicationRoutes);
 // Funder loops (E4): peer invitations, "for funders", onboarding links, the partner directory, the reusable profile.

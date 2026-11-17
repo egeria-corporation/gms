@@ -91,6 +91,9 @@ const RULES: { [T in TableName]: Rule } = {
   alert_subscriptions: OPEN,
   alert_deliveries: OPEN,
   calendar_links: OPEN,
+  // 0051: the funder's QuickBooks mapping and entries are the whole workspace's books: never a fund advisor's.
+  accounting_links: CLOSED,
+  accounting_entries: CLOSED,
   // 0033: a competition's conflict-of-interest policy and its reviewers' signatures are that competition's.
   coi_policies: parent("competition_id", "competitions", "Competition"),
   coi_signatures: parent("competition_id", "competitions", "Competition"),

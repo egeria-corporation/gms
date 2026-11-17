@@ -383,5 +383,12 @@
   "code.consent_needs_page": "Indique el enlace de su página antes de aceptar que la etiqueten.",
   "code.funder_only_setting": "Solo un financiador define la mención del comunicado de prensa y su descripción.",
   "notFound.reminder": "No se encontró el recordatorio.",
-  "code.not_a_draft": "Esta solicitud ya se envió; no hay un borrador para escribir en equipo."
+  "code.not_a_draft": "Esta solicitud ya se envió; no hay un borrador para escribir en equipo.",
+  "code.quickbooks_not_connected": "Primero conecte QuickBooks.",
+  "code.quickbooks_refused": "QuickBooks no lo aceptó. Revise las cuentas, la clase o el proveedor elegidos en Configuración › Contabilidad.",
+  "code.unknown_account": "Esa cuenta no está en QuickBooks o no está activa.",
+  "code.unknown_class": "Esa clase o ubicación no está en QuickBooks o no está activa.",
+  "code.unknown_program": "Uno de los programas indicados no es de este espacio de trabajo.",
+  "code.unknown_vendor": "Ese proveedor no está en QuickBooks o no está activo.",
+  "code.too_many": "Es más de lo que se puede guardar de una vez."
 }

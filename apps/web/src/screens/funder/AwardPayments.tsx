@@ -16,6 +16,8 @@ import { Dialog } from "../../components/Dialog.tsx";
 import { conditionLabel, HoldBanner, ReasonDialog, RecordExternalDialog, ReleaseDialog, checklistOf, releaseBlockedReason } from "../../components/payments.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge, VerificationBadge, WorkspaceName } from "../../components/status.tsx";
+// F2: the "In QuickBooks" status of a settled payment.
+import { InQuickBooks } from "../../components/InQuickBooks.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, ReadinessChecklist, TabPanel } from "../../components/ui.tsx";
 import { formatDate, formatMinor, parseDollars } from "../../lib/format.ts";
 import { dateTime } from "./shared.tsx";
@@ -170,7 +172,7 @@ function TrancheCard({ row, requirementTitle, recipientName, onChanged }: { row:
             {row.dueAt ? t("awardPayments.due2", { date: formatDate(row.dueAt) }) : ""}
           </p>
         </div>
-        <StatusBadge kind="tranche" status={row.status} />
+        <span className="row" style={{ gap: "6px" }}><StatusBadge kind="tranche" status={row.status} /> <InQuickBooks trancheId={row.id} /></span>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
         {row.status === "scheduled" && !note && <p className="muted small">{t("awardPayments.notDueYetIt", { condition: conditionLabel(row.condition, requirementTitle).replace(/^./, (c) => c.toLowerCase()) })}</p>}

@@ -51,6 +51,8 @@ export interface Availability {
   googleCalendar?: boolean;
   googleDrive?: boolean;
   salesforce?: boolean;
+  /** QuickBooks sync (v1.13.0), record-keeping only: COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID on the server. */
+  quickbooks?: boolean;
 }
 
 /** One signed-in session of the current person. */
@@ -267,7 +269,7 @@ export function createHttpLaunchApi(opts: HttpLaunchOptions): LaunchApi {
         return {
           facilitatedPayments: c.facilitatedPayments === true,
           ...(c.passport && typeof c.passport === "object" ? { passport: { signIn: rec(c.passport).signIn === true, linking: rec(c.passport).linking === true, payments: rec(c.passport).payments === true } } : {}),
-          ...(a ? { available: { openGrants: a.openGrants === true, assistant: a.assistant === true, googleWorkspace: a.googleWorkspace === true, mercury: a.mercury === true, customMcp: a.customMcp === true, slack: a.slack === true, googleCalendar: a.googleCalendar === true, googleDrive: a.googleDrive === true, salesforce: a.salesforce === true } } : {}),
+          ...(a ? { available: { openGrants: a.openGrants === true, assistant: a.assistant === true, googleWorkspace: a.googleWorkspace === true, mercury: a.mercury === true, customMcp: a.customMcp === true, slack: a.slack === true, googleCalendar: a.googleCalendar === true, googleDrive: a.googleDrive === true, salesforce: a.salesforce === true, quickbooks: a.quickbooks === true } } : {}),
         };
       }, { facilitatedPayments: false }),
 

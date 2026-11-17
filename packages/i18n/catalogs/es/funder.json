@@ -2719,6 +2719,7 @@
   "settingsPassport.settingsSections": "Secciones de la configuración",
   "settingsPassport.socialAccounts": "Cuentas sociales",
   "settingsPassport.connectedApps": "Aplicaciones conectadas",
+  "settingsPassport.accounting": "Contabilidad",
   "settingsPublicPage.aLinkToThe": "Un enlace a la página principal de OpenGrants GMS en el pie de sus páginas públicas, en sus widgets para presentar solicitudes y debajo del correo que reciben los solicitantes al presentar una solicitud. Nunca aparece en los correos de revisión, decisión o subvención.",
   "settingsPublicPage.loadingTheSetting": "Cargando la configuración",
   "settingsPublicPage.off": "Desactivado",

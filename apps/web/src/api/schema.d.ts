@@ -447,6 +447,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/accounting": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The QuickBooks sync of this workspace: connection, mapping, switch and counts. Admins and finance staff. */
+        get: operations["Accounting_sync"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/accounting/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The reconciliation view, read only. With `compare=true` the entries shown are read back from QuickBooks (at most 25). */
+        get: operations["Accounting_entries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/accounting/entries/{id}/handled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description A person fixed QuickBooks after a change or void and says so. The GMS changes nothing in the books. 409 `invalid_transition`. */
+        post: operations["Accounting_handled"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/accounting/entries/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Try a payment that is not in QuickBooks again on the next run. 409 `invalid_transition`. */
+        post: operations["Accounting_retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/accounting/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Expense and bank accounts, classes and locations in QuickBooks (read live). 409 `quickbooks_not_connected`. */
+        get: operations["Accounting_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/accounting/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Save the mapping and turn the sync on or off. Admins and finance staff, in person. 422 `unknown_account`, `unknown_class`, `unknown_program`. */
+        put: operations["Accounting_saveSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/accounting/vendors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Each grantee's vendor, and QuickBooks' vendors (read live). */
+        get: operations["Accounting_vendors"];
+        /** @description Choose the vendor of each grantee. Admins and finance staff, in person. 422 `unknown_vendor`. */
+        put: operations["Accounting_saveVendors"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/activity": {
         parameters: {
             query?: never;
@@ -12903,6 +13023,177 @@ export interface components {
             /** @description True for the session making this request; it cannot be ended here (sign out instead) */
             current: boolean;
         };
+        "Models.AccountingEntries": {
+            syncEnabled: boolean;
+            /** Format: date-time */
+            syncFrom: string | null;
+            /** @description Newest first: each recorded payment with its QuickBooks entry, and entries whose payment was removed. */
+            items: {
+                payment: components["schemas"]["Models.AccountingPayment"] | null;
+                quickbooks: {
+                    /**
+                     * @description `waiting`: recorded since the sync was turned on, not sent yet. `not_synced`: no entry (the sync was off).
+                     * @enum {string}
+                     */
+                    status: "posting" | "posted" | "needs_attention" | "failed" | "handled" | "waiting" | "not_synced";
+                    entry: components["schemas"]["Models.AccountingEntry"] | null;
+                    /**
+                     * @description With `compare=true`: whether QuickBooks still holds the entry as posted.
+                     * @enum {string}
+                     */
+                    inQuickBooks?: "matches" | "differs" | "missing";
+                };
+            }[];
+        };
+        "Models.AccountingEntry": {
+            id: string;
+            status: components["schemas"]["Models.AccountingEntryStatus"];
+            /** @enum {string|null} */
+            reason: "changed" | "voided" | "removed" | "vendor_unclear" | "vendor_refused" | "currency" | "refused" | "unreachable" | null;
+            /** @description QuickBooks' id for the expense. */
+            quickbooksId: string | null;
+            /** @description The GMS's reference written on it (QuickBooks' Ref no.). */
+            reference: string;
+            /** @description What was written. */
+            posted: {
+                /** Format: int64 */
+                amountMinor: number;
+                currency: string;
+                /** Format: date */
+                paidOn: string;
+                vendorName: string | null;
+            };
+            /** Format: date-time */
+            postedAt: string | null;
+            /** @description What changed after posting. */
+            attention: {
+                [key: string]: unknown;
+            } | null;
+            /** Format: date-time */
+            attentionAt: string | null;
+            /** Format: date-time */
+            handledAt: string | null;
+            /** Format: int32 */
+            attempts: number;
+        };
+        /** @enum {string} */
+        "Models.AccountingEntryStatus": "posting" | "posted" | "needs_attention" | "failed" | "handled";
+        /** @description What the funder can choose from in QuickBooks, read live: active records, ids and names only. */
+        "Models.AccountingOptions": {
+            expenseAccounts: components["schemas"]["Models.QuickBooksRef"][];
+            bankAccounts: components["schemas"]["Models.QuickBooksRef"][];
+            classes: components["schemas"]["Models.QuickBooksRef"][];
+            departments: components["schemas"]["Models.QuickBooksRef"][];
+        };
+        "Models.AccountingPayment": {
+            trancheId: string;
+            awardId: string;
+            awardTitle: string | null;
+            grantee: string | null;
+            /** Format: int32 */
+            seq: number;
+            /** Format: int64 */
+            amountMinor: number;
+            currency: string;
+            /** Format: date */
+            paidOn: string | null;
+            mode: string | null;
+            status: string;
+        };
+        "Models.AccountingSettings": {
+            /** @description The expense account grants post to. */
+            expense: components["schemas"]["Models.QuickBooksRef"] | null;
+            /** @description The bank account in QuickBooks' chart of accounts the payments leave from (its QuickBooks id and name, never a bank's number). */
+            paidFrom: components["schemas"]["Models.QuickBooksRef"] | null;
+            /**
+             * @description How programs are tracked in QuickBooks.
+             * @enum {string}
+             */
+            tracking: "none" | "class" | "department";
+            /**
+             * @description A grantee with no vendor yet: `create` one with the organization's name only, or `ask` a person.
+             * @enum {string}
+             */
+            vendorPolicy: "create" | "ask";
+            /** @description The company's home currency; payments in another currency are not posted. */
+            currency: string;
+            /** @description Off until a person turns it on. */
+            syncEnabled: boolean;
+            /**
+             * Format: date-time
+             * @description Payments recorded from this moment on are posted.
+             */
+            syncFrom: string | null;
+            /**
+             * @description The language of the memo on each entry.
+             * @enum {string}
+             */
+            locale: "en" | "es";
+            /** Format: date-time */
+            updatedAt: string | null;
+        };
+        "Models.AccountingSettingsInput": {
+            /** @description From `expenseAccounts`. */
+            expenseId: string;
+            /** @description From `bankAccounts`. */
+            paidFromId: string;
+            /** @enum {string} */
+            tracking: "none" | "class" | "department";
+            /** @description Program id → a class or location id (null: none for that program). */
+            programs?: {
+                [key: string]: string | null;
+            };
+            /** @enum {string} */
+            vendorPolicy: "create" | "ask";
+            /** @description Three letters (default USD). */
+            currency?: string;
+            /** @description Turning it on starts from now: payments recorded before are never posted. 409 `quickbooks_not_connected`. */
+            syncEnabled: boolean;
+        };
+        "Models.AccountingSync": {
+            /** @description QuickBooks through Composio is set up on this server. */
+            configured: boolean;
+            connected: boolean;
+            /** @description The stored connection state (`connector_accounts`). */
+            connection: string;
+            settings: components["schemas"]["Models.AccountingSettings"];
+            /** @description Each program of the workspace, with its class or location. */
+            programs: {
+                programId: string;
+                name: string;
+                ref: components["schemas"]["Models.QuickBooksRef"] | null;
+            }[];
+            counts: {
+                /** Format: int32 */
+                posted: number;
+                /** Format: int32 */
+                needsAttention: number;
+                /** Format: int32 */
+                failed: number;
+                /** Format: int32 */
+                posting: number;
+            };
+        };
+        "Models.AccountingVendors": {
+            /** @enum {string} */
+            vendorPolicy: "create" | "ask";
+            /** @description Active QuickBooks vendors, ids and names only. */
+            vendors: components["schemas"]["Models.QuickBooksRef"][];
+            /** @description Each organization this workspace has awarded, with the vendor chosen and QuickBooks' vendor of exactly its name. */
+            grantees: {
+                granteeId: string;
+                name: string;
+                vendor: components["schemas"]["Models.QuickBooksRef"] | null;
+                suggestion: components["schemas"]["Models.QuickBooksRef"] | null;
+            }[];
+        };
+        "Models.AccountingVendorsInput": {
+            /** @description `vendorId` null: back to matching by name (or creating one, per `vendorPolicy`). */
+            vendors: {
+                granteeId: string;
+                vendorId: string | null;
+            }[];
+        };
         "Models.ActivityEntry": {
             eventType: string;
             /** @description The event in words, e.g. "Tranche held" */
@@ -14518,7 +14809,7 @@ export interface components {
             returnTo?: string;
         };
         /** @enum {string} */
-        "Models.ConnectorProvider": "google_workspace" | "mercury" | "google_sheets" | "airtable" | "slack" | "google_drive" | "salesforce";
+        "Models.ConnectorProvider": "google_workspace" | "mercury" | "google_sheets" | "airtable" | "slack" | "google_drive" | "salesforce" | "quickbooks";
         "Models.ConnectorStart": {
             /**
              * Format: uri
@@ -14530,7 +14821,7 @@ export interface components {
         };
         "Models.ConnectorView": {
             /** @enum {string} */
-            provider: "mercury" | "google_workspace" | "google_sheets" | "airtable" | "slack" | "google_drive" | "salesforce";
+            provider: "mercury" | "google_workspace" | "google_sheets" | "airtable" | "slack" | "google_drive" | "salesforce" | "quickbooks";
             connected: boolean;
             status: string;
             scopes: string[];
@@ -17673,6 +17964,8 @@ export interface components {
             googleCalendar: boolean;
             googleDrive: boolean;
             salesforce: boolean;
+            /** @description QuickBooks sync (v1.13.0), record-keeping only: COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID set. */
+            quickbooks: boolean;
         };
         /** @description What this server has switched on. Read before sign-in so the web app can hide controls. */
         "Models.InstallConfig": {
@@ -20399,6 +20692,12 @@ export interface components {
         "Models.QuestionPhase": "loi" | "full" | "report";
         /** @enum {string} */
         "Models.QuestionStatus": "empty" | "draft" | "ready" | "approved";
+        /** @description A QuickBooks record the funder chose: QuickBooks' id and name (a long run of digits in a name is cut to its last four). */
+        "Models.QuickBooksRef": {
+            /** @description QuickBooks' own id (digits). */
+            id: string;
+            name: string;
+        };
         /** @description `POST /gms/opportunities/{id}/quick-setup`: what quick setup made or reused, and the launch checklist. */
         "Models.QuickSetupResult": {
             /** @description The opportunity's competition: newly made, or the draft (or open) one it already had */
@@ -23912,6 +24211,546 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Accounting_sync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AccountingSync"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Accounting_entries: {
+        parameters: {
+            query?: {
+                compare?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AccountingEntries"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Accounting_handled: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AccountingEntry"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Accounting_retry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AccountingEntry"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Accounting_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AccountingOptions"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Accounting_saveSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.AccountingSettingsInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AccountingSync"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Accounting_vendors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AccountingVendors"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Accounting_saveVendors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.AccountingVendorsInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AccountingVendors"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

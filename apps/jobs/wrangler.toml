@@ -22,6 +22,8 @@ WEB_BASE_URL = "http://localhost:5173"
 #   :00 :15 :30 :45  tranche due evaluator, requirement due/overdue evaluator and reminders
 #   hourly  Passport sync: award mirror retry, disbursed amounts, payee level and status
 #   every 15 min  Slack alerts (connected apps), after the due evaluators
+#   every 15 min  QuickBooks sync: one expense per recorded payment (record-keeping only; the
+#     COMPOSIO_API_KEY and COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID secrets on this Worker too)
 #   hourly at :30  Google Calendar events (connected apps)
 #   every 6 h  Mercury poll (read-only)
 #   02:30 UTC  organization-change poll and the ledger archive

@@ -9,6 +9,8 @@ import { Banknote, CircleCheck, CircleDashed, CircleX, Download, Landmark, Send,
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { BankTransaction, LedgerEvent, PaymentAlert, PaymentsCenterItem, TrancheRow } from "../../api/funderMoney.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
+// F2: the "In QuickBooks" status of a settled payment.
+import { InQuickBooks } from "../../components/InQuickBooks.tsx";
 import { ActivityTimeline, actorOf, describeEvent } from "../../components/ActivityTimeline.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { checklistOf, destinationLabel, HoldBanner, RecordExternalDialog, ReleaseDialog, releaseBlockedReason } from "../../components/payments.tsx";
@@ -688,7 +690,7 @@ export function PaymentsCenter({ view }: { view: PaymentsView }) {
                                 <td>{t("paymentsCenter.tranche5", { seq: r.seq })}</td>
                                 <td className="num">{formatMinor(r.amountMinor, r.currency)}</td>
                                 <td>{r.mode === "resolve" ? t("paymentsCenter.paidOutsidePassport") : t("paymentsCenter.throughPassport")}</td>
-                                <td>{r.passportStatus === "unverified" ? <span className="pill-warn">{t("paymentsCenter.settledUnverified")}</span> : <StatusBadge kind="tranche" status={r.status} />}</td>
+                                <td>{r.passportStatus === "unverified" ? <span className="pill-warn">{t("paymentsCenter.settledUnverified")}</span> : <StatusBadge kind="tranche" status={r.status} />} <InQuickBooks trancheId={r.id} /></td>
                               </tr>
                             ))}
                             {!settled.length && (

@@ -40,7 +40,9 @@ select tables_are(
     'peer_invitations', 'referral_links', 'referral_joins', 'directory_listings',
     'share_kit_profiles', 'social_reminder_prompts',
     -- 0050: a signed-in session's pass to a draft's live channel (co-editing).
-    'presence_passes'
+    'presence_passes',
+    -- 0051: QuickBooks sync (the mapping and one entry per payment).
+    'accounting_links', 'accounting_entries'
   ],
   'public schema has exactly the GMS tables'
 );

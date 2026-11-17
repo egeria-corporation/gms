@@ -51,6 +51,9 @@ const SAME_IN_EVERY_LANGUAGE = new Set([
   "Google Drive",
   "Google Calendar",
   "SOQL",
+  // QuickBooks sync (v1.13.0): product names.
+  "QuickBooks",
+  "QuickBooks Online",
 ]);
 
 // Attributes a person reads or hears.
