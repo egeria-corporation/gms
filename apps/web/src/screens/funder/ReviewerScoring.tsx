@@ -2,7 +2,7 @@
 // Reviewer portal — scoring one assignment. The application shows in reviewer mode (fields the
 // funder hid from reviewers are absent; personal fields are masked for external reviewers), beside
 // a score card built from the stage's rubric. Scores save as a draft and lock on submit.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Check, EyeOff, Lock } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
@@ -98,13 +98,27 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
     return api.updateAssignment(assignmentId, patch);
   });
 
+  // What the reviewer has changed on this assignment. The saved review fills the form only where
+  // they have not: the assignment can arrive, or arrive again, after their first keystroke, and
+  // filling the whole form then threw away what they had typed.
+  const touched = useRef(new Set<string>());
+  const edit = (field: string) => touched.current.add(field);
+  useEffect(() => {
+    touched.current.clear();
+  }, [assignmentId]);
+
   useEffect(() => {
     const d: ReviewAssignmentDetail | undefined = detail.data;
     if (!d) return;
-    setEntries(Object.fromEntries(Object.entries(d.myReview?.scores ?? {}).map(([k, v]) => [k, entryOf(v)])));
-    setNarrative(d.myReview?.narrative ?? "");
-    setRecommendation(d.myReview?.recommendation ?? "");
-    setVisibility(d.myReview?.visibility ?? "panel");
+    const saved = Object.fromEntries(Object.entries(d.myReview?.scores ?? {}).map(([k, v]) => [k, entryOf(v)]));
+    setEntries((now) => {
+      const next: Record<string, Entry> = { ...saved };
+      for (const [key, entry] of Object.entries(now)) if (touched.current.has(`score:${key}`)) next[key] = entry;
+      return next;
+    });
+    if (!touched.current.has("narrative")) setNarrative(d.myReview?.narrative ?? "");
+    if (!touched.current.has("recommendation")) setRecommendation(d.myReview?.recommendation ?? "");
+    if (!touched.current.has("visibility")) setVisibility(d.myReview?.visibility ?? "panel");
   }, [detail.data]);
 
   if (detail.status === "loading") return <Loading label={t("reviewerScoring.loadingTheApplication")} />;
@@ -185,7 +199,7 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
             </span>
           </div>
           {criteria.map((c) => (
-            <ScoreCard key={c.key} c={c} entry={entries[c.key] ?? {}} readOnly={readOnly || needsCoi} error={missing.includes(c.key)} onChange={(e) => setEntries((all) => ({ ...all, [c.key]: e }))} />
+            <ScoreCard key={c.key} c={c} entry={entries[c.key] ?? {}} readOnly={readOnly || needsCoi} error={missing.includes(c.key)} onChange={(e) => { edit(`score:${c.key}`); setEntries((all) => ({ ...all, [c.key]: e })); }} />
           ))}
           <div className="score">
             <div className="hd">
@@ -197,7 +211,7 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
             {recommendations.length > 0 && (
               <div className="scale-cat" role="radiogroup" aria-labelledby="rec-h">
                 {recommendations.map((r) => (
-                  <button key={r} type="button" role="radio" aria-checked={recommendation === r} className={recommendation === r ? "on" : undefined} disabled={readOnly || needsCoi} onClick={() => setRecommendation(r)}>
+                  <button key={r} type="button" role="radio" aria-checked={recommendation === r} className={recommendation === r ? "on" : undefined} disabled={readOnly || needsCoi} onClick={() => { edit("recommendation"); setRecommendation(r); }}>
                     {r}
                   </button>
                 ))}
@@ -206,16 +220,16 @@ function Scoring({ assignmentId }: { assignmentId: string }) {
             <label className="lbl" htmlFor="narr" style={{ marginTop: "4px" }}>
               {t("reviewerScoring.narrativeForThePanel")}
             </label>
-            <textarea className="ta" id="narr" value={narrative} readOnly={readOnly || needsCoi} onChange={(e) => setNarrative(e.target.value)} />
+            <textarea className="ta" id="narr" value={narrative} readOnly={readOnly || needsCoi} onChange={(e) => { edit("narrative"); setNarrative(e.target.value); }} />
             {/* .col spaces the two radios so each keeps a 24px target (WCAG 2.5.8). */}
             <fieldset className="col" style={{ border: 0, padding: 0, margin: "4px 0 0" }}>
               <legend className="lbl">{t("reviewerScoring.whoReadsYourNarrative")}</legend>
               <label className="radio">
-                <input type="radio" name="visibility" checked={visibility === "panel"} disabled={readOnly || needsCoi} onChange={() => setVisibility("panel")} />
+                <input type="radio" name="visibility" checked={visibility === "panel"} disabled={readOnly || needsCoi} onChange={() => { edit("visibility"); setVisibility("panel"); }} />
                 <span>{t("reviewerScoring.thePanel")}</span>
               </label>
               <label className="radio">
-                <input type="radio" name="visibility" checked={visibility === "funder_only"} disabled={readOnly || needsCoi} onChange={() => setVisibility("funder_only")} />
+                <input type="radio" name="visibility" checked={visibility === "funder_only"} disabled={readOnly || needsCoi} onChange={() => { edit("visibility"); setVisibility("funder_only"); }} />
                 <span>{t("reviewerScoring.programStaffOnlyLeft")}</span>
               </label>
             </fieldset>

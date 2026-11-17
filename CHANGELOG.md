@@ -48,6 +48,10 @@ upgrade, and the release workflow uses it as the GitHub Release notes.
 
 ### Fixed
 
+- A reviewer could lose a score they had just typed on the scoring screen: the saved review was
+  copied over the whole form whenever the assignment arrived, including just after their first
+  keystroke. The saved review now fills only what the reviewer has not changed.
+
 - The Feedback button on the hosted site (Userback's widget) failed colour contrast on every page: white
   on light blue, 2.54:1. It now uses the theme's dark teal with white text (8.7:1). Found by running
   axe against the live site after the v1.10.0 deploy; the mock-mode checks don't load the widget.
