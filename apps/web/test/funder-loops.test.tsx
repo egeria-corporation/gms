@@ -6,6 +6,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
+import { readFileSync } from "node:fs";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it } from "vitest";
 import { mockLoopsStore } from "../src/api/loopsHooks.ts";
@@ -13,6 +14,7 @@ import { App } from "../src/app/App.tsx";
 import { createMockServices } from "../src/app/services.tsx";
 import { demoSession } from "../src/mocks/auth.ts";
 import { MOCK_PACKAGE_TOKENS } from "../src/mocks/loops.ts";
+import { FUNDER_SETUP_RESUME_KEY } from "../src/screens/public/loopsParts.tsx";
 
 function open(path: string, services = createMockServices({ session: demoSession() })) {
   const utils = render(
@@ -169,5 +171,12 @@ describe("the reusable profile", () => {
     expect(panel).not.toHaveTextContent(/bank|last four|representative/i);
     await settled();
     expect(await seriousViolations()).toEqual([]);
+  });
+});
+
+describe("funder setup in place", () => {
+  it("resumes funder setup through the key funder setup itself keeps", () => {
+    const onboarding = readFileSync(new URL("../src/screens/public/FunderOnboarding.tsx", import.meta.url), "utf8");
+    expect(onboarding).toContain(`const RESUME_KEY = "${FUNDER_SETUP_RESUME_KEY}";`);
   });
 });

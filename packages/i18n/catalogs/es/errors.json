@@ -354,8 +354,8 @@
   "code.listing_pending": "Su solicitud está a la espera de una persona moderadora. Retírela primero para cambiarla.",
   "code.logo_not_an_image": "Ese archivo no es una imagen PNG, JPEG ni WebP.",
   "code.logo_too_large": "Ese logotipo es demasiado grande. Use una imagen de hasta 256 KB.",
-  "code.not_an_intermediary": "Los enlaces de incorporación y el directorio de socios son para espacios de trabajo que gestionan dos o más fondos. Agregue sus fondos en Configuración, Fondos.",
+  "code.not_an_intermediary": "Los enlaces de incorporación y el directorio de aliados son para espacios de trabajo que gestionan dos o más fondos. Agregue sus fondos en Configuración, Fondos.",
   "code.note_has_link": "Quite el enlace o la dirección de correo electrónico de su nota. La invitación lleva un solo enlace, para configurar un espacio de trabajo de financiador.",
   "code.too_many_peer_invites": "Un espacio de trabajo puede invitar a cinco financiadores por semana. Vuelva a intentarlo la próxima semana.",
-  "code.not_a_directory_moderator": "Solo quienes moderan el directorio de socios pueden revisar las solicitudes."
+  "code.not_a_directory_moderator": "Solo quienes moderan el directorio de aliados pueden revisar las solicitudes."
 }
