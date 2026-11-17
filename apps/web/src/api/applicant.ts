@@ -252,6 +252,8 @@ interface CgForm {
 
 export function toFormDefinition(f: CgForm, version: number): FormDefinition {
   const gms = (f.customFields?.gms?.value ?? {}) as { version?: number; fieldMeta?: FormDefinition["fieldMeta"] };
+  // The funder's text in other languages travels in its own custom field (docs/forms.md, "Languages").
+  const translations = f.customFields?.translations?.value as FormDefinition["translations"] | undefined;
   return {
     id: f.id,
     version: gms.version ?? version,
@@ -262,6 +264,7 @@ export function toFormDefinition(f: CgForm, version: number): FormDefinition {
     ...(f.mappingFromCommonGrants ? { mappingFromCommonGrants: f.mappingFromCommonGrants } : {}),
     ...(f.mappingToCommonGrants ? { mappingToCommonGrants: f.mappingToCommonGrants } : {}),
     ...(gms.fieldMeta ? { fieldMeta: gms.fieldMeta } : {}),
+    ...(translations && typeof translations === "object" ? { translations } : {}),
   };
 }
 

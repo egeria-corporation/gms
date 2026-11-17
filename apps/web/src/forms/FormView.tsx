@@ -6,8 +6,14 @@
 //   funder    read-only, with provenance
 //   print     read-only, flat, for the PDF snapshot
 // All rules, validation and masking come from `@gms/forms`; this file only draws.
+//
+// The funder's own text (section titles, labels, help, option labels) is shown in the reader's
+// language when the funder translated it, text by text, and otherwise as the funder wrote it, with
+// a note (docs/forms.md, "Languages"). A text in another language than the page is marked with
+// its `lang`. Reviewers and staff can switch the questions to the form's other language. Answers
+// are never per language: a choice is stored as its source value, whatever label was read.
 import { Suspense, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { BadgeCheck, BookOpen, Bot, EyeOff, FileText, Pencil, Plus, Trash2, TriangleExclamationPoint, Upload } from "lucide-react";
+import { BadgeCheck, BookOpen, Bot, EyeOff, FileText, Languages, Pencil, Plus, Trash2, TriangleExclamationPoint, Upload } from "lucide-react";
 import {
   clone,
   computeBudgetTotals,
@@ -15,7 +21,10 @@ import {
   deleteAt,
   effectiveSchema,
   evaluateUi,
+  formText,
   getPath,
+  isFormLanguage,
+  keyTitle,
   isMoney,
   isPlainObject,
   maskForReviewer,
@@ -24,13 +33,17 @@ import {
   schemaAtScope,
   scopeToPointer,
   setAt,
+  sourceLanguageOf,
   stripTags,
   toMinor,
   validateResponse,
   type FormDefinition,
+  type FormLanguage,
   type FormSchema,
+  type FormText,
   type Json,
   type JsonObject,
+  type ShownText,
   type UiControl,
   type UiElement,
   type UiLayout,
@@ -78,6 +91,13 @@ export interface FormViewProps {
    * Without one they are ordinary inputs the applicant fills in, and no Passport link is shown.
    */
   passportLinked?: boolean;
+  /**
+   * The language to show the funder's text in. Default: the page's, where the funder translated
+   * it. Reviewer and funder modes offer a switch to the form's other language when it has one.
+   */
+  language?: FormLanguage;
+  /** The funder's own preview: show the assistant's unreviewed translation drafts too. */
+  previewDrafts?: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -163,11 +183,15 @@ function widgetOptionsOf(schema: FormSchema, control: UiControl): WidgetOptions 
   return schema["x-widgetOptions"] ?? (isPlainObject(fromUi) ? (fromUi as WidgetOptions) : {});
 }
 
-const titleCase = (key: string) =>
-  key
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/[_-]+/g, " ")
-    .replace(/^./, (c) => c.toUpperCase());
+const titleCase = keyTitle;
+
+/** A language's own name, as a language switch names it (never translated). */
+const LANGUAGE_OWN_NAME: Record<FormLanguage, string> = { en: "English", es: "Español" };
+
+/** A funder's text, marked with its language when the page reads in another one (WCAG 3.1.2). */
+function Shown({ s, page }: { s: ShownText; page: string }) {
+  return s.lang === page ? <>{s.text}</> : <span lang={s.lang}>{s.text}</span>;
+}
 
 // ---------------------------------------------------------------------------------------------
 // renderer
@@ -193,6 +217,10 @@ interface Ctx {
   passportUrl: string;
   profileUrl: string | null;
   passportLinked: boolean;
+  /** The funder's text in the language shown. */
+  text: FormText;
+  /** The page's language. */
+  pageLang: string;
 }
 
 /**
@@ -238,6 +266,12 @@ function FormBody(props: FormViewProps) {
     [form, response, mode, props.serverErrors],
   );
 
+  // The funder's text: in the reader's language where translated, else the form's own.
+  const pageLang = getLocale();
+  const [chosen, setChosen] = useState<FormLanguage | null>(null);
+  const language = props.language ?? chosen ?? (isFormLanguage(pageLang) ? pageLang : sourceLanguageOf(form));
+  const text = useMemo(() => formText(form, language, { drafts: props.previewDrafts === true }), [form, language, props.previewDrafts]);
+
   const ctx: Ctx = {
     form,
     schema,
@@ -263,12 +297,42 @@ function FormBody(props: FormViewProps) {
     passportUrl: props.passportUrl ?? "https://app.passport.opengrants.io",
     profileUrl: props.profileUrl ?? null,
     passportLinked: props.passportLinked ?? true,
+    text,
+    pageLang,
   };
 
-  const body = <Element el={form.uiSchema} ctx={ctx} />;
+  const body = <Element el={form.uiSchema} path="" ctx={ctx} />;
   if (mode === "print") return <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>{body}</div>;
+  // Reviewers and staff may read the questions in the form's other language.
+  const canSwitch = (mode === "reviewer" || mode === "funder") && !props.language && text.languages.length > 1;
   return (
     <div className="gms-form" data-mode={mode} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {(canSwitch || text.coverage !== "full") && (
+        <div className="row" style={{ gap: "12px", flexWrap: "wrap", justifyContent: "space-between" }}>
+          {text.coverage !== "full" ? (
+            <p className="row small muted" style={{ gap: "6px" }} data-testid="form-language-note">
+              <Languages className="ic ic-sm" aria-hidden="true" />
+              {t(text.coverage === "none" ? "form.language.notTranslated" : "form.language.partlyTranslated", { language: text.source })}
+            </p>
+          ) : (
+            <span />
+          )}
+          {canSwitch && (
+            <div className="row" style={{ gap: "8px" }}>
+              <span className="small muted" id={`${uid}-language`}>
+                {t("form.language.questionsIn")}
+              </span>
+              <div className="seg" role="group" aria-labelledby={`${uid}-language`}>
+                {text.languages.map((l) => (
+                  <button key={l} type="button" lang={l} className={l === language ? "on" : ""} aria-pressed={l === language} onClick={() => setChosen(l)}>
+                    {LANGUAGE_OWN_NAME[l]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {body}
     </div>
   );
@@ -283,10 +347,14 @@ function hasVisible(el: UiElement, ctx: Ctx): boolean {
   return el.elements.some((child) => hasVisible(child, ctx));
 }
 
-function Element({ el, ctx }: { el: UiElement; ctx: Ctx }) {
+/** A section's title in the language shown; `path` is the layout's place in the UI schema. */
+const sectionText = (ctx: Ctx, path: string, label: string | undefined): ShownText | null => (label ? ctx.text.section(path, label) : null);
+
+function Element({ el, path, ctx }: { el: UiElement; path: string; ctx: Ctx }) {
   if (!hasVisible(el, ctx)) return null;
   if (el.type === "Control") return <Control control={el} ctx={ctx} />;
-  const children = el.elements.map((child, i) => <Element key={i} el={child} ctx={ctx} />);
+  const children = el.elements.map((child, i) => <Element key={i} el={child} path={`${path}/elements/${i}`} ctx={ctx} />);
+  const title = sectionText(ctx, path, el.label);
   switch (el.type) {
     case "HorizontalLayout":
       return ctx.mode === "print" ? <>{children}</> : <div className="fld-row">{children}</div>;
@@ -295,15 +363,15 @@ function Element({ el, ctx }: { el: UiElement; ctx: Ctx }) {
       if (ctx.mode === "print") {
         return (
           <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <h2>{el.label}</h2>
+            <h2>{title && <Shown s={title} page={ctx.pageLang} />}</h2>
             {children}
           </section>
         );
       }
       return (
-        <section className="card" aria-label={el.label}>
+        <section className="card" aria-label={title?.text}>
           <div className="card-h">
-            <h3>{el.label}</h3>
+            <h3>{title && <Shown s={title} page={ctx.pageLang} />}</h3>
           </div>
           <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             {children}
@@ -311,26 +379,30 @@ function Element({ el, ctx }: { el: UiElement; ctx: Ctx }) {
         </section>
       );
     case "Categorization":
-      return <Categorization el={el} ctx={ctx} />;
+      return <Categorization el={el} path={path} ctx={ctx} />;
     default:
       return <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>{children}</div>;
   }
 }
 
-function Categorization({ el, ctx }: { el: UiLayout; ctx: Ctx }) {
-  const categories = el.elements.filter((c): c is UiLayout => c.type === "Category" && hasVisible(c, ctx));
+function Categorization({ el, path, ctx }: { el: UiLayout; path: string; ctx: Ctx }) {
+  // Each category keeps its place in the UI schema, which is how its title's translation is found.
+  const placed = el.elements.flatMap((c, i) => (c.type === "Category" && hasVisible(c, ctx) ? [{ c: c as UiLayout, at: `${path}/elements/${i}` }] : []));
+  const categories = placed.map((p) => p.c);
+  const atOf = (c: UiLayout) => placed.find((p) => p.c === c)!.at;
   const [active, setActive] = useState(0);
   // Read-only modes show every category; only the editor pages through them.
   if (ctx.mode !== "edit") {
     return (
       <>
-        {categories.map((c, i) => (
-          <Element key={i} el={c} ctx={ctx} />
+        {placed.map(({ c, at }, i) => (
+          <Element key={i} el={c} path={at} ctx={ctx} />
         ))}
       </>
     );
   }
   const current = categories[Math.min(active, categories.length - 1)];
+  const currentTitle = current ? sectionText(ctx, atOf(current), current.label) : null;
   const countErrors = (c: UiLayout): number => {
     const paths: string[] = [];
     const walk = (e: UiElement) => (e.type === "Control" ? paths.push(scopeToPointer(e.scope)) : e.elements.forEach(walk));
@@ -339,9 +411,10 @@ function Categorization({ el, ctx }: { el: UiLayout; ctx: Ctx }) {
   };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-      <div className="tabs" role="tablist" aria-label={el.label ?? t("form.sections")}>
+      <div className="tabs" role="tablist" aria-label={sectionText(ctx, path, el.label)?.text ?? t("form.sections")}>
         {categories.map((c, i) => {
           const n = countErrors(c);
+          const title = sectionText(ctx, atOf(c), c.label);
           return (
             <button
               key={i}
@@ -351,16 +424,16 @@ function Categorization({ el, ctx }: { el: UiLayout; ctx: Ctx }) {
               className={c === current ? "tab on" : "tab"}
               onClick={() => setActive(i)}
             >
-              {c.label}
+              {title && <Shown s={title} page={ctx.pageLang} />}
               {n > 0 && <span className="n">{n}</span>}
             </button>
           );
         })}
       </div>
       {current && (
-        <div role="tabpanel" aria-label={current.label} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <div role="tabpanel" aria-label={currentTitle?.text} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {current.elements.map((child, i) => (
-            <Element key={i} el={child} ctx={ctx} />
+            <Element key={i} el={child} path={`${atOf(current)}/elements/${i}`} ctx={ctx} />
           ))}
         </div>
       )}
@@ -373,11 +446,14 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
   const schema = schemaAtScope(ctx.schema, control.scope);
   if (!schema) return null;
   const segs = parsePointer(path);
-  const label = control.label ?? schema.title ?? titleCase(segs[segs.length - 1] ?? "");
+  const shownLabel = ctx.text.label(path, control.label ?? schema.title ?? titleCase(segs[segs.length - 1] ?? ""));
+  const label = shownLabel.text;
+  const labelNode = <Shown s={shownLabel} page={ctx.pageLang} />;
   const widget = widgetOf(schema, control);
   const opts = widgetOptionsOf(schema, control);
   const id = `${ctx.uid}${path.replace(/[^\w-]/g, "-")}`;
-  const help = control.options?.help ?? schema.description;
+  const helpSource = control.options?.help ?? schema.description;
+  const help = helpSource ? <Shown s={ctx.text.help(path, helpSource)} page={ctx.pageLang} /> : undefined;
   const source = ctx.provenance[path];
   const readOnly = ctx.mode !== "edit";
   const required = isRequired(ctx.schema, path);
@@ -388,7 +464,7 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
     return (
       <div className="fld">
         <div className="lbl">
-          {label}
+          {labelNode}
           {ctx.mode === "funder" && source && <ProvenanceChip source={source} forApplicant={false} />}
         </div>
         {ctx.masked.has(path) ? (
@@ -397,7 +473,7 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
             {t("form.hiddenFromExternalReviewers")}
           </span>
         ) : (
-          <ReadValue schema={schema} widget={widget} value={value} />
+          <ReadValue schema={schema} widget={widget} value={value} option={(v) => ctx.text.option(path, v)} page={ctx.pageLang} />
         )}
       </div>
     );
@@ -418,6 +494,7 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
     describedBy: [`${id}-help`, ...errorIds].join(" "),
     ctx,
     label,
+    labelShown: shownLabel,
     control,
   };
   const wordLimit = schema["x-wordCount"];
@@ -434,13 +511,13 @@ function Control({ control, ctx }: { control: UiControl; ctx: Ctx }) {
     <div className="fld" role={composite ? "group" : undefined} aria-labelledby={composite ? `${id}-label` : undefined}>
       {schema.type === "boolean" && !widget ? null : composite ? (
         <div className="lbl" id={`${id}-label`}>
-          {label}
+          {labelNode}
           {required && <Required />}
           {source && <ProvenanceChip source={source} forApplicant={ctx.mode === "edit"} />}
         </div>
       ) : (
         <label className="lbl" htmlFor={id}>
-          {label}
+          {labelNode}
           {required && <Required />}
           {source && <ProvenanceChip source={source} forApplicant={ctx.mode === "edit"} />}
         </label>
@@ -545,12 +622,15 @@ const ERROR_TEXT: [RegExp, (m: RegExpExecArray, label: string, type: string) => 
 // ---------------------------------------------------------------------------------------------
 // read-only values
 
-function ReadValue({ schema, widget, value }: { schema: FormSchema; widget: WidgetName | undefined; value: Json | undefined }) {
+/** A stored choice shown by its label in the language shown (the value itself stays as stored). */
+type OptionText = (value: string) => ShownText;
+
+function ReadValue({ schema, widget, value, option, page }: { schema: FormSchema; widget: WidgetName | undefined; value: Json | undefined; option: OptionText; page: string }) {
   if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0))
     return <span className="muted">—</span>;
   if (widget === "money" || isMoney(value)) return <div>{formatMoney(value)}</div>;
   if (widget === "richText" && typeof value === "string") return <div dangerouslySetInnerHTML={{ __html: sanitizeRichText(value).html }} />;
-  if (widget === "budgetTable") return <BudgetRead rows={value} />;
+  if (widget === "budgetTable") return <BudgetRead rows={value} option={option} page={page} />;
   if (widget === "signature" && isPlainObject(value)) {
     return (
       <div>
@@ -581,11 +661,25 @@ function ReadValue({ schema, widget, value }: { schema: FormSchema; widget: Widg
   if (typeof value === "boolean") return <div>{t("form.yesNo", { value: value ? "yes" : "no" })}</div>;
   if (typeof value === "string") {
     if (schema.format === "date" || schema.format === "date-time") return <div>{formatDate(value)}</div>;
+    if (schema.enum?.includes(value)) return <div><Shown s={option(value)} page={page} /></div>;
     return <div style={{ whiteSpace: "pre-wrap" }}>{value}</div>;
   }
   if (typeof value === "number") return <div>{value.toLocaleString(intlLocale())}</div>;
   if (Array.isArray(value)) {
-    if (value.every((v) => typeof v === "string" || typeof v === "number")) return <div>{value.join(", ")}</div>;
+    if (value.every((v) => typeof v === "string" || typeof v === "number")) {
+      const choices = schema.items?.enum;
+      if (!choices) return <div>{value.join(", ")}</div>;
+      return (
+        <div>
+          {value.map((v, i) => (
+            <span key={String(v)}>
+              {i > 0 && ", "}
+              {typeof v === "string" && choices.includes(v) ? <Shown s={option(v)} page={page} /> : String(v)}
+            </span>
+          ))}
+        </div>
+      );
+    }
     const columns = Object.keys(schema.items?.properties ?? (isPlainObject(value[0]) ? value[0] : {}));
     return (
       <div className="tbl-wrap" tabIndex={0} role="region" aria-label={t("form.tableScrollable")}>
@@ -633,7 +727,7 @@ function formatCell(v: Json | undefined): string {
   return String(v);
 }
 
-function BudgetRead({ rows }: { rows: Json }) {
+function BudgetRead({ rows, option, page }: { rows: Json; option: OptionText; page: string }) {
   const list = Array.isArray(rows) ? rows.filter(isPlainObject) : [];
   const totals = computeBudgetTotals(rows);
   return (
@@ -649,7 +743,7 @@ function BudgetRead({ rows }: { rows: Json }) {
         <tbody>
           {list.map((r, i) => (
             <tr key={i}>
-              <td>{String(r.label ?? r.category ?? "")}</td>
+              <td>{typeof r.label === "string" ? r.label : typeof r.category === "string" ? <Shown s={option(r.category)} page={page} /> : ""}</td>
               <td className="num">{formatMoney(r.amount)}</td>
               <td style={{ whiteSpace: "normal" }}>{String(r.notes ?? "")}</td>
             </tr>
@@ -681,6 +775,8 @@ interface InputProps {
   describedBy: string;
   ctx: Ctx;
   label: string;
+  /** The label with its language, for a control that shows it beside the input (a yes/no box). */
+  labelShown: ShownText;
   control: UiControl;
 }
 
@@ -762,7 +858,7 @@ function Input(props: InputProps & { widget: WidgetName | undefined; required: b
         />
         <span className={value === true ? "c on" : "c"} aria-hidden="true"></span>
         <span>
-          {props.label}
+          <Shown s={props.labelShown} page={ctx.pageLang} />
           {required && <Required />}
         </span>
       </label>
@@ -772,11 +868,15 @@ function Input(props: InputProps & { widget: WidgetName | undefined; required: b
     return (
       <select {...base} className={cls("sel", invalid)} value={text} onChange={(e) => ctx.set(path, e.target.value)}>
         <option value="">{t("form.select")}</option>
-        {schema.enum.map((o) => (
-          <option key={String(o)} value={String(o)}>
-            {String(o)}
-          </option>
-        ))}
+        {schema.enum.map((o) => {
+          // The option reads in the language shown; its value is the funder's, so the answer is stored once.
+          const shown = typeof o === "string" ? ctx.text.option(path, o) : null;
+          return (
+            <option key={String(o)} value={String(o)} lang={shown && shown.lang !== ctx.pageLang ? shown.lang : undefined}>
+              {shown ? shown.text : String(o)}
+            </option>
+          );
+        })}
       </select>
     );
   }
@@ -800,7 +900,7 @@ function Input(props: InputProps & { widget: WidgetName | undefined; required: b
                 }}
               />
               <span className={on ? "c on" : "c"} aria-hidden="true"></span>
-              <span>{String(o)}</span>
+              <span>{typeof o === "string" ? <Shown s={ctx.text.option(path, o)} page={ctx.pageLang} /> : String(o)}</span>
             </label>
           );
         })}
@@ -1097,12 +1197,15 @@ function BudgetInput({ id, path, opts, value, ctx, disabled }: InputProps) {
           <tbody>
             {display.map((row, i) => {
               const amount = isPlainObject(row.amount) && typeof row.amount.amount === "string" ? row.amount.amount : "";
-              const name = String(row.category ?? "");
+              const category = String(row.category ?? "");
+              // A fixed category reads in the language shown; the row stores the funder's own name.
+              const shownCategory = fixed ? ctx.text.option(path, category) : null;
+              const name = shownCategory ? shownCategory.text : category;
               return (
-                <tr key={fixed ? name : i}>
+                <tr key={fixed ? category : i}>
                   <td>
-                    {fixed ? (
-                      name
+                    {shownCategory ? (
+                      <Shown s={shownCategory} page={ctx.pageLang} />
                     ) : (
                       <input
                         className="inp"

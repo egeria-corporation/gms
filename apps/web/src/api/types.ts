@@ -13,7 +13,7 @@
 // `rules`/`org`/`profile`), the member list (paginated `items` vs `data`), FunderPage and
 // OpportunityPage (untyped objects), and nullability (`null` vs omitted). Where the spec is exact
 // (`Me`, `MyWorkspace`, and the enums below) the generated types are used.
-import type { FormSchema, MappingSchema, UiElement, FieldMeta, JsonObject } from "@gms/forms";
+import type { FormSchema, MappingSchema, UiElement, FieldMeta, FormTranslations, JsonObject, OpportunityTranslations } from "@gms/forms";
 import type { Evaluation, Rule } from "@gms/rules";
 import type { components } from "./schema.d.ts";
 
@@ -187,13 +187,15 @@ export interface Opportunity {
   eligibilityRules: Rule;
   publish: PublishFlags;
   customFields: Record<string, unknown>;
+  /** The title, summary and eligibility labels in other languages (the API sends `{}` when none). Never holds an assistant draft. */
+  translations?: OpportunityTranslations;
   published: boolean;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
 export type OpportunityInput = Partial<
-  Pick<Opportunity, "slug" | "description" | "programId" | "funding" | "keyDates" | "acceptedApplicantTypes" | "eligibilityRules" | "publish" | "customFields">
+  Pick<Opportunity, "slug" | "description" | "programId" | "funding" | "keyDates" | "acceptedApplicantTypes" | "eligibilityRules" | "publish" | "customFields" | "translations">
 > & { title: string };
 
 export interface OpportunityPreview {
@@ -285,6 +287,8 @@ export interface FormRecord extends FormSummary {
   mappingFromCommonGrants: MappingSchema;
   mappingToCommonGrants: MappingSchema;
   fieldMeta: Record<string, FieldMeta>;
+  /** The funder's text in other languages (the API sends `{}` when none): part of the version. */
+  translations?: FormTranslations;
 }
 export interface FormInput {
   title: string;
@@ -296,6 +300,7 @@ export interface FormInput {
   mappingFromCommonGrants?: MappingSchema;
   mappingToCommonGrants?: MappingSchema;
   fieldMeta?: Record<string, FieldMeta>;
+  translations?: FormTranslations;
   copyFrom?: { id: string; version?: number };
 }
 export type FormPatch = Partial<Omit<FormInput, "copyFrom">>;
@@ -363,7 +368,16 @@ export interface PublicCompetition {
 }
 export interface OpportunityPageData {
   funder: PublicFunder;
-  opportunity: PublicOpportunityCard & { publishedAt: string | null; eligibility: string[]; fund?: { name: string; slug: string; isDefault: boolean } | null };
+  opportunity: PublicOpportunityCard & {
+    publishedAt: string | null;
+    /** In the reader's language where the funder translated them. */
+    eligibility: string[];
+    fund?: { name: string; slug: string; isDefault: boolean } | null;
+    /** The language the title is shown in (the reader's where translated, else the funder's). */
+    language?: "en" | "es";
+    /** The funder's reviewed title and summary in each other language (the page's meta and share card). */
+    translations?: Partial<Record<"en" | "es", { title?: string; description?: string }>>;
+  };
   competitions: PublicCompetition[];
   commonGrants: unknown;
   links: { json: string; page: string };

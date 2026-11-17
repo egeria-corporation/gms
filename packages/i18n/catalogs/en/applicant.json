@@ -1,5 +1,8 @@
 {
   "form.sections": "Sections",
+  "form.language.notTranslated": "This form is in {language, select, en {English} es {Spanish} other {the funder's language}}, as the funder wrote it.",
+  "form.language.partlyTranslated": "Some of this form is in {language, select, en {English} es {Spanish} other {the funder's language}}, as the funder wrote it.",
+  "form.language.questionsIn": "Questions in",
   "form.hiddenFromExternalReviewers": "Hidden from external reviewers",
   "form.changeItInSettings": "Change it in Settings",
   "form.editInPassport": "Edit in Passport",

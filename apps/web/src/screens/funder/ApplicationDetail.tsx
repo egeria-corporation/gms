@@ -91,7 +91,7 @@ export function ResponseCard({ r, mode = "funder", external = false }: { r: Inbo
         {form.status === "error" && <RawResponse response={r.response} />}
         {form.status === "ready" && (
           <FormView
-            form={{ id: form.data.id, version: form.data.version, title: form.data.title, jsonSchema: form.data.jsonSchema, uiSchema: form.data.uiSchema, mappingFromCommonGrants: form.data.mappingFromCommonGrants, mappingToCommonGrants: form.data.mappingToCommonGrants, fieldMeta: form.data.fieldMeta } as FormDefinition}
+            form={{ id: form.data.id, version: form.data.version, title: form.data.title, jsonSchema: form.data.jsonSchema, uiSchema: form.data.uiSchema, mappingFromCommonGrants: form.data.mappingFromCommonGrants, mappingToCommonGrants: form.data.mappingToCommonGrants, fieldMeta: form.data.fieldMeta, translations: form.data.translations } as FormDefinition}
             response={r.response as JsonObject}
             provenance={r.provenance}
             mode={mode}

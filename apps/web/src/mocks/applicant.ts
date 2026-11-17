@@ -43,7 +43,7 @@ import type {
 } from "../api/applicant.ts";
 import type { Session } from "../auth/types.ts";
 import { FIXTURE_WORKSPACES, MOCK_USER } from "./fixtures.ts";
-import { LOI_FORM, LOI_PROVENANCE, LOI_RESPONSE } from "./forms.ts";
+import { LOI_FORM, LOI_FORM_SPANISH, LOI_PROVENANCE, LOI_RESPONSE } from "./forms.ts";
 
 const clone = <T>(v: T): T => structuredClone(v);
 const notFound = (what: string) => new ApiError(404, `${what} not found`);
@@ -189,7 +189,8 @@ function formState(form: FormDefinition, response: JsonObject, provenance: Recor
 
 export function seedApplicantStore(): ApplicantStore {
   const fullForm: FormDefinition = { ...clone(LOI_FORM), id: I.formFull, version: 1, title: "Full proposal" };
-  const loiForm: FormDefinition = { ...clone(LOI_FORM), id: I.formLoi, version: 2, title: "Letter of intent" };
+  // The funder translated its letter of intent into Spanish (docs/forms.md, "Languages"); the full proposal is English only.
+  const loiForm: FormDefinition = { ...clone(LOI_FORM), id: I.formLoi, version: 2, title: "Letter of intent", translations: clone(LOI_FORM_SPANISH) };
   const organization = seedOrganization();
   const event = (n: number, type: string, at: string, over: Partial<ApplicationEvent> = {}): ApplicationEvent => ({
     id: `e0000000-0000-7000-8000-00000000000${n}`,
