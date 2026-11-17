@@ -8,6 +8,7 @@ import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
+import { ADAPTERS, type AdapterKey } from "@gms/importers";
 import { provideMigrationRequestApi } from "../src/api/migrationRequestHooks.ts";
 import { App } from "../src/app/App.tsx";
 import { createMockServices } from "../src/app/services.tsx";
@@ -69,6 +70,27 @@ describe("switch page content", () => {
     for (const gone of ["6,500", "9,900", "13,900", "5,100", "2,000 a year", "ASI", "no successor", "customers are moving", "discontinued", "retired"]) expect(all, gone).not.toContain(gone);
   });
 
+  it("says what moves over as the importer brings it: history, awards and payments paid elsewhere", () => {
+    // The page's slug and the importer adapter (@gms/importers) for the same system.
+    const ADAPTER: Record<string, AdapterKey> = { "good-grants": "good_grants", submittable: "submittable", "surveymonkey-apply": "sm_apply", foundant: "foundant_glm", zengine: "zengine", fluxx: "fluxx", smartsimple: "smartsimple", cybergrants: "cybergrants", openwater: "openwater" };
+    for (const e of SWITCH_ENTRIES.filter((x) => x.kind === "system")) {
+      const a = ADAPTERS[ADAPTER[e.slug]!];
+      const lines = e.movesOver.join(" | ");
+      // Past applications always, as read-only history; reviews and reports exactly where the importer reads them.
+      expect(a.presets.history_applications, e.slug).toBeDefined();
+      expect(lines, e.slug).toMatch(/(applications|submissions|requests)[^|]*read-only history/i);
+      expect(/\breviews?\b[^|]*read-only history/i.test(lines), `${e.slug} reviews`).toBe(!!a.presets.history_reviews);
+      expect(/\breports?\b[^|]*read-only history/i.test(lines), `${e.slug} reports`).toBe(!!a.presets.history_reports);
+      // Awards, with their payments recorded as paid elsewhere (never moved).
+      expect(lines, e.slug).toMatch(/awards/i);
+      expect(!!a.presets.award_history?.paidAmount, e.slug).toBe(true);
+      expect(lines, e.slug).toMatch(/paid elsewhere/);
+      // Read straight from the system exactly when the importer pulls it through its API.
+      expect(!!e.pull, e.slug).toBe(a.via === "api");
+      if (e.pull) for (const text of [e.summary, e.exportStep]) expect(text, e.slug).toMatch(/read-only/);
+    }
+  });
+
   it("lists every system plus spreadsheets in the form, then something else", () => {
     expect(SYSTEM_OPTIONS.map((o) => o.value)).toEqual([...SWITCH_ENTRIES.map((e) => e.slug), "other"]);
   });
@@ -99,7 +121,9 @@ describe("/switch/{system}", () => {
     for (const line of [...entry.exports, ...entry.movesOver]) expect(screen.getAllByText(line).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "What stays behind" })).toBeInTheDocument();
     expect(screen.getByText(/dropped automatically and never stored/)).toBeInTheDocument();
-    for (const step of ["Upload the files to the import wizard", "Review the dry run", "Import"]) expect(screen.getByText(step, { selector: ".t" })).toBeInTheDocument();
+    // Zengine and Fluxx are read directly (credentials, then connect); every other system is a file upload.
+    const steps = entry.pull ? [`Get your ${entry.name} credentials`, `Connect ${entry.name} in the import wizard`, "Review the dry run", "Import"] : ["Upload the files to the import wizard", "Review the dry run", "Import"];
+    for (const step of steps) expect(screen.getByText(step, { selector: ".t" })).toBeInTheDocument();
     for (const d of ["Free", "Unlimited seats", "Open source (AGPL-3.0)", "CommonGrants"]) expect(screen.getByRole("heading", { level: 3, name: d })).toBeInTheDocument();
     // Each ownership line carries its own source link.
     const claims = view.container.querySelectorAll<HTMLElement>("[data-claim=ownership]");
