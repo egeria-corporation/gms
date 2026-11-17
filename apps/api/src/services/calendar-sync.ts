@@ -122,7 +122,7 @@ export async function syncLink(base: Pick<BaseContext, "repos" | "now">, port: C
       continue;
     }
     writes++;
-    await port.deleteEvent(link.workspace_id, link.composio_account_id, calendarId, entry.eventId);
+    await port.deleteEvent(link.workspace_id, link.composio_connection_id, calendarId, entry.eventId);
     delete map[key];
     out.deleted++;
     await save();
@@ -142,17 +142,17 @@ export async function syncLink(base: Pick<BaseContext, "repos" | "now">, port: C
     writes++;
     if (entry) {
       try {
-        await port.updateEvent(link.workspace_id, link.composio_account_id, calendarId, entry.eventId, d.event);
+        await port.updateEvent(link.workspace_id, link.composio_connection_id, calendarId, entry.eventId, d.event);
         map[key] = { eventId: entry.eventId, date: d.date, hash };
         out.updated++;
       } catch (e) {
         if (!(e instanceof CalendarEventGoneError)) throw e;
-        const made = await port.createEvent(link.workspace_id, link.composio_account_id, calendarId, d.event);
+        const made = await port.createEvent(link.workspace_id, link.composio_connection_id, calendarId, d.event);
         map[key] = { eventId: made.eventId, date: d.date, hash };
         out.created++;
       }
     } else {
-      const made = await port.createEvent(link.workspace_id, link.composio_account_id, calendarId, d.event);
+      const made = await port.createEvent(link.workspace_id, link.composio_connection_id, calendarId, d.event);
       map[key] = { eventId: made.eventId, date: d.date, hash };
       out.created++;
     }
@@ -243,7 +243,7 @@ export async function getMyCalendar(ctx: ServiceContext) {
   let link = await mine(ctx, ws.id);
   const port = ctx.ports.calendar;
   if (link && port && link.status !== "active") {
-    const s = await port.accountStatus(ws.id, link.composio_account_id).catch(() => ({ connected: false }));
+    const s = await port.accountStatus(ws.id, link.composio_connection_id).catch(() => ({ connected: false }));
     if (s.connected) link = (await ctx.repos.table("calendar_links").update({ id: link.id }, { status: "active" }))[0] ?? link;
   }
   return linkView(link, !!port);
@@ -256,16 +256,16 @@ export async function connectMyCalendar(ctx: ServiceContext, body: unknown) {
   const input = parse(calendarConnectInput, body);
   const port = calendarPort(ctx);
   const existing = await mine(ctx, ws.id);
-  if (existing?.status === "active" && (await port.accountStatus(ws.id, existing.composio_account_id).catch(() => ({ connected: false }))).connected) return { ...linkView(existing, true), connectUrl: null };
+  if (existing?.status === "active" && (await port.accountStatus(ws.id, existing.composio_connection_id).catch(() => ({ connected: false }))).connected) return { ...linkView(existing, true), connectUrl: null };
   const home = await ctx.repos.table("workspaces").one({ id: ws.id });
   const fallback = `/w/${home?.handle ?? ""}/settings/apps`;
   const returnTo = input.returnTo && home && input.returnTo.startsWith(`/w/${home.handle}/`) && /^\/w\/[a-z0-9-]+\/[A-Za-z0-9/_?=&.-]*$/.test(input.returnTo) && !input.returnTo.includes("//", 1) ? input.returnTo : fallback;
   const link = await port.connectLink(ws.id, returnTo).catch(calendarError);
   // A half-started earlier attempt is removed at Composio, so only one account per person remains.
-  if (existing && existing.composio_account_id !== link.accountId) await port.removeAccount(ws.id, existing.composio_account_id).catch(() => undefined);
+  if (existing && existing.composio_connection_id !== link.accountId) await port.removeAccount(ws.id, existing.composio_connection_id).catch(() => undefined);
   const row = existing
-    ? (await ctx.repos.table("calendar_links").update({ id: existing.id }, { composio_account_id: link.accountId, status: "pending", calendar_id: null, calendar_name: null, event_map: {} }))[0]!
-    : await ctx.repos.table("calendar_links").insert({ workspace_id: ws.id, user_id: ctx.actor.userId!, composio_account_id: link.accountId, status: "pending" });
+    ? (await ctx.repos.table("calendar_links").update({ id: existing.id }, { composio_connection_id: link.accountId, status: "pending", calendar_id: null, calendar_name: null, event_map: {} }))[0]!
+    : await ctx.repos.table("calendar_links").insert({ workspace_id: ws.id, user_id: ctx.actor.userId!, composio_connection_id: link.accountId, status: "pending" });
   await audit(ctx, "connector.connected", "workspace", ws.id, { provider: "google_calendar", state: "pending" });
   return { ...linkView(row, true), connectUrl: link.url };
 }
@@ -276,7 +276,7 @@ export async function listMyCalendars(ctx: ServiceContext) {
   const port = calendarPort(ctx);
   const link = await mine(ctx, ws.id);
   if (!link) throw new ApiError(409, "calendar_not_connected", "Connect Google Calendar first");
-  return (await port.listCalendars(ws.id, link.composio_account_id).catch(calendarError)).slice(0, 200);
+  return (await port.listCalendars(ws.id, link.composio_connection_id).catch(calendarError)).slice(0, 200);
 }
 
 /** Choose the calendar deadlines go to, and write them now. Moving to another calendar removes them from the first. A person only. */
@@ -288,7 +288,7 @@ export async function chooseMyCalendar(ctx: ServiceContext, body: unknown) {
   const port = calendarPort(ctx);
   let link = await mine(ctx, ws.id);
   if (!link) throw new ApiError(409, "calendar_not_connected", "Connect Google Calendar first");
-  const chosen = (await port.listCalendars(ws.id, link.composio_account_id).catch(calendarError)).find((c) => c.id === input.calendarId);
+  const chosen = (await port.listCalendars(ws.id, link.composio_connection_id).catch(calendarError)).find((c) => c.id === input.calendarId);
   if (!chosen) throw notFound("Calendar");
   if (link.calendar_id && link.calendar_id !== chosen.id) await removeEvents(ctx, port, link);
   link = (await ctx.repos.table("calendar_links").update({ id: link.id }, { status: "active", calendar_id: chosen.id, calendar_name: chosen.name.slice(0, 120), ...(link.calendar_id !== chosen.id ? { event_map: {} } : {}) }))[0]!;
@@ -320,7 +320,7 @@ async function removeEvents(ctx: ServiceContext, port: CalendarSync, link: Link)
   if (!link.calendar_id) return 0;
   let removed = 0;
   for (const entry of Object.values((link.event_map ?? {}) as EventMap).slice(0, MAX_EVENTS)) {
-    await port.deleteEvent(link.workspace_id, link.composio_account_id, link.calendar_id, entry.eventId).then(
+    await port.deleteEvent(link.workspace_id, link.composio_connection_id, link.calendar_id, entry.eventId).then(
       () => removed++,
       () => undefined,
     );
@@ -338,7 +338,7 @@ export async function disconnectMyCalendar(ctx: ServiceContext) {
   const port = ctx.ports.calendar;
   if (port) {
     await removeEvents(ctx, port, link);
-    await port.removeAccount(ws.id, link.composio_account_id).catch(calendarError);
+    await port.removeAccount(ws.id, link.composio_connection_id).catch(calendarError);
   }
   await ctx.repos.table("calendar_links").remove({ id: link.id });
   await audit(ctx, "connector.disconnected", "workspace", ws.id, { provider: "google_calendar" });

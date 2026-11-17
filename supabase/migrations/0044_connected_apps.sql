@@ -134,7 +134,7 @@ create table public.calendar_links (
   workspace_id         uuid not null references public.workspaces (id) on delete cascade,
   user_id              uuid not null references auth.users (id) on delete cascade,
   -- The person's own Composio connected account on the workspace's entity.
-  composio_account_id  text not null check (composio_account_id ~ '^[A-Za-z0-9_-]{1,128}$'),
+  composio_connection_id  text not null check (composio_connection_id ~ '^[A-Za-z0-9_-]{1,128}$'),
   status               text not null default 'pending' check (status in ('pending', 'active', 'error')),
   calendar_id          text check (calendar_id is null or (pg_catalog.length(calendar_id) between 1 and 255 and calendar_id !~ '[[:space:]/\\]')),
   calendar_name        text check (calendar_name is null or pg_catalog.length(calendar_name) between 1 and 120),

@@ -87,7 +87,7 @@ select throws_ok($$
 $$, '23503', null, 'a delivery cannot be filed under another workspace''s subscription');
 
 select lives_ok($$
-  insert into public.calendar_links (workspace_id, user_id, composio_account_id, status, calendar_id, calendar_name, event_map)
+  insert into public.calendar_links (workspace_id, user_id, composio_connection_id, status, calendar_id, calendar_name, event_map)
   values ('44000000-0000-7000-8000-000000000001', '44000000-0000-4000-8000-0000000000a1', 'ca_person_1', 'active', 'primary', 'My calendar',
           '{"oa:44000000-0000-7000-8000-0000000000d1:full": {"eventId": "abc123def456", "date": "2026-12-01", "hash": "0123456789abcdef"}}')
 $$, 'a person links a calendar and the event ids are kept');
@@ -97,12 +97,12 @@ select throws_ok($$
 $$, '23514', null, 'the event map holds ids, dates and digests only');
 
 select throws_ok($$
-  insert into public.calendar_links (workspace_id, user_id, composio_account_id)
+  insert into public.calendar_links (workspace_id, user_id, composio_connection_id)
   values ('44000000-0000-7000-8000-000000000001', '44000000-0000-4000-8000-0000000000a1', 'ca_person_2')
 $$, '23505', null, 'one calendar link per person per workspace');
 
 select throws_ok($$
-  insert into public.calendar_links (workspace_id, user_id, composio_account_id, calendar_id)
+  insert into public.calendar_links (workspace_id, user_id, composio_connection_id, calendar_id)
   values ('44000000-0000-7000-8000-000000000003', '44000000-0000-4000-8000-0000000000f2', 'ca_person_3', 'primary')
 $$, '23514', null, 'a calendar is kept with its name');
 

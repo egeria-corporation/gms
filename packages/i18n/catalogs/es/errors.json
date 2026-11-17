@@ -354,7 +354,7 @@
   "code.calendar_not_connected": "Primero conecte Google Calendar y elija un calendario.",
   "code.channel_not_found": "Ese canal no es uno de los canales públicos que la conexión de Slack puede ver.",
   "code.event_not_available": "Ese aviso no está disponible para este tipo de espacio de trabajo.",
-  "code.slack_refused": "Slack no aceptó el mensaje. Invite la aplicación del GMS al canal o elija otro canal.",
+  "code.slack_refused": "Slack no aceptó el mensaje. Agregue el GMS al canal o elija otro canal.",
   "code.slack_not_connected": "Primero conecte Slack.",
   "code.drive_not_connected": "Primero conecte Google Drive, en Configuración, Aplicaciones conectadas.",
   "code.drive_too_large": "El archivo supera el tamaño permitido para una carga.",

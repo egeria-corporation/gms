@@ -847,7 +847,7 @@ export type Database = {
         Row: {
           calendar_id: string | null;
           calendar_name: string | null;
-          composio_account_id: string;
+          composio_connection_id: string;
           created_at: string;
           event_map: Json;
           id: string;
@@ -860,7 +860,7 @@ export type Database = {
         Insert: {
           calendar_id?: string | null;
           calendar_name?: string | null;
-          composio_account_id: string;
+          composio_connection_id: string;
           created_at?: string;
           event_map?: Json;
           id?: string;
@@ -873,7 +873,7 @@ export type Database = {
         Update: {
           calendar_id?: string | null;
           calendar_name?: string | null;
-          composio_account_id?: string;
+          composio_connection_id?: string;
           created_at?: string;
           event_map?: Json;
           id?: string;
