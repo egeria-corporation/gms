@@ -17,7 +17,7 @@ import { ApiError, notFound } from "../lib/errors.ts";
 import { bareUuid, uuidOf } from "../lib/ids.ts";
 import { parse } from "../lib/input.ts";
 import { access } from "./apply.ts";
-import { guardWrite, type ServiceContext } from "./context.ts";
+import { guardWrite, type BaseContext, type ServiceContext } from "./context.ts";
 import { loadOutside } from "./outside.ts";
 import { RepoError } from "./repos/types.ts";
 
@@ -93,4 +93,19 @@ export async function issuePresencePass(ctx: ServiceContext, session: { sessionI
     }
   });
   return { topic, expiresAt, renewAfterSeconds: PRESENCE_PASS_RENEW_MS / 1000, canWrite };
+}
+
+/** Expired passes removed by the nightly sweep, at most this many a night (the API clears a person's own whenever it issues one). */
+export const PRESENCE_SWEEP_MAX = 5_000;
+
+/**
+ * The nightly sweep (jobs: presence-sweep): remove every pass that has expired. An expired pass
+ * already admits no one (migration 0050 checks `expires_at`); this only keeps the table small.
+ */
+export async function sweepPresencePasses(base: BaseContext): Promise<{ removed: number }> {
+  const now = base.now().getTime();
+  const passes = base.repos.table("presence_passes");
+  const stale = (await passes.find({}, { orderBy: "expires_at", limit: PRESENCE_SWEEP_MAX })).filter((p) => Date.parse(p.expires_at) <= now).map((p) => p.id);
+  for (let i = 0; i < stale.length; i += 200) await passes.remove({ id: stale.slice(i, i + 200) });
+  return { removed: stale.length };
 }

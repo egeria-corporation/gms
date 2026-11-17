@@ -3,7 +3,7 @@
 // each handler builds the same stores the API Worker uses and calls a function exported by
 // `@gms/api/jobs`, so scheduled work goes through the same services, state machines and ledger.
 import { connectedAppPorts, MercuryBankFeed, quickBooksPort } from "@gms/connectors";
-import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, promptSocialReminders, reconcileStuckReleases, sendConnectorAlerts, sendDigests, sendKeepReminders, sendOutsideReminders, syncAccounting, syncCalendars, syncPassport, SupabasePreferences, SupabaseRepos, SupabaseUserDirectory, type BaseContext, type QueueMessage } from "@gms/api/jobs";
+import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, promptSocialReminders, reconcileStuckReleases, sendConnectorAlerts, sendDigests, sendKeepReminders, sendOutsideReminders, syncAccounting, syncCalendars, syncPassport, sweepPresencePasses, SupabasePreferences, SupabaseRepos, SupabaseUserDirectory, type BaseContext, type QueueMessage } from "@gms/api/jobs";
 import type { DbClient } from "@gms/db";
 import { SupabaseLedgerStore } from "@gms/ledger";
 import { ResendMailer } from "@gms/notify";
@@ -85,7 +85,7 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
 /** The one Cron Trigger. Cloudflare's free plan allows 5 per account, so every schedule is derived from this tick. */
 export const CRON = "*/5 * * * *";
 
-export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requirements" | "passport" | "mercury" | "org-changes" | "ledger-archive" | "digest-daily" | "digest-weekly" | "outside-deadlines" | "keep-reminders" | "connector-alerts" | "calendar-sync" | "social-reminders" | "accounting-sync" | typeof CONTENT_DIGESTS_JOB;
+export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requirements" | "passport" | "mercury" | "org-changes" | "ledger-archive" | "digest-daily" | "digest-weekly" | "outside-deadlines" | "keep-reminders" | "connector-alerts" | "calendar-sync" | "social-reminders" | "accounting-sync" | "presence-sweep" | typeof CONTENT_DIGESTS_JOB;
 
 /**
  * The jobs that are due at a tick, by its scheduled time in UTC. Each job appears at most once, so a
@@ -97,6 +97,7 @@ export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requireme
  *   :30 every hour         calendar-sync (Google Calendar events)
  *   00:00 06:00 12:00 18:00 mercury
  *   02:30 daily            org-changes, ledger-archive
+ *   02:45 daily            presence-sweep (expired passes to the drafts' live channels)
  *   14:30 daily            outside-deadlines (reminders for outside applications, before the daily digest)
  *   14:35 daily            keep-reminders (vault expiry, obligations of outside awards, next cycles)
  *   14:40 daily            social-reminders ("Two weeks left" prompts for open calls; never posts)
@@ -113,6 +114,7 @@ export function jobsDue(at: Date): JobName[] {
   if (m === 30) due.push("calendar-sync");
   if (m === 0 && h % 6 === 0) due.push("mercury");
   if (h === 2 && m === 30) due.push("org-changes", "ledger-archive");
+  if (h === 2 && m === 45) due.push("presence-sweep");
   if (h === 14 && m === 30) due.push("outside-deadlines");
   if (h === 14 && m === 35) due.push("keep-reminders");
   if (h === 14 && m === 40) due.push("social-reminders");
@@ -152,6 +154,8 @@ export async function runJob(name: JobName, base: BaseContext, env: Pick<Env, "L
       return syncCalendars(base);
     case "accounting-sync":
       return syncAccounting(base);
+    case "presence-sweep":
+      return sweepPresencePasses(base);
     case "social-reminders":
       return promptSocialReminders(base);
     case CONTENT_DIGESTS_JOB:

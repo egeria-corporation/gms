@@ -6,7 +6,7 @@
 // 0050 admit a session only with a live pass: supabase/tests/database/50_co_editing.test.sql).
 import { beforeEach, describe, expect, it } from "vitest";
 import { SCOPES, WORKSPACE_CLAIM, scopesForRole } from "../src/auth/scopes.ts";
-import { PRESENCE_PASS_RENEW_MS, PRESENCE_PASS_TTL_MS } from "../src/services/presence.ts";
+import { PRESENCE_PASS_RENEW_MS, PRESENCE_PASS_TTL_MS, sweepPresencePasses } from "../src/services/presence.ts";
 import { CLIENT_AGENT, USER_ADMIN, USER_OFFICER, WS_APPLICANT, WS_FUNDER, WS_OTHER, harness, type Harness } from "./helpers.ts";
 import { USER_APPLICANT, USER_APPLICANT_EDITOR, scenario, type Scenario } from "./scenario.ts";
 
@@ -129,6 +129,18 @@ describe("a pass to an outside draft's live channel", () => {
   it("is read-only for an archived application", async () => {
     await h.repos.table("outside_applications").update({ id: oaId }, { archived_at: h.clock.now.toISOString() });
     expect((await pass(await as(USER_APPLICANT, WS_APPLICANT), { kind: "outside_application", id: oaId })).body.data?.canWrite).toBe(false);
+  });
+});
+
+describe("the nightly sweep (jobs: presence-sweep)", () => {
+  it("removes expired passes and keeps live ones", async () => {
+    expect((await pass(await as(USER_APPLICANT, WS_APPLICANT), { kind: "application", id: appId })).status).toBe(200);
+    h.clock.now = new Date(h.clock.now.getTime() + PRESENCE_PASS_TTL_MS + 1000);
+    expect((await pass(await as(COWRITER, WS_APPLICANT, sid(2)), { kind: "outside_application", id: oaId })).status).toBe(200);
+    const base = { repos: h.repos, ledger: h.ledger, webhooks: h.webhooks, now: () => h.clock.now, config: {} as never, ports: {} };
+    expect(await sweepPresencePasses(base)).toEqual({ removed: 1 });
+    expect((await h.repos.table("presence_passes").find({})).map((p) => p.user_id)).toEqual([COWRITER]);
+    expect(await sweepPresencePasses(base)).toEqual({ removed: 0 });
   });
 });
 

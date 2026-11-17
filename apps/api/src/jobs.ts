@@ -48,6 +48,7 @@ export { sendConnectorAlerts } from "./services/connector-alerts.ts";
 export { syncCalendars } from "./services/calendar-sync.ts";
 // QuickBooks sync (v1.13.0): one expense per recorded payment, and "needs attention" when one changes.
 export { syncAccounting } from "./services/accounting.ts";
+export { sweepPresencePasses } from "./services/presence.ts";
 
 const sys = (base: BaseContext, job: string, workspaceId: string): ServiceContext => systemContext(base, { job }, { id: workspaceId, kind: "funder" });
 

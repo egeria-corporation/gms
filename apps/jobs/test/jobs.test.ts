@@ -31,6 +31,7 @@ describe("jobs worker", () => {
     expect(at("2027-04-14T09:00:00Z")).not.toContain("mercury");
     expect(at("2027-04-14T02:30:00Z")).toEqual([...EVERY, ...QUARTER, "calendar-sync", "org-changes", "ledger-archive"]);
     expect(at("2027-04-14T10:30:00Z")).toEqual([...EVERY, ...QUARTER, "calendar-sync"]); // calendars, hourly at :30
+    expect(at("2027-04-14T02:45:00Z")).toEqual([...EVERY, ...QUARTER, "presence-sweep"]); // expired live-channel passes
     expect(at("2027-04-14T03:30:00Z")).not.toContain("ledger-archive");
     expect(at("2027-04-14T14:30:00Z")).toEqual([...EVERY, ...QUARTER, "calendar-sync", "outside-deadlines"]);
     expect(at("2027-04-14T14:35:00Z")).toEqual([...EVERY, "keep-reminders"]);
@@ -53,14 +54,14 @@ describe("jobs worker", () => {
       for (const j of due) counts.set(j, (counts.get(j) ?? 0) + 1);
     }
     // 2027-04-12 is a Monday through Sunday the 18th: 7 days.
-    expect(Object.fromEntries(counts)).toEqual({ webhooks: 7 * 288, tranches: 7 * 96, "tranche-reconcile": 7 * 96, requirements: 7 * 96, passport: 7 * 24, mercury: 7 * 4, "org-changes": 7, "ledger-archive": 7, "digest-daily": 7, "digest-weekly": 1, "outside-deadlines": 7, "keep-reminders": 7, "social-reminders": 7, "content-digests": 1, "connector-alerts": 7 * 96, "calendar-sync": 7 * 24, "accounting-sync": 7 * 96 });
+    expect(Object.fromEntries(counts)).toEqual({ webhooks: 7 * 288, tranches: 7 * 96, "tranche-reconcile": 7 * 96, requirements: 7 * 96, passport: 7 * 24, mercury: 7 * 4, "org-changes": 7, "ledger-archive": 7, "digest-daily": 7, "digest-weekly": 1, "outside-deadlines": 7, "keep-reminders": 7, "social-reminders": 7, "content-digests": 1, "connector-alerts": 7 * 96, "calendar-sync": 7 * 24, "accounting-sync": 7 * 96, "presence-sweep": 7 });
   });
 
   it("runs every job against an empty database without failing", async () => {
     const b = base();
     const all = new Set<JobName>();
     for (let t = Date.UTC(2027, 3, 19); t < Date.UTC(2027, 3, 20); t += 5 * 60_000) for (const j of jobsDue(new Date(t))) all.add(j);
-    expect(all.size).toBe(17);
+    expect(all.size).toBe(18);
     for (const name of all) {
       const out = await runJob(name, b, {});
       expect(out, name).toBeTypeOf("object");

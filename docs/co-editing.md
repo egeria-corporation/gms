@@ -110,6 +110,8 @@ person joins and whenever a new access token is sent, not on every message, so:
   channels can be joined (the GMS uses no public channels).
 - Keep Realtime enabled (docs/self-host.md). Consider a JWT expiry of 15 minutes or less (Auth ›
   Sessions) so a revoked session's open channel is refused sooner.
+- The jobs Worker removes expired passes nightly at 02:45 UTC (`presence-sweep`); an expired pass
+  already admits no one, so this only keeps the table small.
 - No new secret, variable or vendor. The web app already reaches the Supabase project's WebSocket
   (`apps/web/build/headers.ts`).
 
