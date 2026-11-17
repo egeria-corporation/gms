@@ -38,7 +38,9 @@ select tables_are(
     'syndication_sends',
     'history_applications', 'history_reviews', 'history_reports',
     'peer_invitations', 'referral_links', 'referral_joins', 'directory_listings',
-    'share_kit_profiles', 'social_reminder_prompts'
+    'share_kit_profiles', 'social_reminder_prompts',
+    -- 0050: a signed-in session's pass to a draft's live channel (co-editing).
+    'presence_passes'
   ],
   'public schema has exactly the GMS tables'
 );
