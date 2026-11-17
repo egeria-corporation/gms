@@ -15,7 +15,7 @@ export function SettingsNav({
   active,
 }: {
   base: string;
-  active: "passport" | "mcp" | "public-page" | "funds" | "security" | "social";
+  active: "passport" | "mcp" | "public-page" | "funds" | "security" | "social" | "invite-funders" | "partners";
 }) {
   useFunderMessages();
   const items = [
@@ -29,6 +29,9 @@ export function SettingsNav({
     { key: "mcp", label: t("settingsPassport.agentsMcp"), to: `${base}/settings/mcp` },
     { key: "security", label: t("settingsPassport.securitySingleSignOn"), to: `${base}/settings/security` },
     { key: "social", label: t("settingsPassport.socialAccounts"), to: `${base}/settings/social` },
+    // E4: funder loops.
+    { key: "invite-funders", label: t("settingsPassport.inviteFunders"), to: `${base}/settings/invite-funders` },
+    { key: "partners", label: t("settingsPassport.partners"), to: `${base}/settings/partners` },
   ] as const;
   return (
     <nav

@@ -16,6 +16,7 @@ import { formatDate } from "../../../lib/format.ts";
 import { loadDashboard, Messages, Payments, ReportsDue, Tasks } from "../Dashboard.tsx";
 import { t, useApplicantText } from "../i18n.ts";
 import { readinessWords } from "../../../lib/readinessText.ts";
+import { YourProfilePanel } from "../YourProfilePanel.tsx";
 
 const CHECK = {
   pass: { cls: "rc-pass", icon: CircleCheck, get word() { return t("dashboard.check.pass"); } },
@@ -109,6 +110,7 @@ export default function DashboardPhone() {
               {greeting()}, {firstName(ws.member.name)}
             </h2>
           </div>
+          <YourProfilePanel compact />
           <Loaded query={query} label={t("dashboardPhone.loadingYourDashboard")}>
             {(d) => (
               <>

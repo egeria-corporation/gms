@@ -16,6 +16,7 @@ import { formatDate, formatMinor } from "../../lib/format.ts";
 import { formatList } from "@gms/i18n";
 import { t, useApplicantText } from "./i18n.ts";
 import { readinessWords } from "../../lib/readinessText.ts";
+import { YourProfilePanel } from "./YourProfilePanel.tsx";
 
 const OPEN: MyApplication["status"][] = ["draft", "submitted", "screening", "under_review", "revision_requested", "interview", "recommended", "waitlisted"];
 
@@ -408,6 +409,7 @@ export default function Dashboard() {
             </div>
           </div>
 
+          <YourProfilePanel />
           <Loaded query={query} label={t("dashboard.loadingYourDashboard")}>
             {(d) => {
               const nothing = !d.applications.length && !d.awards.length;

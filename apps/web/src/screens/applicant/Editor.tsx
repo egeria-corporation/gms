@@ -30,6 +30,7 @@ import type { DraftInvitation } from "../../api/invites.ts";
 import { InviteDialog, InviteOptions, InvitePicker, InviteSentNote, TeamNote, useDraftInvites } from "./inviteDraft.tsx";
 import { validationMessage } from "../../forms/FormView.tsx";
 import { t, useApplicantText } from "./i18n.ts";
+import { YourProfilePanel } from "./YourProfilePanel.tsx";
 import { explainResult } from "../../lib/eligibilityText.ts";
 
 interface EditorData {
@@ -960,6 +961,7 @@ export default function Editor({ openSubmit = false, phone = false }: { openSubm
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
   const body = (
     <main className="main" style={phone ? { flex: 1 } : { gap: "16px" }}>
+      <YourProfilePanel compact />
       <Loaded query={query} label={t("editor.openingTheApplication")}>
         {(data) =>
           data.app.status === "draft" || data.app.status === "revision_requested" ? (

@@ -154,7 +154,7 @@ describe("apply: start, prefill, edit, validate, submit", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Mobile Health Navigation for Rural Families" })).toBeInTheDocument();
 
     // Passport-owned field: shown, marked, not editable.
-    expect(screen.getAllByText("From Passport").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("From your profile (verified)").length).toBeGreaterThan(0);
     expect(screen.getByRole("textbox", { name: /Legal name/ })).toHaveAttribute("readonly");
 
     // The validation panel lists what the server says is left; the section rail agrees.

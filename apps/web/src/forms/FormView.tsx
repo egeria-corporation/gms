@@ -140,11 +140,14 @@ const PROVENANCE: Record<string, { cls: string; readonly label: string; icon: ty
 
 /** What the applicant's own details are called for anyone else reading the form (review NP-15). */
 const FOR_OTHERS: Record<string, () => string> = { self_declared: () => t("form.provenance.selfReported") };
+/** E4: what the applicant reads beside a field filled from their organization profile, the one every funder here sees. */
+const FOR_APPLICANT: Record<string, () => string> = { passport: () => t("form.provenance.fromProfileVerified"), self_declared: () => t("form.provenance.fromProfile") };
 
 export function ProvenanceChip({ source, forApplicant = true }: { source: string; forApplicant?: boolean }) {
   useApplicantText();
   const base = PROVENANCE[source] ?? (source.startsWith("agent:") ? { cls: "prov-agent", label: t("form.provenance.agentDraft"), icon: Bot } : null);
-  const known = base && !forApplicant && FOR_OTHERS[source] ? { ...base, label: FOR_OTHERS[source]!() } : base;
+  const renamed = forApplicant ? FOR_APPLICANT[source] : FOR_OTHERS[source];
+  const known = base && renamed ? { ...base, label: renamed() } : base;
   if (!known) return null;
   const Icon = known.icon;
   return (
