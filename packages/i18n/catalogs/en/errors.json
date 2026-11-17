@@ -382,5 +382,6 @@
   "code.page_url_invalid": "Give the https address of your organization's page on LinkedIn, Facebook, Instagram, X, Bluesky or Threads.",
   "code.consent_needs_page": "Give your page's link before you agree to be tagged.",
   "code.funder_only_setting": "Only a funder sets the press release's credit wording and description.",
-  "notFound.reminder": "Reminder not found."
+  "notFound.reminder": "Reminder not found.",
+  "code.not_a_draft": "This application has been submitted; there is no draft to write together."
 }

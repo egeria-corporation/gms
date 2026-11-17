@@ -3,6 +3,8 @@
 // in mock mode, and who is signed in. `a11y-every-route.spec.ts` fails when App.tsx has a route
 // that this table does not list, so a new screen cannot ship without being checked.
 import type { Page } from "@playwright/test";
+// F1: live co-editing, a teammate on the draft's channel (mock mode's relay).
+import { fakeTeammate, installRelay } from "./presence.ts";
 
 /**
  * Who is looking. The mock signs in one demo person who is an admin of the Riverbend funder
@@ -108,6 +110,18 @@ const claimLink = async (page: Page) => {
 };
 
 const one = (path: string, who: Who, steps?: RouteCase["steps"]): RouteCase => ({ path, who, ...(steps ? { steps } : {}) });
+
+/**
+ * F1: the editor with a teammate in the draft: in one question ("… is editing") and typing in
+ * another (read-only, "Being edited by …"). The relay goes in before the editor first opens.
+ */
+const withTeammate = (href: string, topic: string, field: string, lock: string) => async (page: Page) => {
+  await installRelay(page);
+  await navigate(page, href);
+  await page.locator(".pres").first().waitFor();
+  await fakeTeammate(page, topic, { userId: "10000000-0000-4000-8000-000000000012", name: "Jamal Reed", field }, lock);
+  await page.locator(".bdg-warn", { hasText: "Jamal Reed" }).first().waitFor();
+};
 
 /** E4: Riverbend runs two funds besides its default (an intermediary), then makes its onboarding link. */
 const asIntermediary = async (page: Page) => {
@@ -290,7 +304,12 @@ export const ROUTES: Record<string, RouteCase[]> = {
 
   "/w/:ws/organization": [one(`${A}/organization`, "applicant-admin")],
   "/w/:ws/find": [one(`${A}/find`, "applicant-admin")],
-  "/w/:ws/applications/:appId/edit": [one(`${A}/applications/${APP_HEALTH}/edit`, "applicant-admin"), one("/workspaces", "consultant", asConsultant(`${A}/applications/${APP_HEALTH}/edit`))],
+  "/w/:ws/applications/:appId/edit": [
+    one(`${A}/applications/${APP_HEALTH}/edit`, "applicant-admin"),
+    one("/workspaces", "consultant", asConsultant(`${A}/applications/${APP_HEALTH}/edit`)),
+    // F1: a teammate in the draft.
+    one(`${A}/applications`, "applicant-admin", withTeammate(`${A}/applications/${APP_HEALTH}/edit`, `draft:application:${APP_HEALTH.slice(4)}`, "/need", "/projectTitle")),
+  ],
   "/w/:ws/applications/:appId/edit/submit": [one(`${A}/applications/${APP_HEALTH}/edit/submit`, "applicant-admin")],
   "/w/:ws/applications/:appId/submitted": [one(`${A}/applications/${APP_CLINIC}/submitted`, "applicant-admin")],
   "/w/:ws/grants/outside/:outsideId": [one(`${A}/grants/outside/${OAP(5)}`, "applicant-admin")],
@@ -312,6 +331,8 @@ export const ROUTES: Record<string, RouteCase[]> = {
     one(`${A}/outside/${OAP(6)}`, "applicant-admin"),
     one(`${A}/outside/${OAP(7)}`, "applicant-admin"),
     one("/workspaces", "consultant", asConsultant(`${A}/outside/${OAP(1)}`)),
+    // F1: a teammate in the draft's questions.
+    one(`${A}/applications`, "applicant-admin", withTeammate(`${A}/outside/${OAP(1)}`, `draft:outside:${OAP(1).slice(4)}`, "oqn_d3000000-0000-7000-8000-000000000001", "oqn_d3000000-0000-7000-8000-000000000002")),
   ],
   "/w/:ws/organization/documents": [one(`${A}/organization/documents`, "applicant-admin")],
   "/w/:ws/summary": [one(`${A}/summary`, "applicant-admin")],

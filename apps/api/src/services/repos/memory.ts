@@ -179,6 +179,8 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   // 0048: share-kit settings and the "Two weeks left" prompt.
   share_kit_profiles: () => ({ page_url: null, tag_consent: false, consented_at: null, consented_by: null, credit_wording: "funded_by", standard_description: null, updated_by: null }),
   social_reminder_prompts: (at) => ({ prompted_at: at, dismissed_at: null, dismissed_by: null }),
+  // 0050: a session's pass to a draft's live channel (co-editing).
+  presence_passes: () => ({ can_write: false }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -237,6 +239,8 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   directory_listings: [{ columns: ["workspace_id"] }],
   share_kit_profiles: [{ columns: ["workspace_id"] }],
   social_reminder_prompts: [{ columns: ["opportunity_id"] }],
+  // 0050: one pass per session and draft channel.
+  presence_passes: [{ columns: ["user_id", "session_id", "topic"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };

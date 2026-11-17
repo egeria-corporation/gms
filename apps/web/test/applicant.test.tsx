@@ -10,6 +10,8 @@ import type { ApplicantApi } from "../src/api/applicant.ts";
 import { changedPaths } from "../src/api/applicant.ts";
 import { provideApplicantApi, provideRealtime } from "../src/api/applicantHooks.ts";
 import { createRealtimeHub } from "../src/api/applicantRealtime.ts";
+import { createDraftRoom, providePresence } from "../src/lib/presence.ts";
+import { createPresenceHub } from "../src/mocks/presence.ts";
 import { App } from "../src/app/App.tsx";
 import { createMockServices } from "../src/app/services.tsx";
 import { APPLICANT_IDS, createMockApplicantApi, seedApplicantStore, type ApplicantStore } from "../src/mocks/applicant.ts";
@@ -266,9 +268,10 @@ describe("two people, one application", () => {
   it("an open editor picks up a teammate’s save without losing its own unsaved typing", async () => {
     const store = seedApplicantStore();
     const services = createMockServices({ session: demoSession() });
-    const hub = createRealtimeHub();
+    // The draft's live channel (lib/presence.ts), as an in-page hub.
+    const hub = createPresenceHub();
     provideApplicantApi(services, createMockApplicantApi({ session: () => services.auth.getSession(), store }));
-    provideRealtime(services, hub);
+    providePresence(services, { transport: hub });
     render(
       <MemoryRouter initialEntries={[`/w/alder-creek/applications/${APP}/edit`]}>
         <App services={services} />
@@ -278,14 +281,14 @@ describe("two people, one application", () => {
 
     // Lena joins the same application and is shown as present.
     const lena = createMockApplicantApi({ session: async () => demoSession(), store, actor: { userId: APPLICANT_IDS.lena, name: "Lena Fischer" } });
-    const room = hub.join(APPLICANT_IDS.appHealth, { userId: APPLICANT_IDS.lena, name: "Lena Fischer" }, { onPeers: () => {}, onSaved: () => {} });
+    const room = createDraftRoom({ transport: hub, topic: `draft:application:${APPLICANT_IDS.appHealth}`, me: { userId: APPLICANT_IDS.lena, name: "Lena Fischer" }, canWrite: true, onChange: () => {}, onSaved: () => {} });
     expect(await screen.findByLabelText(/Editing now: .*Lena Fischer/)).toBeInTheDocument();
 
     // Maria types (not saved yet); Lena saves another field and announces it.
     await userEvent.clear(title);
     await userEvent.type(title, "Maria is typing");
     await lena.saveForm(APP, APPLICANT_IDS.formFull, { familiesServed: 512 });
-    room.saved(APPLICANT_IDS.formFull);
+    room.saved(APPLICANT_IDS.formFull, ["/familiesServed"]);
 
     await waitFor(() => expect(screen.getByRole("spinbutton", { name: /Families served/ })).toHaveValue(512));
     expect(screen.getByRole("textbox", { name: /Project title/ })).toHaveValue("Maria is typing");

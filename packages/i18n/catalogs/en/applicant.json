@@ -2469,5 +2469,15 @@
   "yourProfile.verify": "Verify with Passport",
   "yourProfile.seeWhatFundersSee": "See what funders see",
   "form.provenance.fromProfile": "From your profile",
-  "form.provenance.fromProfileVerified": "From your profile (verified)"
+  "form.provenance.fromProfileVerified": "From your profile (verified)",
+  "presence.aTeammate": "A teammate",
+  "presence.paused": "Live updates are paused. Your changes still save; reload the page to see your teammates' latest work.",
+  "presence.isEditing": "{name} is editing",
+  "presence.beingEditedBy": "Being edited by {name}",
+  "presence.changedThis": "{name} changed this",
+  "presence.theyClearedIt": "They left it blank.",
+  "presence.viewTheirVersion": "View their version",
+  "presence.hideTheirVersion": "Hide their version",
+  "presence.useTheirVersion": "Use their version",
+  "presence.keepMine": "Keep mine"
 }

@@ -382,5 +382,6 @@
   "code.page_url_invalid": "Indique la dirección https de la página de su organización en LinkedIn, Facebook, Instagram, X, Bluesky o Threads.",
   "code.consent_needs_page": "Indique el enlace de su página antes de aceptar que la etiqueten.",
   "code.funder_only_setting": "Solo un financiador define la mención del comunicado de prensa y su descripción.",
-  "notFound.reminder": "No se encontró el recordatorio."
+  "notFound.reminder": "No se encontró el recordatorio.",
+  "code.not_a_draft": "Esta solicitud ya se envió; no hay un borrador para escribir en equipo."
 }

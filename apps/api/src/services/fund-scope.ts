@@ -160,6 +160,8 @@ const RULES: { [T in TableName]: Rule } = {
   passport_links: OPEN,
   passport_second_steps: OPEN,
   payment_schedules: parent("award_id", "awards", "Award"),
+  // 0050: a session's pass to an applicant draft's live channel (co-editing); funder workspaces hold none.
+  presence_passes: OPEN,
   programs: parent("fund_id", "funds", "Fund"),
   reminder_sends: parent("requirement_id", "requirements", "Requirement"),
   // 0034: a scheduled report is computed for the whole workspace by the jobs Worker, so a fund

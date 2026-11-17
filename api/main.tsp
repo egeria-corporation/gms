@@ -27,6 +27,8 @@ import "./history.tsp";
 import "./loops.tsp";
 import "./award-kit.tsp";
 import "./translations.tsp";
+// F1: live co-editing (the pass to a draft's live channel).
+import "./presence.tsp";
 
 using TypeSpec.Http;
 

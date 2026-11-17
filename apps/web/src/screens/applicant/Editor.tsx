@@ -3,21 +3,25 @@
 // field by field (only changed paths are sent; the server merges), so teammates and a scoped
 // consultant can work at once. Passport-owned fields are read-only here. The submit dialog runs
 // the readiness checklist and submits; a 422 comes back as the list of fields to fix.
+// Live co-editing (lib/presence.ts, docs/co-editing.md): who else is in the draft and where, a soft
+// lock on the question someone is typing in, and their saves read again within seconds without
+// touching what this person is typing.
 import { DriveAttachButton } from "../../components/DriveAttach.tsx";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { BookOpen, Check, CircleCheck, CircleDashed, CircleX, Clock, FileText, Lock, MessageSquare, ShieldCheck, ShieldOff, TriangleExclamationPoint, Upload, X } from "lucide-react";
-import { passportFieldPaths, type FormDefinition, type JsonObject } from "@gms/forms";
+import { collectControls, passportFieldPaths, type FormDefinition, type Json, type JsonObject } from "@gms/forms";
 import type { Answer, AppDocument, AppForm, ApplicantApi, ApplicantMember, ApplicantReadiness, Application, Comment, MyApplication, MyOrganization } from "../../api/applicant.ts";
-import { useApplicantApi, useApplicantQuery, useRealtime } from "../../api/applicantHooks.ts";
+import { changedPaths } from "../../api/applicant.ts";
+import { useApplicantApi, useApplicantQuery } from "../../api/applicantHooks.ts";
 import { useMoreApi } from "../../api/applicantMoreHooks.ts";
-import type { Peer } from "../../api/applicantRealtime.ts";
 import { ApiError } from "../../api/client.ts";
 import type { Checklist } from "../../api/types.ts";
 import { useServices } from "../../app/services.tsx";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, Avatar, closesPhrase, FunderChip, isNotFound, Loaded, timeAgo } from "../../components/applicant.tsx";
+import { useDraftPresence, type Peer, type SavedMessage } from "../../lib/presence.ts";
 import { Dialog } from "../../components/Dialog.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
 import { PhoneShell, usePhoneSheetSlot } from "../../components/PhoneShell.tsx";
@@ -25,7 +29,8 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { LevelBadge, SelfReportedTag, StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, errorMessage, Notice, ReadinessChecklist, TabPanel, Tabs } from "../../components/ui.tsx";
 import { FormView, type UploadedFile } from "../../forms/FormView.tsx";
-import { fieldLabel, fieldLabelShown, formTitleShown, patchFor, rebase, sectionFor, sectionsOf, sectionState, type Section } from "./editorSync.ts";
+import { conflictsOf, fieldLabel, fieldLabelShown, formTitleShown, keepOthersChanges, patchFor, questionOf, rebase, sectionFor, sectionsOf, sectionState, withLocks, type RecentChange, type Section } from "./editorSync.ts";
+import { ChangedNote, EditingChips, fieldsOf, LockNote, PausedNote, PresenceAvatars, questionAt, useFieldSlots, versionText } from "./editorPresence.tsx";
 import type { ShownText } from "@gms/forms";
 import { getLocale } from "../../i18n/index.tsx";
 import { EditorAssistant } from "./editorAssist.tsx";
@@ -93,7 +98,6 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   const base = `/w/${ws.handle}`;
   const api = useApplicantApi();
   const more = useMoreApi();
-  const realtime = useRealtime();
   const { sessionState, mock } = useServices();
   const navigate = useNavigate();
   const { app, summary, defs } = data;
@@ -108,7 +112,6 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   const [owners, setOwners] = useState(data.sections);
   const [save, setSave] = useState<{ state: SaveState; at?: string; error?: unknown }>({ state: "idle" });
   const [rejected, setRejected] = useState<string[]>([]);
-  const [peers, setPeers] = useState<Peer[]>([]);
   const [tab, setTab] = useState<PanelTab>("validation");
   const [showAll, setShowAll] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(openSubmit);
@@ -122,18 +125,50 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   // The last response the server gave for each form, and what is on screen now.
   const baseline = useRef<Record<string, JsonObject>>(Object.fromEntries(app.forms.map((f) => [f.formId, f.response])));
   const local = useRef<Record<string, JsonObject>>({ ...baseline.current });
-  const room = useRef<ReturnType<typeof realtime.join> | null>(null);
   const saving = useRef<Promise<void>>(Promise.resolve());
 
-  const me: Peer = useMemo(() => ({ userId: sessionState.status === "signedIn" ? sessionState.session.userId : "me", name: ws.member.name }), [sessionState, ws.member.name]);
+  const myUserId = sessionState.status === "signedIn" ? sessionState.session.userId : "me";
+  const me = useMemo(() => ({ userId: myUserId, name: data.members.find((m) => m.userId === myUserId)?.name ?? ws.member.name }), [myUserId, data.members, ws.member.name]);
+  // Live co-editing: the question this person is in, what someone else's save just changed (per
+  // form), and the questions where both had changes ("{name} changed this").
+  const typingIn = useRef<string | null>(null);
+  const recent = useRef<Record<string, RecentChange>>({});
+  const [conflicts, setConflicts] = useState<Record<string, Record<string, { by: string; theirs: Json | undefined }>>>({});
 
-  /** Takes a newer server state of a form and keeps whatever this person typed since `sent`. */
-  const adopt = useCallback((next: AppForm, sent: JsonObject) => {
-    const shown = rebase(next.response, sent, local.current[next.formId] ?? sent);
+  /**
+   * Takes a newer server state of a form and keeps whatever this person typed since `sent`. `by`
+   * names someone else whose save it is: what they changed is remembered for a moment, and a
+   * question this person had changed too gets a "{name} changed this" note.
+   */
+  const adopt = useCallback((next: AppForm, sent: JsonObject, by?: string) => {
+    const before = local.current[next.formId] ?? sent;
+    const shown = rebase(next.response, sent, before);
+    if (by !== undefined) {
+      const theirs = Object.keys(changedPaths(baseline.current[next.formId] ?? {}, next.response) ?? {});
+      recent.current[next.formId] = { at: Date.now(), before: new Map(theirs.map((k) => [`/${k}`, before[k]] as const)) };
+      const clash = conflictsOf(baseline.current[next.formId] ?? {}, next.response, before);
+      if (clash.length) setConflicts((prev) => ({ ...prev, [next.formId]: { ...prev[next.formId], ...Object.fromEntries(clash.map((q) => [q, { by, theirs: next.response[q.slice(1)] }])) } }));
+    }
     baseline.current[next.formId] = next.response;
     local.current[next.formId] = shown;
     setForms((prev) => ({ ...prev, [next.formId]: { ...next, response: shown } }));
   }, []);
+
+  // Someone else saved: read the form again through the API, after any save of this person's in flight.
+  const onPeerSaved = useCallback(
+    (m: SavedMessage, by: Peer | undefined) => {
+      if (!app.forms.some((f) => f.formId === m.target)) return;
+      const name = by?.name ?? data.members.find((x) => x.userId === m.by)?.name ?? t("presence.aTeammate");
+      saving.current = saving.current.then(async () => {
+        const sent = baseline.current[m.target] ?? {};
+        const fresh = await api.application(app.id).catch(() => null);
+        const f = fresh?.forms.find((x) => x.formId === m.target);
+        if (f) adopt(f, sent, name);
+      });
+    },
+    [api, app.id, app.forms, adopt, data.members],
+  );
+  const live = useDraftPresence({ workspaceId: ws.id, draft: { kind: "application", id: app.id }, me, onSaved: onPeerSaved });
 
   const push = useCallback(
     (formId: string): Promise<void> => {
@@ -148,38 +183,27 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
           adopt(saved, sent);
           setRejected(saved.rejected);
           setSave({ state: "saved", at: saved.lastModifiedAt || new Date().toISOString() });
-          room.current?.saved(formId);
+          live.saved(formId, Object.keys(patch).map((k) => `/${k}`));
         } catch (error) {
           setSave({ state: "error", error });
         }
       });
       return saving.current;
     },
-    [api, app.id, adopt],
+    [api, app.id, adopt, live.saved],
   );
-
-  // Presence, and a re-read when a teammate saves.
-  useEffect(() => {
-    const r = realtime.join(app.uuid, me, {
-      onPeers: setPeers,
-      onSaved: (formId) => {
-        const before = baseline.current[formId] ?? {};
-        void api.application(app.id).then((fresh) => {
-          const f = fresh.forms.find((x) => x.formId === formId);
-          if (f) adopt(f, before);
-        });
-      },
-    });
-    room.current = r;
-    return () => {
-      r.leave();
-      room.current = null;
-    };
-  }, [realtime, api, app.id, app.uuid, me, adopt]);
 
   const active = forms[activeFormId];
   const def = defs[activeFormId];
   const sections: Section[] = useMemo(() => (def ? sectionsOf(def) : []), [def]);
+  // The form's questions, and what live co-editing shows on them: someone else's soft lock (never
+  // on the question this person is in), who is in which question, and "{name} changed this".
+  const questions = useMemo(() => (def ? [...new Set(collectControls(def.uiSchema).map((c) => questionOf(c.path)))] : []), [def]);
+  const lockedHere = [...new Set(live.peers.flatMap((p) => (p.lock && p.lock !== typingIn.current && questions.includes(p.lock) ? [p.lock] : [])))];
+  const lockKey = lockedHere.sort().join("\n");
+  const shownDef = useMemo(() => (def ? withLocks(def, lockKey ? lockKey.split("\n") : []) : def), [def, lockKey]);
+  const formConflicts = conflicts[activeFormId] ?? {};
+  const noted = [...new Set([...live.peers.flatMap((p) => [p.field, p.lock].filter((q): q is string => !!q)), ...Object.keys(formConflicts)])].filter((q) => questions.includes(q));
   const errors = active?.validationErrors ?? [];
   const formOwners = owners[activeFormId] ?? {};
   const memberName = (userId: string | undefined) => {
@@ -204,6 +228,9 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
 
   // FormView draws one card per group; give each an anchor the rail and the Fix links can reach.
   const formRef = useRef<HTMLDivElement>(null);
+  const slots = useFieldSlots(formRef, noted, questions);
+  // The question an event came from; the presence notes drawn inside a field are not the question.
+  const questionFrom = (el: EventTarget | null): string | null => (formRef.current && el instanceof Element && !el.closest("[data-co-slot]") ? questionAt(el, fieldsOf(formRef.current, questions)) : null);
   useEffect(() => {
     for (const s of sections) {
       // FormView names each card with the title the reader sees (their language where translated).
@@ -230,7 +257,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
       const saved = await more.insertAnswer(app.id, activeFormId, { answerId: answer.id, path: `/${field}` });
       adopt(saved, sent);
       setSave({ state: "saved", at: saved.lastModifiedAt || new Date().toISOString() });
-      room.current?.saved(activeFormId);
+      live.saved(activeFormId, [`/${field}`]);
     } catch (error) {
       setSave({ state: "error", error });
     }
@@ -360,12 +387,8 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               </span>
             )}
           </span>
-          <div className="pres" role="img" aria-label={t("editor.editingNow", { names: [me, ...peers].map((p) => p.name).join(", ") })}>
-            <Avatar name={me.name} note={t("editor.youNote")} live />
-            {peers.map((p, i) => (
-              <Avatar key={p.userId} name={p.name} {...(p.section ? { note: `· ${p.section}` } : {})} index={i + 1} live />
-            ))}
-          </div>
+          <PresenceAvatars me={me.name} peers={live.peers} />
+          <PausedNote status={live.status} />
           {/* The template preview is a design reference with sample content: demo mode only. */}
           {mock && (
             <Link to="/preview/pdf/application-snapshot" className="btn btn-secondary">
@@ -426,7 +449,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                   onClick={(e) => {
                     e.preventDefault();
                     goTo(s.label);
-                    room.current?.focus(s.label);
+                    live.focus({ section: s.label });
                   }}
                 >
                   <Icon className="ic" aria-hidden="true" />
@@ -435,6 +458,11 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                       <InLang s={s.shown} />
                     </div>
                     <div className="st">{st.state === "done" ? t("editor.complete") : st.state === "prog" ? t("editor.inProgressToFix", { count: st.problems.length }) : t("editor.notStarted")}</div>
+                    {live.inSection(s.label).length > 0 && (
+                      <div style={{ marginTop: "4px" }}>
+                        <EditingChips peers={live.inSection(s.label)} />
+                      </div>
+                    )}
                   </div>
                   <span className="meta">
                     {n > 0 && (
@@ -484,15 +512,37 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               </button>
             )}
           </div>
-          <div ref={formRef}>
+          <div
+            ref={formRef}
+            onFocus={(e) => {
+              const q = questionFrom(e.target);
+              if (!q) return;
+              typingIn.current = q;
+              live.focus({ section: sectionFor(sections, q)?.label, field: q });
+            }}
+            onBlur={(e) => {
+              const q = questionFrom(e.target);
+              if (!q || questionFrom(e.relatedTarget) === q) return;
+              live.blur(q);
+              if (typingIn.current === q) typingIn.current = null;
+              if (!questionFrom(e.relatedTarget)) live.focus({ section: sectionFor(sections, q)?.label });
+            }}
+            onInput={(e) => {
+              const q = questionFrom(e.target);
+              if (q) live.input(q);
+            }}
+          >
             <FormView
-              form={def}
+              form={shownDef ?? def}
               response={active.response}
               mode="edit"
               provenance={active.provenance}
               showAllErrors={showAll}
               onChange={(r) => {
-                local.current[activeFormId] = r;
+                // A copy of the form from before someone else's save never takes their answer back.
+                const kept = keepOthersChanges(local.current[activeFormId] ?? r, r, recent.current[activeFormId], typingIn.current, Date.now());
+                local.current[activeFormId] = kept;
+                if (kept !== r) setForms((prev) => ({ ...prev, [activeFormId]: { ...prev[activeFormId]!, response: kept } }));
               }}
               onAutosave={() => void push(activeFormId)}
               uploadFile={uploadFile}
@@ -500,6 +550,34 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               profileUrl={`${base}/settings#organization-details`}
               passportLinked={data.readiness?.linked}
             />
+            {[...slots].map(([q, slot]) => {
+              const holder = live.lockOf(q);
+              const clash = formConflicts[q];
+              const here = live.inField(q).filter((p) => p !== holder);
+              return createPortal(
+                <>
+                  {holder && q !== typingIn.current ? <LockNote peer={holder} /> : null}
+                  <EditingChips peers={here} />
+                  {clash ? (
+                    <ChangedNote
+                      name={clash.by}
+                      theirs={versionText(clash.theirs)}
+                      onKeep={() => setConflicts((prev) => ({ ...prev, [activeFormId]: Object.fromEntries(Object.entries(prev[activeFormId] ?? {}).filter(([k]) => k !== q)) }))}
+                      onUseTheirs={() => {
+                        const next = { ...(local.current[activeFormId] ?? active.response) };
+                        if (clash.theirs === undefined) delete next[q.slice(1)];
+                        else next[q.slice(1)] = clash.theirs;
+                        local.current[activeFormId] = next;
+                        setForms((prev) => ({ ...prev, [activeFormId]: { ...prev[activeFormId]!, response: next } }));
+                        setConflicts((prev) => ({ ...prev, [activeFormId]: Object.fromEntries(Object.entries(prev[activeFormId] ?? {}).filter(([k]) => k !== q)) }));
+                      }}
+                    />
+                  ) : null}
+                </>,
+                slot,
+                `co-${q}`,
+              );
+            })}
           </div>
 
           <section className="card" aria-labelledby="att-h">
