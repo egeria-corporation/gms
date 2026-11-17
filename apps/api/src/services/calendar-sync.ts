@@ -16,6 +16,7 @@ import { CalendarEventGoneError, ConnectorAuthError, ConnectorScopeError, Connec
 import { type Locale } from "@gms/i18n";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
+import { parse } from "../lib/input.ts";
 import { apiId } from "../lib/ids.ts";
 import { audit, authorize, fundScopeOf, systemContext, type BaseContext, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { scopeToFunds } from "./fund-scope.ts";
@@ -249,9 +250,10 @@ export async function getMyCalendar(ctx: ServiceContext) {
 }
 
 /** Start connecting my Google Calendar: Composio's hosted sign-in for my own account. A person only. */
-export async function connectMyCalendar(ctx: ServiceContext, input: z.output<typeof calendarConnectInput>) {
+export async function connectMyCalendar(ctx: ServiceContext, body: unknown) {
   const ws = await me(ctx);
   humanOnly(ctx);
+  const input = parse(calendarConnectInput, body);
   const port = calendarPort(ctx);
   const existing = await mine(ctx, ws.id);
   if (existing?.status === "active" && (await port.accountStatus(ws.id, existing.composio_account_id).catch(() => ({ connected: false }))).connected) return { ...linkView(existing, true), connectUrl: null };
@@ -278,9 +280,11 @@ export async function listMyCalendars(ctx: ServiceContext) {
 }
 
 /** Choose the calendar deadlines go to, and write them now. Moving to another calendar removes them from the first. A person only. */
-export async function chooseMyCalendar(ctx: ServiceContext, input: z.output<typeof calendarChooseInput>) {
+export async function chooseMyCalendar(ctx: ServiceContext, body: unknown) {
   const ws = await me(ctx);
   humanOnly(ctx);
+  // Authorized before the body is read: a caller who may not gets 403, never 400.
+  const input = parse(calendarChooseInput, body);
   const port = calendarPort(ctx);
   let link = await mine(ctx, ws.id);
   if (!link) throw new ApiError(409, "calendar_not_connected", "Connect Google Calendar first");

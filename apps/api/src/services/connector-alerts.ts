@@ -13,6 +13,7 @@ import { DEFAULT_LOCALE, isLocale, type Locale } from "@gms/i18n";
 import { ConnectorAuthError, ConnectorScopeError, ConnectorScopeUnverifiedError, ConnectorUnavailableError, isSlackChannelId, SourceReadError } from "@gms/connectors";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
+import { parse } from "../lib/input.ts";
 import { apiId } from "../lib/ids.ts";
 import { audit, authorize, systemContext, type BaseContext, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { humanOnly } from "./integrations.ts";
@@ -114,9 +115,11 @@ export async function listSlackChannels(ctx: ServiceContext) {
  * Choose the channel and the events, or turn alerts on or off. A person only: this decides what is
  * posted in the workspace's name. Turning alerts on starts from now, so nothing older is posted.
  */
-export async function putAlerts(ctx: ServiceContext, input: z.output<typeof alertsInput>) {
+export async function putAlerts(ctx: ServiceContext, body: unknown) {
   const ws = await authorize(ctx, { scope: "workspace:admin", roles: ["admin"], person: true });
   humanOnly(ctx);
+  // Who may do this is settled before the body is read: a caller who may not gets 403, never 400.
+  const input = parse(alertsInput, body);
   if (!ctx.ports.slack) throw new ApiError(503, "connector_not_configured", "Slack through Composio is not configured on this server");
   const allowed = EVENTS_FOR[ws.kind];
   const wrong = input.events.filter((e) => !allowed.includes(e));

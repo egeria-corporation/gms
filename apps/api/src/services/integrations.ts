@@ -13,6 +13,7 @@ import { z } from "zod";
 import { generateClientSecret, hashSecret } from "../auth/crypto.ts";
 import { SCOPES, scopesForRole, type Scope } from "../auth/scopes.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
+import { parse } from "../lib/input.ts";
 import { apiId, uuidOf } from "../lib/ids.ts";
 import { agreementPdf, awardLetterPdf } from "./agreements.ts";
 import { audit, authorize, type ServiceContext, type ServiceWorkspace } from "./context.ts";
@@ -549,9 +550,11 @@ function driveError(e: unknown): never {
  * browser, which hands them to the same upload as a file from the computer, with the same size
  * and type checks. Nothing is stored here. A person only.
  */
-export async function fetchFromDrive(ctx: ServiceContext, input: z.output<typeof driveFetchInput>) {
+export async function fetchFromDrive(ctx: ServiceContext, body: unknown) {
   const ws = await authorize(ctx, { scope: "applications:write", kind: "applicant", roles: DRIVE_ROLES, person: true });
   humanOnly(ctx);
+  // Authorized before the body is read: a caller who may not gets 403, never 400.
+  const input = parse(driveFetchInput, body);
   const file = await drivePort(ctx).download(ws.id, input.fileId, MAX_DRIVE_ATTACH_BYTES).catch(driveError);
   await audit(ctx, "connector.drive_copied", "workspace", ws.id, { provider: "google_drive", bytes: file.bytes.byteLength, mime: file.mimeType });
   return file;
@@ -584,9 +587,10 @@ async function submittedApplicationPdf(ctx: ServiceContext, wsId: string, rawId:
  * "Save the as-submitted packet to Drive": the PDF of what was submitted, created in the person's
  * Drive through `drive.file` (My Drive, or a folder they picked). A person only.
  */
-export async function saveToDrive(ctx: ServiceContext, input: z.output<typeof driveSaveInput>) {
+export async function saveToDrive(ctx: ServiceContext, body: unknown) {
   const ws = await authorize(ctx, { scope: "applications:read", kind: "applicant", roles: DRIVE_ROLES, person: true });
   humanOnly(ctx);
+  const input = parse(driveSaveInput, body);
   const port = drivePort(ctx);
   let file: { bytes: Uint8Array; filename: string };
   if (input.kind === "outside") {
