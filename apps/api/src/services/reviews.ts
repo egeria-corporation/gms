@@ -11,7 +11,7 @@ import { apiId } from "../lib/ids.ts";
 import { stagesOf, transitionApp, type App } from "./apply.ts";
 import { orgFacts } from "./profile.ts";
 import { STAFF_ROLES, emitFor } from "./awards.ts";
-import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { audit, authorize, fundScopeOf, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { getApplicationDetail } from "./inbox.ts";
 import type { Row } from "./repos/types.ts";
 import { anonymityFor, candidateOf, currentPolicy, declaredAtSigning, isReviewerRole, redactFor, reviewStagesOf, clearedCompetitions, type ReviewStage } from "./review-privacy.ts";
@@ -152,6 +152,18 @@ async function markUnderReview(ctx: ServiceContext, app: App): Promise<void> {
   if (app.status === "submitted" || app.status === "screening") await transitionApp(ctx, app, "start_review", "funder", {});
 }
 
+/** The fund of an opportunity's program, or null when it has none. */
+async function fundOfOpportunity(ctx: ServiceContext, opp: Row<"opportunities"> | null): Promise<string | null> {
+  if (!opp?.program_id) return null;
+  return (await ctx.repos.table("programs").one({ id: opp.program_id }))?.fund_id ?? null;
+}
+
+/** A member limited to some funds (an "Advisor for {fund}") reviews only applications in those funds. */
+function outsideTheirFunds(member: Row<"workspace_members">, fundId: string | null): boolean {
+  const funds = fundScopeOf({ kind: "funder", role: member.role, memberScope: (member.scope as Record<string, unknown> | null) ?? null });
+  return !!funds && (!fundId || !funds.includes(fundId));
+}
+
 export const assignInput = z.object({ applicationId: z.string(), stage: z.string().min(1).max(60).optional(), reviewerUserId: z.uuid(), reviewerEmail: z.email().max(320).optional(), dueAt: z.iso.datetime({ offset: true }).optional() }).strict();
 
 export async function createAssignment(ctx: ServiceContext, applicationUuid: string, input: Omit<z.output<typeof assignInput>, "applicationId">) {
@@ -166,10 +178,11 @@ export async function createAssignment(ctx: ServiceContext, applicationUuid: str
   if (!member || !ASSIGNABLE.includes(member.role)) throw new ApiError(422, "not_a_reviewer", "That person is not a reviewer in this workspace. Invite them as a reviewer first");
   const scoped = scopedCompetitions(member);
   if (member.role === "external_reviewer" && scoped && !scoped.includes(competition.id)) throw new ApiError(422, "reviewer_out_of_scope", "That external reviewer was invited to a different competition");
+  const opp = await ctx.repos.table("opportunities").one({ id: app.opportunity_id });
+  if (outsideTheirFunds(member, await fundOfOpportunity(ctx, opp))) throw new ApiError(422, "reviewer_out_of_scope", "That reviewer works on a different fund");
   if (await ctx.repos.table("review_assignments").one({ application_id: app.id, stage, reviewer_user_id: input.reviewerUserId })) throw new ApiError(409, "conflict", "That reviewer is already assigned to this application for this stage");
 
   const applicant = await ctx.repos.table("workspaces").one({ id: app.applicant_workspace_id });
-  const opp = await ctx.repos.table("opportunities").one({ id: app.opportunity_id });
   const profile: ReviewerProfile = { id: input.reviewerUserId, email: input.reviewerEmail ?? memberEmail(member), capacity: Number.MAX_SAFE_INTEGER, conflicts: { orgIds: await declaredConflicts(ctx, ws.id, input.reviewerUserId, applicant ? [applicant] : []) } };
   const coi = detectCoi(profile, await assignable(ctx, app, applicant, opp?.program_id ?? null, []));
   if (coi) throw new ApiError(409, "conflict_of_interest", coi.detail, [{ code: coi.reason, field: "reviewerUserId", detail: coi.detail }]);
@@ -206,7 +219,8 @@ export async function autoAssignReviewers(ctx: ServiceContext, competitionUuid: 
   const existing = await ctx.repos.table("review_assignments").find({ workspace_id: ws.id, stage, application_id: apps.map((a) => a.id) });
   const live = existing.filter((a) => a.status !== "recused");
 
-  const members = (await ctx.repos.table("workspace_members").find({ workspace_id: ws.id })).filter((m) => (input.reviewers ? input.reviewers.some((r) => r.userId === m.user_id) && ASSIGNABLE.includes(m.role) : REVIEWER_ROLES.includes(m.role)) && (m.role !== "external_reviewer" || !scopedCompetitions(m) || scopedCompetitions(m)!.includes(competition.id)));
+  const fundId = await fundOfOpportunity(ctx, opp);
+  const members = (await ctx.repos.table("workspace_members").find({ workspace_id: ws.id })).filter((m) => (input.reviewers ? input.reviewers.some((r) => r.userId === m.user_id) && ASSIGNABLE.includes(m.role) : REVIEWER_ROLES.includes(m.role)) && (m.role !== "external_reviewer" || !scopedCompetitions(m) || scopedCompetitions(m)!.includes(competition.id)) && !outsideTheirFunds(m, fundId));
   const applicants = apps.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(apps.map((a) => a.applicant_workspace_id))] }) : [];
   const reviewers: ReviewerProfile[] = [];
   for (const m of members) {

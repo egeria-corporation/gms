@@ -14,22 +14,28 @@ import * as apply from "./apply.ts";
 import * as agreements from "./agreements.ts";
 import * as analytics from "./analytics.ts";
 import * as awards from "./awards.ts";
+import * as awardSharing from "./award-sharing.ts";
 import * as collab from "./collaboration.ts";
+import * as digests from "./content-digests.ts";
 import * as decisions from "./decisions.ts";
 import * as directAwards from "./direct-awards.ts";
 import * as competitions from "./competitions.ts";
 import { makeActor, type ServiceContext } from "./context.ts";
+import { assertApprovalInFundScope } from "./fund-scope.ts";
 import * as drafting from "./drafting.ts";
 import * as forms from "./forms.ts";
 import * as gallery from "./gallery.ts";
+import * as funds from "./funds.ts";
 import * as summary from "./funding-summary.ts";
 import * as grantees from "./grantees.ts";
 import * as imports from "./imports.ts";
+import * as social from "./social.ts";
 import * as inbox from "./inbox.ts";
 import * as obligations from "./obligations.ts";
 import * as openData from "./open-data.ts";
 import * as opportunities from "./opportunities.ts";
 import * as outside from "./outside.ts";
+import * as sendPackage from "./send-package.ts";
 import * as org from "./organization.ts";
 import * as payments from "./payments.ts";
 import * as programs from "./programs.ts";
@@ -94,6 +100,7 @@ const IMPLEMENTED: Impl = {
   // ---- funder: design (reads) ----
   listPrograms: (ctx, i) => programs.listPrograms(ctx, paged(i)),
   getProgram: (ctx, i) => programs.getProgram(ctx, i.programId),
+  listFunds: (ctx) => funds.listFunds(ctx),
   listOpportunities: (ctx, i) => opportunities.listOpportunities(ctx, paged(i), { status: i.status, programId: i.programId }),
   getOpportunity: (ctx, i) => opportunities.getOpportunity(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),
   publishOpportunity: (ctx, i) => opportunities.publishOpportunity(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),
@@ -136,6 +143,8 @@ const IMPLEMENTED: Impl = {
   commitDecisions: (ctx, i) => decisions.commitDecisions(ctx, cmp(i.competitionId), { decisionIds: i.decisionIds }),
   listAwards: (ctx, i) => awards.listAwards(ctx, paged(i), { status: i.status?.join(","), programId: i.programId, recipientWorkspaceId: i.recipientWorkspaceId }),
   getAward: (ctx, i) => awards.getAward(ctx, awd(i.awardId), "funder"),
+  // Award sharing (v1.9.0): a read; listing, confidential and unlisted changes have no tool.
+  getAwardShareKit: (ctx, i) => awardSharing.shareKit(ctx, awd(i.awardId), "funder"),
   // Gated for every agent: this runs only after a person approved the call, as that person, and the
   // service checks the input with the same schema as the REST route.
   createDirectAward: (ctx, i) => {
@@ -236,6 +245,7 @@ const IMPLEMENTED: Impl = {
   // ---- applicant: awards and agreements ----
   listMyAwards: (ctx, i) => awards.listMyAwards(ctx, paged(i), { status: i.status?.join(",") }),
   getMyAward: (ctx, i) => awards.getAward(ctx, awd(i.awardId), "recipient"),
+  getMyAwardShareKit: (ctx, i) => awardSharing.shareKit(ctx, awd(i.awardId), "grantee"),
   // Gated and never bypassable: this runs only after the workspace's admin approved it, as that person.
   acceptAward: (ctx, i) => awards.acceptOffer(ctx, awd(i.awardId)),
   // A signature needs the signer's typed name and attestation, which no agent can supply.
@@ -302,7 +312,17 @@ const IMPLEMENTED: Impl = {
   getFundingSummary: (ctx) => summary.fundingSummary(ctx),
   // Imports (v1.7.0): agents read a check a person made; committing it is a person's (no tool).
   getImportPreview: (ctx, i) => imports.importPreview(ctx, bareUuid(i.importRunId, "Import run")),
+  // Social posting (v1.9.0): agents read posts and reach; posting stays a person's (no tool).
+  listSocialPosts: (ctx, i) => {
+    // The funder's tool also takes an opportunity; the applicant's, an award only.
+    const opp = (i as { opportunityId?: string }).opportunityId;
+    return social.reachReport(ctx, opp ? { subjectType: "opportunity", subjectId: uuidOf("opportunity", opp, "Opportunity") } : i.awardId ? { subjectType: "award", subjectId: awd(i.awardId) } : {});
+  },
+  // Content digests (v1.9.0): agents read the preview; turning one on or off is the person's (no tool).
+  getDigestPreview: (ctx, i) => digests.previewDigest(ctx, { digest: i.digest }),
   alertOnNextCycle: async (ctx, i) => (await team.nextCycleAlert(ctx, oa(i.outsideApplicationId))).alert,
+  // Send to the funder (C4): the package described, never emailed by an agent.
+  getSendPackage: (ctx, i) => sendPackage.packageSummary(ctx, oa(i.outsideApplicationId)),
 
   listMessages: async (ctx, i) => {
     if (!i.applicationId) throw new ServiceError("invalid_input", "Pass applicationId: threads are listed per application.", [{ field: "applicationId", message: "Required" }]);
@@ -455,6 +475,8 @@ export class RepoApprovalStore implements ApprovalStore {
   constructor(private readonly repos: Repos) {}
 
   async create(a: Approval): Promise<void> {
+    // A fund advisor's agent files requests about its funds' records only (services/fund-scope.ts).
+    await assertApprovalInFundScope(this.repos, a);
     const id = approvalUuid(a.id);
     if (!id) throw new Error("Approval ids are apr_<uuid>");
     const input = a.input as Record<string, unknown> | null;

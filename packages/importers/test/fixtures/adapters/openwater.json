@@ -1,0 +1,7 @@
+{
+  "applications": [
+    { "applicationId": 50001, "name": "Community garden beds", "programName": "Neighborhood Grants", "roundName": "Round 1", "status": "Winner", "organization": "Garden Commons", "awardAmount": 2500, "applicant": { "name": "Sam Tate" } },
+    { "applicationId": 50002, "name": "Street fair", "programName": "Neighborhood Grants", "roundName": "Round 1", "status": "Disqualified", "organization": "Main Street Council", "awardAmount": null, "applicant": { "name": "Uma Vance" } },
+    { "applicationId": 50003, "name": "Mural restoration", "programName": "Neighborhood Grants", "roundName": "Round 1", "status": "Winner", "organization": "Old Town Arts", "awardAmount": 4000, "tags": ["arts", "downtown"], "applicant": { "name": "Vic Wu" } }
+  ]
+}

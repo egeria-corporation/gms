@@ -18,7 +18,7 @@ import { scopesForRole } from "../auth/scopes.ts";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { fundingOf, keyDatesOf, minorOf } from "./awards.ts";
-import { audit, authorize, systemContext, type BaseContext, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { audit, authorize, fundScopeOf, systemContext, type BaseContext, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { namesShared, orgFacts, sharingWith, verificationShared } from "./profile.ts";
 import type { Row as DbRow, Where } from "./repos/types.ts";
 import { normalizePreferences } from "./notifications.ts";
@@ -61,6 +61,7 @@ export const DATA_SETS: Record<DataSetKey, DataSetDef> = {
       { key: "opportunity", label: "Opportunity", type: "text", source: "opportunities.title" },
       { key: "competition", label: "Competition", type: "text", source: "competitions.title" },
       { key: "program", label: "Program", type: "text", source: "programs.name, through the opportunity" },
+      { key: "fund", label: "Fund", type: "text", source: "funds.name, through the opportunity's program" },
       { key: "stage", label: "Stage", type: "text", source: "the competition's stage label" },
       { key: "status", label: "Status", type: "status", source: "applications.status", values: APPLICATION_STATUS, statusKind: "application" },
       { key: "requested", label: "Requested amount", type: "money", source: "applications.requested_amount_minor", currencyColumn: "currency" },
@@ -81,6 +82,7 @@ export const DATA_SETS: Record<DataSetKey, DataSetDef> = {
     columns: [
       { key: "title", label: "Award", type: "text", source: "awards.title" },
       { key: "program", label: "Program", type: "text", source: "programs.name" },
+      { key: "fund", label: "Fund", type: "text", source: "funds.name, through the award's program" },
       { key: "recipient", label: "Recipient", type: "text", source: "the recipient workspace's name (its Passport legal name while it shares its record)" },
       { key: "recipientVerified", label: "Recipient verified", type: "text", source: "Passport verification, or a self-declared profile" },
       { key: "status", label: "Status", type: "status", source: "awards.status", values: AWARD_STATUSES, statusKind: "award" },
@@ -106,6 +108,7 @@ export const DATA_SETS: Record<DataSetKey, DataSetDef> = {
       { key: "tranche", label: "Payment", type: "text", source: "the payment's place in the schedule" },
       { key: "award", label: "Award", type: "text", source: "awards.title" },
       { key: "program", label: "Program", type: "text", source: "programs.name" },
+      { key: "fund", label: "Fund", type: "text", source: "funds.name, through the award's program" },
       { key: "recipient", label: "Recipient", type: "text", source: "the recipient workspace's name" },
       { key: "amount", label: "Amount", type: "money", source: "tranches.amount_minor", currencyColumn: "currency" },
       { key: "currency", label: "Currency", type: "text", source: "tranches.currency" },
@@ -126,6 +129,7 @@ export const DATA_SETS: Record<DataSetKey, DataSetDef> = {
       { key: "type", label: "Type", type: "text", source: "requirements.type" },
       { key: "award", label: "Award", type: "text", source: "awards.title" },
       { key: "program", label: "Program", type: "text", source: "programs.name" },
+      { key: "fund", label: "Fund", type: "text", source: "funds.name, through the award's program" },
       { key: "recipient", label: "Recipient", type: "text", source: "the recipient workspace's name" },
       { key: "dueDate", label: "Due", type: "date", source: "requirements.due_at" },
       { key: "status", label: "Status", type: "status", source: "requirements.status", values: REQUIREMENT_STATUSES, statusKind: "requirement" },
@@ -140,6 +144,7 @@ export const DATA_SETS: Record<DataSetKey, DataSetDef> = {
     columns: [
       { key: "name", label: "Organization", type: "text", source: "the workspace's name (its Passport legal name while it shares its record)" },
       { key: "verified", label: "Verified", type: "text", source: "Passport verification, or a self-declared profile" },
+      { key: "fund", label: "Funds", type: "text", source: "funds.name of the programs it applied to or was awarded from, in name order" },
       { key: "location", label: "Location", type: "text", source: "city and state of the organization's record, while it shares its record" },
       { key: "region", label: "State or region", type: "text", source: "state of the organization's record, while it shares its record" },
       { key: "applications", label: "Applications submitted", type: "number", source: "submitted applications to this funder" },
@@ -226,6 +231,16 @@ async function organizationsOf(base: Repos, funderId: string, ids: readonly (str
   return new Map(workspaces.map((w) => [w.id, { w, shared: shared.has(w.id), name: namesShared(w, shared.has(w.id)).name, verified: VERIFIED_WORDS[verificationShared(w, shared.has(w.id)).source] }]));
 }
 
+/** No program, or a program whose fund this reader cannot see. */
+const NO_FUND = "No fund";
+
+/** Each program's fund name. Read through the caller's repositories, so a fund advisor sees their funds' names only. */
+async function fundNames(base: Repos, wsId: string, programs: DbRow<"programs">[]): Promise<Map<string, string>> {
+  const funds = await readAll(base.repos, "funds", { workspace_id: wsId }, MAX_SOURCE_ROWS);
+  const name = new Map(funds.rows.map((f) => [f.id, f.name]));
+  return new Map(programs.flatMap((p) => (p.fund_id && name.has(p.fund_id) ? [[p.id, name.get(p.fund_id)!] as [string, string]] : [])));
+}
+
 const recipientName = (a: DbRow<"awards">, orgs: Awaited<ReturnType<typeof organizationsOf>>) => (a.recipient_workspace_id ? orgs.get(a.recipient_workspace_id)?.name : null) ?? (a.recipient_individual as { name?: string } | null)?.name ?? "Unknown recipient";
 
 async function loadApplications(base: Repos, wsId: string): Promise<Loaded> {
@@ -242,6 +257,7 @@ async function loadApplications(base: Repos, wsId: string): Promise<Loaded> {
   const opp = new Map(opps.rows.map((o) => [o.id, o]));
   const comp = new Map(comps.rows.map((c) => [c.id, c]));
   const program = new Map(programs.rows.map((p) => [p.id, p.name]));
+  const fund = await fundNames(base, wsId, programs.rows);
   const submitted = new Map(reviews.rows.filter((r) => r.submitted_at).map((r) => [r.assignment_id, r]));
   const rubricRows = await byIds(base.repos, "rubrics", assignments.rows.map((a) => a.rubric_id));
   const rubric = new Map(rubricRows.map((r) => [`${r.id}:${r.version}`, toRubric(r)]));
@@ -269,6 +285,7 @@ async function loadApplications(base: Repos, wsId: string): Promise<Loaded> {
       opportunity: o?.title ?? null,
       competition: c?.title ?? null,
       program: (o?.program_id ? program.get(o.program_id) : null) ?? "No program",
+      fund: (o?.program_id ? fund.get(o.program_id) : null) ?? NO_FUND,
       stage: stages.find((s) => s.key === a.stage)?.label ?? a.stage,
       status: a.status,
       requested: a.requested_amount_minor,
@@ -287,13 +304,13 @@ async function loadApplications(base: Repos, wsId: string): Promise<Loaded> {
 async function awardContext(base: Repos, wsId: string) {
   const [awards, programs] = await Promise.all([readAll(base.repos, "awards", { workspace_id: wsId }, MAX_SOURCE_ROWS), readAll(base.repos, "programs", { workspace_id: wsId }, MAX_SOURCE_ROWS)]);
   const orgs = await organizationsOf(base, wsId, awards.rows.map((a) => a.recipient_workspace_id));
-  return { awards, award: new Map(awards.rows.map((a) => [a.id, a])), program: new Map(programs.rows.map((p) => [p.id, p.name])), orgs };
+  return { awards, award: new Map(awards.rows.map((a) => [a.id, a])), program: new Map(programs.rows.map((p) => [p.id, p.name])), fund: await fundNames(base, wsId, programs.rows), orgs };
 }
 
 const paidElsewhere = (t: DbRow<"tranches">) => (t.mode === "resolve" && t.status === "settled" ? t.amount_minor : null);
 
 async function loadAwards(base: Repos, wsId: string): Promise<Loaded> {
-  const { awards, program, orgs } = await awardContext(base, wsId);
+  const { awards, program, fund, orgs } = await awardContext(base, wsId);
   const [tranches, requirements] = await Promise.all([readAll(base.repos, "tranches", { workspace_id: wsId }, MAX_SOURCE_ROWS * 4), readAll(base.repos, "requirements", { workspace_id: wsId }, MAX_SOURCE_ROWS * 4)]);
   const byAward = <R extends { award_id: string }>(rows: R[]) => {
     const m = new Map<string, R[]>();
@@ -312,6 +329,7 @@ async function loadAwards(base: Repos, wsId: string): Promise<Loaded> {
     return {
       title: a.title,
       program: (a.program_id ? program.get(a.program_id) : null) ?? "No program",
+      fund: (a.program_id ? fund.get(a.program_id) : null) ?? NO_FUND,
       recipient: recipientName(a, orgs),
       recipientVerified: recipient?.verified ?? VERIFIED_WORDS.none,
       status: a.status,
@@ -332,7 +350,7 @@ async function loadAwards(base: Repos, wsId: string): Promise<Loaded> {
 }
 
 async function loadPayments(base: Repos, wsId: string): Promise<Loaded> {
-  const { award, program, orgs } = await awardContext(base, wsId);
+  const { award, program, fund, orgs } = await awardContext(base, wsId);
   const tranches = await readAll(base.repos, "tranches", { workspace_id: wsId }, MAX_SOURCE_ROWS);
   const counts = new Map<string, number>();
   for (const t of tranches.rows) counts.set(t.award_id, Math.max(counts.get(t.award_id) ?? 0, t.seq));
@@ -343,6 +361,7 @@ async function loadPayments(base: Repos, wsId: string): Promise<Loaded> {
       tranche: `Payment ${t.seq} of ${counts.get(t.award_id) ?? t.seq}`,
       award: a?.title ?? null,
       program: (a?.program_id ? program.get(a.program_id) : null) ?? "No program",
+      fund: (a?.program_id ? fund.get(a.program_id) : null) ?? NO_FUND,
       recipient: a ? recipientName(a, orgs) : null,
       amount: t.amount_minor,
       currency: t.currency,
@@ -359,7 +378,7 @@ async function loadPayments(base: Repos, wsId: string): Promise<Loaded> {
 const TYPE_WORDS: Record<string, string> = { report: "Report", document: "Document", milestone: "Milestone", site_visit: "Site visit", acknowledgment: "Acknowledgment" };
 
 async function loadRequirements(base: Repos, wsId: string, now: Date): Promise<Loaded> {
-  const { award, program, orgs } = await awardContext(base, wsId);
+  const { award, program, fund, orgs } = await awardContext(base, wsId);
   const reqs = await readAll(base.repos, "requirements", { workspace_id: wsId }, MAX_SOURCE_ROWS);
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const rows = reqs.rows.map((r): Row => {
@@ -370,6 +389,7 @@ async function loadRequirements(base: Repos, wsId: string, now: Date): Promise<L
       type: TYPE_WORDS[r.type] ?? r.type,
       award: a?.title ?? null,
       program: (a?.program_id ? program.get(a.program_id) : null) ?? "No program",
+      fund: (a?.program_id ? fund.get(a.program_id) : null) ?? NO_FUND,
       recipient: a ? recipientName(a, orgs) : null,
       dueDate: day(r.due_at),
       status: r.status,
@@ -380,7 +400,9 @@ async function loadRequirements(base: Repos, wsId: string, now: Date): Promise<L
 }
 
 async function loadOrganizations(base: Repos, wsId: string): Promise<Loaded> {
-  const [apps, awards] = await Promise.all([readAll(base.repos, "applications", { workspace_id: wsId }, MAX_SOURCE_ROWS * 2, ["submitted_at"]), readAll(base.repos, "awards", { workspace_id: wsId }, MAX_SOURCE_ROWS * 2)]);
+  const [apps, awards, opps, programs] = await Promise.all([readAll(base.repos, "applications", { workspace_id: wsId }, MAX_SOURCE_ROWS * 2, ["submitted_at"]), readAll(base.repos, "awards", { workspace_id: wsId }, MAX_SOURCE_ROWS * 2), readAll(base.repos, "opportunities", { workspace_id: wsId }, MAX_SOURCE_ROWS), readAll(base.repos, "programs", { workspace_id: wsId }, MAX_SOURCE_ROWS)]);
+  const fund = await fundNames(base, wsId, programs.rows);
+  const programOfOpp = new Map(opps.rows.map((o) => [o.id, o.program_id]));
   // The grantee directory's rule: an organization that submitted an application here or holds an award from here.
   const ids = [...new Set([...apps.rows.map((a) => a.applicant_workspace_id), ...awards.rows.map((a) => a.recipient_workspace_id).filter((x): x is string => !!x)])];
   const orgs = await organizationsOf(base, wsId, ids);
@@ -393,12 +415,15 @@ async function loadOrganizations(base: Repos, wsId: string): Promise<Loaded> {
       const city = text(primary?.city);
       const region = text(primary?.stateOrProvince);
       const mine = awards.rows.filter((a) => a.recipient_workspace_id === w.id);
+      const theirPrograms = [...apps.rows.filter((a) => a.applicant_workspace_id === w.id).map((a) => programOfOpp.get(a.opportunity_id) ?? null), ...mine.map((a) => a.program_id)];
+      const funds = [...new Set(theirPrograms.map((p) => (p ? fund.get(p) : undefined)).filter((f): f is string => !!f))].sort((x, y) => x.localeCompare(y));
       const committed = mine.filter((a) => COMMITTED.includes(a.status));
       // Amounts in two currencies are never added together.
       const currencies = new Set(committed.map((a) => fundingOf(a).awardedAmount?.currency ?? "USD"));
       return {
         name,
         verified,
+        fund: funds.length ? funds.join(", ") : NO_FUND,
         location: [city, region].filter(Boolean).join(", ") || null,
         region,
         applications: apps.rows.filter((a) => a.applicant_workspace_id === w.id).length,
@@ -720,11 +745,15 @@ export function nextSendAt(s: Pick<Schedule, "cadence" | "weekday" | "day_of_mon
 type Member = DbRow<"workspace_members">;
 const live = (m: Member, now: Date) => !m.expires_at || Date.parse(m.expires_at) > now.getTime();
 
-/** Members who may receive this view: a live member whose role reads reports and the view's data set; for a private view, its owner only. */
+/**
+ * Members who may receive this view: a live member whose role reads reports and the view's data set;
+ * for a private view, its owner only. Never a member limited to some funds: the jobs Worker computes a
+ * scheduled report for the whole workspace, so its file would hold other funds' records.
+ */
 async function eligibleMembers(base: Pick<BaseContext, "repos">, wsId: string, view: Pick<View, "data_set" | "visibility" | "owner_user_id">, now: Date): Promise<Member[]> {
   const scope = DATA_SETS[view.data_set as DataSetKey].scope;
   const members = await base.repos.table("workspace_members").find({ workspace_id: wsId }, { limit: 1000 });
-  return members.filter((m) => live(m, now) && (REPORT_ROLES as readonly string[]).includes(m.role) && scopesForRole("funder", m.role).includes(scope) && scopesForRole("funder", m.role).includes("analytics:read") && (view.visibility === "workspace" || m.user_id === view.owner_user_id));
+  return members.filter((m) => live(m, now) && !fundScopeOf({ kind: "funder", role: m.role, memberScope: (m.scope as Record<string, unknown> | null) ?? null }) && (REPORT_ROLES as readonly string[]).includes(m.role) && scopesForRole("funder", m.role).includes(scope) && scopesForRole("funder", m.role).includes("analytics:read") && (view.visibility === "workspace" || m.user_id === view.owner_user_id));
 }
 
 /** Who the owner can send this view to. */
@@ -744,6 +773,7 @@ export async function scheduleRecipients(ctx: ServiceContext, id: string) {
 export async function setSchedule(ctx: ServiceContext, id: string, input: z.output<typeof scheduleInput>) {
   const ws = await access(ctx);
   const me = personOnly(ctx, "Scheduling a report");
+  if (fundScopeOf(ws)) throw forbidden("fund_scope", "A scheduled report covers every fund. Ask a workspace admin to schedule it");
   const v = await visibleView(ctx, ws, id);
   if (v.owner_user_id !== me) throw forbidden("not_owner", "Only the person who saved this view can schedule it. Save a copy to schedule your own");
   needDataSet(ctx, v.data_set as DataSetKey);

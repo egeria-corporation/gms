@@ -4,7 +4,7 @@
 // only after the reviewer has declared whether they have a conflict of interest on it; declaring
 // one recuses them and the application never opens. In a stage with anonymized review the
 // application shows as a code ("Applicant A-1042"), never by who applied.
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Ban, Bell, ChartColumn, ChevronDown, ClipboardCheck, EyeOff, Signature, Star } from "lucide-react";
 import { initialsOf, type MeWorkspace, type Workspace } from "../../api/client.ts";
@@ -170,17 +170,27 @@ function CoiDialog({ assignment, onClose, onDeclared }: { assignment: ReviewAssi
 }
 
 function AssignmentList() {
-  const { userId, email } = usePortal();
+  const { userId, email, workspace } = usePortal();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const list = useApiQuery((api) => api.listAssignments({ reviewerUserId: userId }), [userId]);
   const [declaring, setDeclaring] = useState<ReviewAssignment | null>(null);
   const [signing, setSigning] = useState<string | null>(null);
+  // The guest welcome's conflict-of-interest link (`?sign=1`) opens the first policy waiting for this reviewer's signature, once.
+  const [askedToSign, setAskedToSign] = useState(params.get("sign") === "1");
+  const firstUnsigned = list.status === "ready" ? (list.data.find((r) => r.policyRequired && r.competitionId)?.competitionId ?? null) : null;
+  useEffect(() => {
+    if (!askedToSign || list.status !== "ready") return;
+    setAskedToSign(false);
+    if (firstUnsigned) setSigning(firstUnsigned);
+  }, [askedToSign, list.status, firstUnsigned]);
   if (list.status === "loading") return <Loading label="Loading your assignments" />;
   if (list.status === "error") return <ErrorBanner error={list.error} onRetry={list.reload} />;
   const rows = list.data;
   const count = (s: ReviewAssignment["status"]) => rows.filter((r) => r.status === s).length;
   // Competitions whose conflict-of-interest policy waits for this reviewer's signature.
   const unsigned = [...new Set(rows.filter((r) => r.policyRequired && r.competitionId).map((r) => r.competitionId!))];
+  const guestDone = workspace.member.role === "external_reviewer" && rows.some((r) => r.status === "submitted") && rows.every((r) => r.status === "submitted" || r.status === "recused");
   const anonymized = rows.some((r) => r.anonymized);
   return (
     <>
@@ -204,6 +214,18 @@ function AssignmentList() {
           </span>
         </div>
       </div>
+      {guestDone && (
+        <div className="bnr bnr-ok" role="status">
+          <ClipboardCheck className="ic" aria-hidden="true" />
+          <div>
+            <div className="t">Every review is in</div>
+            <div className="d">Thank you. There is nothing left for you to score here.</div>
+          </div>
+          <Link to={`/review/done?ws=${encodeURIComponent(workspace.handle)}`} className="btn btn-secondary btn-sm act">
+            See what&rsquo;s next
+          </Link>
+        </div>
+      )}
       {unsigned.map((competitionId) => (
         <div key={competitionId} className="bnr bnr-warn" role="status">
           <Signature className="ic" aria-hidden="true" />

@@ -320,3 +320,9 @@ run, and the wizard shows them.
 - XLSX reading (`read-excel-file` 9.3.17, MIT, its `universal` entry: fflate and saxen) ran in Node
   in the tests and was bundled for the Worker (`wrangler deploy --dry-run`); it has not run inside
   workerd.
+
+## Fluxx and Zengine (v1.9.0)
+
+Grant history pulled straight from Fluxx or Zengine does not go through Composio: the funder hands
+the GMS its own read-only credentials, kept encrypted and deleted when the import is done. See
+`docs/importers.md` (Fluxx and Zengine).

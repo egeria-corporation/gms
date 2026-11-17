@@ -76,7 +76,7 @@ Implemented:
 | `GET /gms/workspaces`, `POST /gms/workspaces` | session | List the person's workspaces; create one and become its admin. Brand accent is contrast-checked (WCAG AA) and falls back to the system accent with a warning. Optional `profile` creates it without Passport, with a self-declared profile (`profileSource: "self_declared"`). `passportOrgId` is refused. Capped at 5 per account and 20 per network address (IPv6 by /64; only `CF-Connecting-IP`, forwarded headers only with `TRUSTED_PROXY="true"`) per day, counted in Postgres (migration 0027) so the cap holds across sessions, Workers and parallel requests: `429 too_many_workspaces` |
 | `PATCH /gms/workspaces/{id}/profile` | `workspace:admin`, role `admin` | Merge patch of the self-declared profile (`null` removes a field; `legalName` stays). Ledgered as `workspace.profile_updated` with field names. `409 profile_from_passport` for a Passport workspace |
 | `GET /gms/workspaces/{id}` | any member; tokens need `workspace:admin` | |
-| `PATCH /gms/workspaces/{id}` settings | `workspace:admin`, role `admin` | `settings` is a merge patch of the keys an admin may set only (`USER_SETTINGS` in `services/workspaces.ts`: funders `contactEmail`, `transparency`, `gatedTools`, `defaultRail`; applicants `gatedTools`). Server-owned keys (`passportPayee`, `assistMonthlyQuota`) and `contacts` (own route) are dropped; a bad value is `422 invalid_setting` |
+| `PATCH /gms/workspaces/{id}` settings | `workspace:admin`, role `admin` | `settings` is a merge patch of the keys an admin may set only (`USER_SETTINGS` in `services/workspaces.ts`: funders `contactEmail`, `gatedTools`, `defaultRail`, `poweredBy`; applicants `gatedTools`, `poweredBy` and the v1.6.0/v1.7.0 keys; `transparency` is retired in v1.9.0, award listing has its own route). Server-owned keys (`passportPayee`, `assistMonthlyQuota`) and `contacts` (own route) are dropped; a bad value is `422 invalid_setting` |
 | `PATCH /gms/workspaces/{id}`, `GET/POST …/members`, `PATCH/DELETE …/members/{userId}`, `POST …/invitations` | `workspace:admin`, role `admin` to change | A workspace always keeps one admin. The invitation token is returned once; only its hash is stored. Sending the invitation email arrives with `@gms/notify` wiring |
 | `DELETE /gms/workspaces/{id}/members/me` | person, any role | Leave the workspace. Refused for the last admin and for any agent or token |
 | `POST /gms/invitations/accept` | session | `{ token }`; one use, expires |
@@ -289,8 +289,10 @@ All implemented. Each starts with the shared authorization check; none returns b
 | `GET /gms/my/funders/detail` | Open items, documents and public contact per funder | `applications:read` |
 | `GET/POST /gms/discover/alerts`, `DELETE /gms/discover/alerts/{alertId}` | Saved funding alerts (up to 25) | `discovery` |
 
-Public page data: `GET /gms/public/funders/{handle}` adds `open`, `forecasted`, `closed` and `pastAwards` (null unless the
-workspace sets `settings.transparency`); the opportunity page adds `faq` and `documents`, written through
+Public page data: `GET /gms/public/funders/{handle}` adds `open`, `forecasted`, `closed` and `pastAwards` (since v1.9.0
+null unless the funder lists awards, `settings.awardSharing.listAwards`, and shows amounts; only awards that pass
+`isPubliclyListable`, with a `page` link each; `settings.transparency` alone no longer lists them, see
+[award-sharing.md](award-sharing.md)); the opportunity page adds `faq` and `documents`, written through
 `PATCH /gms/opportunities/{id}` as `publish.faq` and `publish.documents` (https links only).
 
 Gates: a tool a workspace adds to `settings.gatedTools` (or an API client's `gated_tools`) is refused for agent and
@@ -512,3 +514,94 @@ rules and the starter library: `docs/gallery.md`.
 | `GET /gms/gallery/moderation/queue` | Implemented | Moderators (`GALLERY_MODERATORS`). Pending submissions, oldest first. `403 not_a_moderator` |
 | `POST /gms/gallery/moderation/submissions/{id}/approve` | Implemented | Moderators. `{ slug? }` → the published item. Ledger `gallery.item_approved` in the author's workspace |
 | `POST /gms/gallery/moderation/submissions/{id}/reject` | Implemented | Moderators. `{ reason }` (3 to 2,000 characters), shown to the author. Ledger `gallery.item_declined` |
+
+## Award sharing (v1.9.0)
+
+Details in [award-sharing.md](award-sharing.md); routes in `api/award-sharing.tsp`. Every public route answers only for
+awards that pass `isPubliclyListable` (`apps/api/src/services/award-sharing.ts`), with the same 404 otherwise.
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/public/funders/{handle}/awards` | Implemented | No token. The awards the funder lists, newest first, with `years`, `programs` and `amountsShown`. 404 while the funder does not list awards. Cached like the funder page |
+| `GET /gms/public/funders/{handle}/awards/{slug}` | Implemented | No token. One listed award, its funder and `verified` (linked to Passport). Found by the token at the end of the slug |
+| `GET /gms/public/badges/{slug}.svg` | Implemented | No token. The "Funded by" badge, `Cache-Control: public, max-age=3600`; a plain-text `404 Not found` for anything not public. The front Worker serves it at `/badge/{slug}.svg` |
+| `GET /gms/awards/{id}/sharing`, `GET /gms/my/awards/{id}/sharing` | Implemented | `awards:read`, funder side and grantee side. Listed or not and why (`reason`), the switches, `canChange`, and the share kit while public |
+| `PUT /gms/awards/{id}/confidential` | Implemented | `{ confidential }`. Funder `admin` or `program_officer`, a signed-in person (agents and API clients `403 human_only`) |
+| `PUT /gms/my/awards/{id}/listing` | Implemented | `{ unlisted }`: "Don't list us publicly". Grantee `admin`, a signed-in person |
+| `GET/PUT /gms/award-sharing/settings` | Implemented | `{ listAwards?, showAmounts? }` in `settings.awardSharing` (not a `PATCH /workspaces` key). Read: funder staff (`awards:read`); write: funder `admin`, a signed-in person. Returns counts and program defaults |
+| `PUT /gms/programs/{id}/award-sharing` | Implemented | `{ awardsConfidential }`: new awards in the program start confidential (a database trigger applies it). Funder `admin` or `program_officer`, a signed-in person |
+| MCP `get_award_share_kit` | Implemented | Funder and grantee sides, `awards:read`. The share kit, or nothing for an award that is not public. No tool lists awards, marks one confidential or unlists one |
+
+## Social posting through Zernio (v1.9.0)
+
+Every route answers 404 `social_not_configured` unless `ZERNIO_API_KEY` and `ZERNIO_WEBHOOK_SECRET` are both set; `GET /gms/config` adds `available.social`. See docs/social.md.
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/social` | Implemented | Platforms with their limits, the workspace's connected accounts, `canConnect`, `canPost`. Staff (`analytics:read` funder, `awards:read` applicant) |
+| `POST /gms/social/connect` | Implemented | `{ platform }`. A signed-in admin (agents and API clients `403 human_only`). Creates the workspace's Zernio profile on first use; returns Zernio's `authUrl`, which returns to `/w/{handle}/settings/social?gs=…` |
+| `POST /gms/social/connect/callback` | Implemented | `{ state, profileId, accountId, connected?, username? }` → `201` the account. `403 connect_state_invalid` (forged, altered, expired, another person or workspace, another profile); `409 account_not_listed` when Zernio does not list the account under this workspace's profile |
+| `DELETE /gms/social/accounts/{id}` | Implemented | A signed-in admin. Disconnects at Zernio, then here |
+| `GET /gms/social/compose?subjectType=&subjectId=` | Implemented | The composer's starting texts, link (`utm_source=social`) and share card; `shareable: false` with a reason for an unpublished or closed call and for an award that is not publicly listed. A read: agents may use it |
+| `POST /gms/social/posts/preview` | Implemented | A signed-in admin or editor. The exact `body` Zernio will receive, each platform's length, problems, and a `previewToken` (null while there is a problem). `409 not_shareable`, `422 account_not_connected` |
+| `POST /gms/social/posts` | Implemented | A signed-in admin or editor (agents and API clients `403 human_only`), `Idempotency-Key` header (a UUID, `400 idempotency_key_required`). The body must be the one previewed (`409 preview_required`, `preview_changed`); the same key returns the post already made (`409 idempotency_key_reused` for other content); Zernio's 409 counts as sent. `503 zernio_unavailable`: not confirmed, post again with the same key |
+| `GET /gms/social/posts?subjectType=&subjectId=` | Implemented | The reach report: the last 50 posts with status, per-account links and Zernio's counts (read at most every 30 minutes, ten Zernio calls per report), totals, and for a call `applicationsFromSocial` |
+| `POST /webhooks/zernio` | Implemented | `X-Zernio-Signature` (HMAC-SHA256 of the raw body) checked first (`401`); stored once by event id (`duplicate`); older than a day `400 stale`; applied only to the workspace whose profile it names. Account and post events |
+| MCP `list_social_posts` | Implemented | Funder (`analytics:read`, an opportunity or award or all) and applicant (`awards:read`, its awards). No tool posts, schedules or connects |
+
+## Funds (v1.9.0)
+
+Tests: `apps/api/test/funds.test.ts`, `redteam-funds.test.ts`; database: migration `0039_funds.sql`,
+`supabase/tests/database/14_funds.test.sql`. Model and rules: `docs/funds.md`.
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/funds`, `GET /gms/funds/{id}` | Implemented | `programs:read`. `{ items, scoped }`; each fund with `budgets`, `totals` (its budget per fiscal year beside its programs'), `programIds`; one fund adds `advisors` |
+| `POST /gms/funds`, `PATCH /gms/funds/{id}`, `PUT /gms/funds/{id}/budgets` | Implemented | Funder `admin`. Colours from the theme palette only; reserved addresses refused; budgets one per fiscal year, ledgered with both values |
+| `POST /gms/funds/{id}/advisors` | Implemented | Funder `admin`, a signed-in person. An invitation with `program_officer` or `reviewer` and `scope.fundIds`. No MCP tool |
+| `POST /gms/programs`, `PATCH /gms/programs/{id}` | Implemented | Add `fundId`. A program always has a fund (the default fund when none is named) |
+| `GET /gms/public/funders/{handle}/funds/{slug}` | Implemented | No token. The fund page: `funder`, `fund { name, slug, description, brand, isDefault }`, its published opportunity cards |
+| A fund advisor (a member whose scope names `fundIds`, not an admin) | Implemented | Every route and MCP tool reads and writes through their funds only (`fundScopeOf` in the one authorization path); other funds' records answer 404 |
+| MCP `list_funds` | Implemented | Funder `programs:read` |
+
+## Send to the funder, guest reviewers, digests and importer adapters (v1.9.0)
+
+Tests: `apps/api/test/send-package.test.ts`, `contract-send-package.test.ts`, `guest-reviewer.test.ts`,
+`content-digests.test.ts`, `contract-digests.test.ts`, `import-adapters.test.ts`,
+`redteam-funds.test.ts`, `redteam-cowriter.test.ts`, `human-only.test.ts`; database: migrations
+`0040_send_package.sql`, `0041_content_digests.sql`, `0042_importer_adapters.sql`.
+
+### Send to the funder (`docs/send-package.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/outside-applications/{id}/package` | Implemented | Applicant `applications:read`. What the package holds: cover, questions in order, budget summary, the files (this application's own and the vault documents used for its checklist), any answer that blocks it (named, never echoed), and whether email is available |
+| `GET /gms/outside-applications/{id}/package.pdf`, `GET …/package.zip` | Implemented | The PDF, or a ZIP with the PDF, the files and `answers.txt`. Up to 60 MB; `422 sensitive_answer` while an answer looks like a bank, card or identity number |
+| `POST /gms/outside-applications/{id}/package/email/preview`, `POST …/package/email` | Implemented | A signed-in admin or editor only (agents and API clients `403 human_only`). The preview is exactly what is sent (`409 preview_changed`); up to 20 MB of attachments (`422 package_too_large_to_email`: download it instead) and five emails a day per application; `503 mail_attachments_unavailable` on a mailer that cannot carry files |
+| `PUT /gms/send-package/settings` | Implemented | `{ poweredBy }`, the footer line, an applicant admin in person (also a `PATCH /gms/workspaces/{id}` settings key since v1.9.0) |
+| MCP `get_send_package` | Implemented | Read only (`applications:read`); no tool emails a package |
+
+### Guest reviewers
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/guest-review/welcome` | Implemented | An external reviewer, signed in: funder, competitions, counts, due date, the conflict-of-interest note and its link (`/review/assignments?ws=…&sign=1` opens the policy signing) |
+| `GET /gms/guest-review/done` | Implemented | Done when at least one review is submitted and none is open (recusals aside); the reviewer portal goes there after the last review |
+| `POST /gms/guest-review/offer` | Implemented | `{ event: shown \| clicked \| dismissed }`: the once-only offer to run a panel, counted in the GMS's own ledger |
+
+### Opt-in digests (`docs/digests.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/digests`, `PUT /gms/digests` | Implemented | The person's own choices in this workspace; turning a digest on or off is the person's (agents and API clients `403 person_required`) |
+| `GET /gms/digests/preview?digest=` | Implemented | Next Monday's email as it would be written now; a fund advisor's counts are their funds' only. MCP `get_digest_preview` (read only) |
+| `POST /gms/digests/unsubscribe`, `GET /gms/digests/unsubscribe` | Implemented | No token: the signed link is the proof (RFC 8058 one-click on POST; GET only redirects). `400 invalid_link`, `410 link_expired` |
+
+### Importer adapters (`docs/importers.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `POST /gms/imports/read`, `POST /gms/imports/preview` | Changed | Sources also `json` (OpenWater), `fluxx` and `zengine`; an export from Good Grants, SurveyMonkey Apply, Submittable, Foundant GLM, SmartSimple or OpenWater is recognised loosely and the person confirms each field |
+| `GET/POST/DELETE /gms/imports/connections/{fluxx\|zengine}` | Implemented | Funder admin, a signed-in person to connect (agents and API clients `403 human_only`). Credentials checked with one read, stored encrypted, never returned; requests never follow a redirect |
+| `GET /gms/imports/zengine/forms` | Implemented | The forms the stored Zengine token can open |
+| `POST /gms/imports/runs/{id}/files/match`, `GET/POST /gms/imports/runs/{id}/files` | Implemented | After an import has finished: match a system's zip by paths, then attach each file (a person, 25 MB each). Stored as the funder's own documents, listed on the funder's award page, never the grantee's |

@@ -30,6 +30,8 @@ import {
   type GrantData,
 } from "./grant.tsx";
 import { GrantDocuments, GrantMessages } from "./grantExtras.tsx";
+import { ShareAwardPanel } from "../../components/ShareAwardPanel.tsx";
+import { SocialPanel } from "../../components/SocialPanel.tsx";
 
 const OPEN_REPORT: readonly string[] = ["due", "overdue", "returned", "scheduled"];
 
@@ -263,6 +265,8 @@ function Grant({ data, base, reload }: { data: GrantData; base: string; reload: 
         <GrantDocuments award={award} base={base} />
         <GrantMessages award={award} />
       </div>
+      <ShareAwardPanel awardId={award.id} side="grantee" funderName={funder} />
+      <SocialPanel subject={{ type: "award", id: award.id }} />
     </>
   );
 }

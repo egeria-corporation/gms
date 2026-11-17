@@ -139,9 +139,9 @@ describe("the Powered by setting", () => {
   it("names other settings it changed without copying their values to the ledger", async () => {
     const h = await harness();
     const admin = await as(h, USER_ADMIN);
-    expect((await h.request(`/gms/workspaces/${WS_FUNDER}`, json(admin, { settings: { contactEmail: "grants@riverbendcf.example", transparency: true } }, "PATCH"))).status).toBe(200);
+    expect((await h.request(`/gms/workspaces/${WS_FUNDER}`, json(admin, { settings: { contactEmail: "grants@riverbendcf.example", poweredBy: false } }, "PATCH"))).status).toBe(200);
     const [event] = await h.ledger.list({ workspaceId: WS_FUNDER, eventType: "workspace.updated" });
-    expect(event!.data).toEqual({ fields: ["settings"], settings: { contactEmail: "changed", transparency: true } });
+    expect(event!.data).toEqual({ fields: ["settings"], settings: { contactEmail: "changed", poweredBy: false } });
   });
 });
 

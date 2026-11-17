@@ -16,6 +16,7 @@ import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { ApplicationsStep } from "./ApplicationsStep.tsx";
 import { EmbedPanel } from "./EmbedPanel.tsx";
+import { SocialPanel } from "../../components/SocialPanel.tsx";
 import { competitionOf, offersApply, OpportunityStatusBadge, takingApplications } from "./applicationsStatus.tsx";
 import { ErrorBanner, Field, Loading, Notice, PageHeader, problemFor, SaveNote } from "../../components/ui.tsx";
 import { applicantTypeLabel, formatAwardCount, formatAwardRange, formatDate, parseDollars, slugify } from "../../lib/format.ts";
@@ -528,6 +529,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
                   </div>
                 )}
                 <EmbedPanel handle={ws.handle} funderName={ws.name} opportunity={opportunity} listed={opportunity?.publish.publicPage !== false} taking={taking} />
+                {opportunity && <SocialPanel key={`${opportunity.id}-${opportunity.updatedAt}`} subject={{ type: "opportunity", id: opportunity.id }} />}
               </>
             )}
             {step === "applications" && <ApplicationsStep opportunity={opportunity} competition={competition} base={base} publicPath={publicPath} onChanged={comps.reload} />}

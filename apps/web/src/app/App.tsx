@@ -20,12 +20,17 @@ const Switch = lazy(() => import("../screens/public/Switch.tsx"));
 const SwitchSystem = lazy(() => import("../screens/public/SwitchSystem.tsx"));
 const FunderPage = lazy(() => import("../screens/public/FunderPage.tsx"));
 const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
+// Award sharing (v1.9.0): the grants a funder has awarded, and one award's page.
+const FunderAwards = lazy(() => import("../screens/public/FunderAwards.tsx"));
+const AwardPublic = lazy(() => import("../screens/public/AwardPublic.tsx"));
 const EmbedWidget = lazy(() => import("../screens/public/EmbedWidget.tsx"));
 const SignIn = lazy(() => import("../screens/public/SignIn.tsx"));
 const PassportReturn = lazy(() => import("../screens/public/PassportReturn.tsx"));
 const InvitationAccept = lazy(() => import("../screens/public/InvitationAccept.tsx"));
 const JoinDraft = lazy(() => import("../screens/applicant/JoinDraft.tsx"));
 const ClaimAward = lazy(() => import("../screens/public/ClaimAward.tsx"));
+// Opt-in digests (v1.9.0): the one-click unsubscribe page, no sign-in.
+const DigestUnsubscribe = lazy(() => import("../screens/public/DigestUnsubscribe.tsx"));
 const WorkspaceSwitcher = lazy(() => import("../screens/public/WorkspaceSwitcher.tsx"));
 const FunderOnboarding = lazy(() => import("../screens/public/FunderOnboarding.tsx"));
 const ApplicantOnboarding = lazy(() => import("../screens/public/ApplicantOnboarding.tsx"));
@@ -67,6 +72,9 @@ const ConnectorReturn = lazy(() => import("../screens/funder/GoogleWorkspace.tsx
 const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
 const FSettingsPublicPage = lazy(() => import("../screens/funder/SettingsPublicPage.tsx"));
 const FSettingsSecurity = lazy(() => import("../screens/funder/SettingsSecurity.tsx"));
+const SettingsSocial = lazy(() => import("../screens/shared/SettingsSocial.tsx"));
+const FFundSettings = lazy(() => import("../screens/funder/FundSettings.tsx"));
+const FundPage = lazy(() => import("../screens/public/FundPage.tsx"));
 const FApprovals = lazy(() => import("../screens/funder/Approvals.tsx"));
 const ADashboard = lazy(() => import("../screens/applicant/Dashboard.tsx"));
 const AOrganization = lazy(() => import("../screens/applicant/Organization.tsx"));
@@ -87,6 +95,9 @@ const AOutsideApplication = lazy(() => import("../screens/applicant/OutsideAppli
 const ADocuments = lazy(() => import("../screens/applicant/Documents.tsx"));
 const AOutsideAward = lazy(() => import("../screens/applicant/OutsideAward.tsx"));
 const AFundingSummary = lazy(() => import("../screens/applicant/FundingSummary.tsx"));
+// C4: the guest reviewer's welcome and done screens.
+const FGuestReviewerWelcome = lazy(() => import("../screens/funder/GuestReviewerWelcome.tsx"));
+const FGuestReviewerDone = lazy(() => import("../screens/funder/GuestReviewerDone.tsx"));
 const ImportWizard = lazy(() => import("../screens/shared/ImportWizard.tsx"));
 const ASettings = lazy(() => import("../screens/applicant/Settings.tsx"));
 const ADashboardPhone = lazy(() => import("../screens/applicant/phone/DashboardPhone.tsx"));
@@ -197,6 +208,9 @@ function AppRoutes() {
         <Route path="/" element={<Landing />} />
         <Route path="/f/:handle" element={<FunderPage />} />
         <Route path="/f/:handle/o/:slug" element={<OpportunityPage />} />
+        <Route path="/f/:handle/awards" element={<FunderAwards />} />
+        <Route path="/f/:handle/awards/:slug" element={<AwardPublic />} />
+        <Route path="/f/:handle/:fundSlug" element={<FundPage />} />
         {/* The embeddable apply widget. Any site may frame /embed/* (build/headers.ts); no sign-in. */}
         <Route path="/embed/f/:handle/o/:slug" element={<EmbedWidget />} />
         <Route path="/signin" element={<SignIn />} />
@@ -212,6 +226,8 @@ function AppRoutes() {
         {/* The template gallery: anyone browses and previews; copying asks for a sign-in. */}
         <Route path="/templates" element={<Gallery />} />
         <Route path="/templates/:slug" element={<GalleryItem />} />
+        {/* An email's "Stop getting this email" link: the signed token is the proof, so no sign-in. */}
+        <Route path="/digests/unsubscribe" element={<DigestUnsubscribe />} />
 
         {/* Everything below needs a signed-in person. */}
         <Route element={<RequireAuth />}>
@@ -230,6 +246,9 @@ function AppRoutes() {
           {/* Reviewer portal: external reviewers have no workspace rail. */}
           <Route path="/review/assignments" element={<FReviewerAssignments />} />
           <Route path="/review/score/:appId" element={<FReviewerScoring />} />
+          {/* C4: a guest reviewer lands here from the invitation, and ends here after the last review. */}
+          <Route path="/review/welcome" element={<FGuestReviewerWelcome />} />
+          <Route path="/review/done" element={<FGuestReviewerDone />} />
 
           <Route path="/w/:ws" element={<WorkspaceLayout />}>
             <Route
@@ -281,6 +300,9 @@ function AppRoutes() {
             <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
             <Route path="settings/public-page" element={f(<FSettingsPublicPage />)} />
             <Route path="settings/security" element={f(<FSettingsSecurity />)} />
+            {/* Social accounts (Zernio), both kinds of workspace; Zernio returns here after a connection. */}
+            <Route path="settings/social" element={<SettingsSocial />} />
+            <Route path="settings/funds" element={f(<FFundSettings />)} />
             {/* Where the API sends a person back to after a provider's sign-in (Google Workspace). */}
             <Route path="settings/connectors" element={<ConnectorReturn />} />
             {/* Import from a spreadsheet: grant history in a funder workspace, applications in an applicant one. */}

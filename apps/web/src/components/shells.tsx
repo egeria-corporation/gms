@@ -28,6 +28,7 @@ import {
 import { useWorkspace, type Workspace } from "../app/workspace.tsx";
 import { hiddenFunderRailItems } from "../lib/roles.ts";
 import { WorkspaceMenu } from "./WorkspaceMenu.tsx";
+import { FundSwitcher } from "./FundSwitcher.tsx";
 
 export interface RailItem {
   label: string;
@@ -157,6 +158,7 @@ export function FunderShell({ active, overlay, firstRun = false, children }: She
             <div className="name">{ws.name}</div>
             <div className="sub">{ws.sub}</div>
           </div>
+          <FundSwitcher />
           <RailList ws={ws} items={funderRail(ws)} active={active} />
           <div className="rail-foot">
             {ws.member.name} · {ws.member.title}

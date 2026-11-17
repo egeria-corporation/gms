@@ -11,9 +11,10 @@ const REASONS: Record<OpenDataReason, string> = {
   individual: "Awarded to an individual",
   no_organization: "Recipient is not a linked organization",
   confidential: "Marked confidential",
+  unlisted: "The grantee asked not to be listed publicly",
   no_amount: "No amount awarded",
 };
-const ORDER: OpenDataReason[] = ["not_accepted", "cancelled", "individual", "no_organization", "confidential", "no_amount"];
+const ORDER: OpenDataReason[] = ["not_accepted", "cancelled", "individual", "no_organization", "confidential", "unlisted", "no_amount"];
 const PREFIX = /^360G-[A-Za-z0-9](?:[A-Za-z0-9_-]{0,58}[A-Za-z0-9])?$/;
 const REGISTER_URL = "https://www.360giving.org/publish/guidance/plan/register/";
 const LICENSE = { name: "Creative Commons Attribution 4.0 International (CC BY 4.0)", url: "https://creativecommons.org/licenses/by/4.0/" };

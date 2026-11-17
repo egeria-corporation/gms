@@ -79,12 +79,14 @@ describe("a report shared with another funder", () => {
 });
 
 describe("public pages", () => {
-  it("shows past awards only when the funder turned transparency on, and the FAQ a builder wrote", async () => {
+  it("shows past awards only when the funder lists its awards (the retired transparency setting never does), and the FAQ a builder wrote", async () => {
     const page = async () => ((await (await h.request("/gms/public/funders/riverbend")).json()) as { data: { pastAwards: unknown; open: unknown[]; forecasted: unknown[] } }).data;
     expect((await page()).pastAwards).toBeNull();
     await h.repos.table("workspaces").update({ id: WS_FUNDER }, { settings: { transparency: true } });
+    expect((await page()).pastAwards).toBeNull();
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { settings: { transparency: true, awardSharing: { listAwards: true } } });
     const after = await page();
-    expect(after.pastAwards).toEqual([{ recipient: "Alder Creek Family Services", title: "Mobile Health Navigation", awardedAmount: { amount: "150000.00", currency: "USD" }, year: 2027 }]);
+    expect(after.pastAwards).toEqual([{ recipient: "Alder Creek Family Services", title: "Mobile Health Navigation", awardedAmount: { amount: "150000.00", currency: "USD" }, year: 2027, page: expect.stringMatching(/^https:\/\/app\.gms\.test\/f\/riverbend\/awards\/alder-creek-family-services-[0-9a-f]{12}$/) }]);
     expect(after.open.length + after.forecasted.length).toBeGreaterThan(0);
 
     const patched = await s.call(s.funder, "PATCH", `/gms/opportunities/${s.oppId}`, { publish: { faq: [{ question: "Can fiscally sponsored projects apply?", answer: "Yes." }], documents: [{ name: "Guidelines", url: "https://riverbendcf.example/guidelines.pdf" }] } });

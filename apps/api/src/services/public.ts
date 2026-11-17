@@ -6,10 +6,12 @@ import { ProjectionError, projectCompetition, projectForm, projectOpportunity, p
 import { parseRules, type Rule } from "@gms/rules";
 import { notFound } from "../lib/errors.ts";
 import type { ServiceContext } from "./context.ts";
+import { publicFundOfOpportunity, publicFundsOf } from "./funds.ts";
 import { funderOf } from "./opportunities.ts";
 import { contactsOf } from "./workspaces.ts";
 import { poweredByOf } from "./powered-by.ts";
-import { namesOf, namesShared, orgFacts, sharingWith, verificationOf } from "./profile.ts";
+import { namesOf, orgFacts, verificationOf } from "./profile.ts";
+import { listedAwardBySlug, listedAwardsOf, listingSettingsOf, funderVerified, type ListedAward, type PublicAward } from "./award-sharing.ts";
 import type { Row } from "./repos/types.ts";
 
 export type PublicContext = Pick<ServiceContext, "repos" | "config" | "now">;
@@ -194,6 +196,9 @@ export async function funderPage(ctx: PublicContext, handle: string) {
   const opps = (await ctx.repos.table("opportunities").find({ workspace_id: w.id }, { notNull: ["published_at"], orderBy: "published_at", ascending: false })).filter((o) => publishFlag(o, "publicPage"));
   const open = await competitionsOf(ctx, opps.filter((o) => o.status === "open").map((o) => o.id), { status: "open" });
   const cards = opps.map((o) => card(o, acceptingApplications(o, open)));
+  // Each fund with the ids of its opportunities on this page only (never one left off the page).
+  const onPage = new Set(cards.map((o) => o.id));
+  const funds = (await publicFundsOf(ctx, w.id)).map((f) => ({ ...f, opportunityIds: f.opportunityIds.filter((id) => onPage.has(id)) }));
   return {
     funder: publicFunder(w),
     opportunities: cards,
@@ -201,24 +206,48 @@ export async function funderPage(ctx: PublicContext, handle: string) {
     forecasted: cards.filter((o) => o.status === "forecasted"),
     closed: cards.filter((o) => o.status === "closed"),
     pastAwards: await pastAwards(ctx, w),
+    funds,
   };
 }
 
 /**
- * Awards a funder chose to publish (`settings.transparency`): recipient name, title, amount, year.
- * Null when the funder has not turned transparency on, so the page can omit the section.
+ * Past awards on the funder page: the awards it lists (`isPubliclyListable`, services/award-sharing.ts),
+ * with recipient name, title, amount (null while the funder hides amounts; the table shows a dash),
+ * year and the award's own page. Null while the funder does not list awards, so the page can omit
+ * the section.
  */
 async function pastAwards(ctx: PublicContext, w: Row<"workspaces">) {
-  if ((w.settings as { transparency?: unknown } | null)?.transparency !== true) return null;
-  const awards = (await ctx.repos.table("awards").find({ workspace_id: w.id }, { orderBy: "created_at", ascending: false, limit: 200 })).filter((a) => ["active", "completed"].includes(a.status) && a.recipient_workspace_id);
-  const names = await funders(ctx, awards.map((a) => a.recipient_workspace_id as string));
-  // A recipient appears under its Passport legal name only while it shares its record with this funder.
-  const shared = await sharingWith(ctx, w.id, [...names.keys()]);
-  return awards.map((a) => {
-    const f = (a.funding ?? {}) as { awardedAmount?: { amount: string; currency: string } };
-    const start = ((a.key_dates ?? {}) as { awardDate?: { date?: string } }).awardDate?.date ?? a.created_at;
-    return { recipient: ((r) => (r ? namesShared(r, shared.has(r.id)).name : null))(names.get(a.recipient_workspace_id as string)), title: a.title, awardedAmount: f.awardedAmount ?? null, year: Number(start.slice(0, 4)) };
-  });
+  const settings = listingSettingsOf(w);
+  if (!settings.listAwards) return null;
+  return (await listedAwardsOf(ctx, w)).slice(0, 200).map((a) => ({ recipient: a.recipient.name, title: a.purpose, awardedAmount: a.amount, year: a.year, page: a.links.page }));
+}
+
+const publicAward = ({ updatedAt: _u, ...a }: ListedAward): PublicAward => a;
+
+/**
+ * Data for `/f/{handle}/awards`: the grants the funder has awarded and lists, newest first, with
+ * the years and programs to group them by. 404 while the funder does not list awards.
+ */
+export async function funderAwardsPage(ctx: PublicContext, handle: string) {
+  const w = await activeFunder(ctx, handle);
+  const settings = listingSettingsOf(w);
+  if (!settings.listAwards) throw notFound("Page");
+  const awards = (await listedAwardsOf(ctx, w)).map(publicAward);
+  return {
+    funder: publicFunder(w),
+    awards,
+    years: [...new Set(awards.map((a) => a.year))].sort((a, b) => b - a),
+    programs: [...new Set(awards.map((a) => a.program).filter((p): p is string => !!p))].sort((a, b) => a.localeCompare(b)),
+    amountsShown: settings.showAmounts,
+    links: { page: `${ctx.config.webBaseUrl}/f/${w.handle}/awards`, funder: `${ctx.config.webBaseUrl}/f/${w.handle}` },
+  };
+}
+
+/** Data for `/f/{handle}/awards/{slug}`. The same 404 for an award that does not exist and one that is not public. */
+export async function awardPage(ctx: PublicContext, handle: string, slug: string) {
+  const found = await listedAwardBySlug(ctx, slug);
+  if (!found || found.funder.handle !== handle) throw notFound("Page");
+  return { funder: publicFunder(found.funder), award: found.award, verified: funderVerified(found.funder), links: { awards: `${ctx.config.webBaseUrl}/f/${found.funder.handle}/awards` } };
 }
 
 const pageExtras = (o: Opp) => {
@@ -248,7 +277,7 @@ export async function opportunityPage(ctx: PublicContext, handle: string, slug: 
   }
   return {
     funder: publicFunder(w),
-    opportunity: { ...card(opp, acceptingApplications(opp, comps)), publishedAt: opp.published_at, eligibility: ruleLabels(parsed.ok ? parsed.rules : null), ...pageExtras(opp) },
+    opportunity: { ...card(opp, acceptingApplications(opp, comps)), publishedAt: opp.published_at, eligibility: ruleLabels(parsed.ok ? parsed.rules : null), ...pageExtras(opp), fund: await publicFundOfOpportunity(ctx, w.id, opp.id) },
     competitions: comps.map((c) => ({
       id: c.id,
       title: c.title,
@@ -278,7 +307,7 @@ const later = (a: string, b: string) => (Date.parse(b) > Date.parse(a) ? b : a);
 export const SWITCH_SYSTEMS = ["good-grants", "submittable", "surveymonkey-apply", "foundant", "zengine", "fluxx", "smartsimple", "cybergrants", "openwater", "spreadsheets"] as const;
 export const SWITCH_FACTS_CHECKED = "2026-11-15T00:00:00.000Z";
 
-/** The sitemap: funder and opportunity pages, the switch pages, and the template gallery's approved items. */
+/** The sitemap: funder and opportunity pages, the switch pages, the template gallery's approved items, and listed awards. */
 export async function sitemapEntries(ctx: PublicContext): Promise<{ loc: string; lastmod: string }[]> {
   const published = (await ctx.repos.table("opportunities").find({}, { notNull: ["published_at"], orderBy: "published_at", ascending: false, limit: 5000 })).filter((o) => publishFlag(o, "sitemap") && publishFlag(o, "publicPage"));
   const byId = await funders(ctx, published.map((o) => o.workspace_id));
@@ -300,5 +329,25 @@ export async function sitemapEntries(ctx: PublicContext): Promise<{ loc: string;
   const items = await ctx.repos.table("gallery_items").find({ status: "approved" }, { orderBy: "published_at", ascending: false, limit: 1000 });
   if (items.length) out.push({ loc: `${ctx.config.webBaseUrl}/templates`, lastmod: items[0]!.published_at });
   for (const i of items) out.push({ loc: `${ctx.config.webBaseUrl}/templates/${i.slug}`, lastmod: i.published_at });
+  out.push(...(await awardSitemapEntries(ctx)));
+  return out;
+}
+
+/** Most funders whose listed awards the sitemap reads. */
+const SITEMAP_FUNDERS = 1000;
+
+/**
+ * The grants-awarded page of each active funder that lists awards and has one to list, and each
+ * listed award's page. Only awards that pass `isPubliclyListable` are named.
+ */
+async function awardSitemapEntries(ctx: PublicContext): Promise<{ loc: string; lastmod: string }[]> {
+  const funders = (await ctx.repos.table("workspaces").find({ kind: "funder", status: "active" }, { orderBy: "created_at", limit: SITEMAP_FUNDERS })).filter((w) => listingSettingsOf(w).listAwards);
+  const out: { loc: string; lastmod: string }[] = [];
+  for (const w of funders) {
+    const awards = await listedAwardsOf(ctx, w);
+    if (!awards.length) continue;
+    out.push({ loc: `${ctx.config.webBaseUrl}/f/${w.handle}/awards`, lastmod: awards.reduce((m, a) => later(m, a.updatedAt), w.updated_at) });
+    for (const a of awards) out.push({ loc: a.links.page, lastmod: a.updatedAt });
+  }
   return out;
 }

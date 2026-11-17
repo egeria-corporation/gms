@@ -8,6 +8,7 @@ import { primaryEmail } from "./apply.ts";
 import { audit, authorize, required, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import type { JsonObject } from "@gms/forms";
 import type { Row } from "./repos/types.ts";
+import { IMPORTED_FILE_SUBJECT } from "./import-files.ts";
 import { contactsOf } from "./workspaces.ts";
 
 /** One answer to "who can see our record": funders by consent, connected agents, and the team. */
@@ -78,13 +79,23 @@ async function awardParty(ctx: ServiceContext, awardId: string, scope: "awards:r
   return { ws, award: award! };
 }
 
-/** A grant's documents as either party may see them: agreements and files attached to the award. */
+/**
+ * A grant's documents as either party may see them: agreements and files attached to the award. The
+ * funder also sees the files it imported from another grants system for this award (the system's
+ * zip, attached in the import wizard): they are the funder's own records, never the grantee's.
+ */
 export async function awardDocuments(ctx: ServiceContext, awardId: string) {
-  const { award } = await awardParty(ctx, awardId, "awards:read");
-  const [agreements, docs] = await Promise.all([ctx.repos.table("agreements").find({ award_id: award.id, workspace_id: award.workspace_id }, { orderBy: "version" }), ctx.repos.table("documents").find({ subject_type: "award", subject_id: award.id }, { orderBy: "created_at" })]);
+  const { ws, award } = await awardParty(ctx, awardId, "awards:read");
+  const funderSide = ws.kind === "funder" && award.workspace_id === ws.id;
+  const [agreements, docs, imported] = await Promise.all([
+    ctx.repos.table("agreements").find({ award_id: award.id, workspace_id: award.workspace_id }, { orderBy: "version" }),
+    ctx.repos.table("documents").find({ subject_type: "award", subject_id: award.id }, { orderBy: "created_at" }),
+    funderSide ? ctx.repos.table("documents").find({ workspace_id: ws.id, subject_type: IMPORTED_FILE_SUBJECT, subject_id: award.id }, { orderBy: "created_at" }) : Promise.resolve([]),
+  ]);
   return [
     ...agreements.filter((g) => g.status !== "draft").map((g) => ({ kind: "agreement", id: apiId("agreement", g.id), name: `Grant agreement v${g.version}`, status: g.status, sha256: g.document_sha256, at: g.executed_at ?? g.updated_at, href: `${ctx.config.baseUrl}/gms/agreements/${apiId("agreement", g.id)}/pdf` })),
     ...docs.map((d) => ({ kind: "file", id: d.id, name: d.name, status: d.scan_status, sha256: d.sha256, at: d.created_at, href: null })),
+    ...imported.map((d) => ({ kind: "file", id: d.id, name: d.name, status: d.scan_status, sha256: d.sha256, at: d.created_at, href: null })),
   ];
 }
 

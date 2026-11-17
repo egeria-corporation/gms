@@ -3,6 +3,134 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.9.0 — 2026-11-16
+
+### Added
+
+- **Grants-awarded pages**: a funder can list the grants it awards at `/f/{handle}/awards`, by year
+  and program, each award on its own page with a share card ("{Funder} awarded {Recipient} a grant")
+  and schema.org data. Off until the funder turns on "List awards on my public page" in Settings ›
+  Public page; the funder can also hide amounts. The funder page's nav links to "Grants awarded".
+- **Confidential awards**: the funder keeps any award confidential, and can make new awards in a
+  program start confidential. A confidential award never appears on a public page, card, badge, the
+  sitemap, a share kit, a social post or open data. Grantees can choose "Don't list us publicly".
+- **Share this award**, on the funder's award screen and the grantee's grant screen: why an award is
+  or is not public, three ready-to-edit posts, the award page link, the card image and a "Funded by"
+  badge (`/badge/{slug}.svg`, verified only for a funder linked to OpenGrants Passport).
+- **Social posting through Zernio**: funders announce open calls and awards on their own LinkedIn,
+  Facebook, Instagram, X, Bluesky and Threads accounts, and grantees share their award. The composer
+  starts from the call or the award, shows each platform's length limit and the exact post before
+  anything goes out; only a person's click on Post sends it, now or at a scheduled time. Settings ›
+  Social accounts connects and disconnects accounts (admins). Hidden unless the server has Zernio.
+- A reach report on each call and award: each post's status and link per platform, Zernio's
+  impressions, clicks and engagements, and the applications started from a shared link.
+- **Funds**: one funder workspace runs many funds, each with its own name, public address, short
+  description, colour from the theme palette, budget per fiscal year (beside its programs' budgets)
+  and advisors. Settings → Funds; a fund switcher narrows the dashboard, programs and awards. Public
+  fund pages at `/f/{handle}/{fundSlug}`; the funder page groups open calls by fund and an
+  opportunity page names its fund.
+- **"Advisor for {fund}"**: a program officer or reviewer who sees and acts only on one fund's
+  programs and everything under them, on every screen, API route, MCP tool, report, digest and
+  export.
+- A **Fund** column in every report data set (organizations list their funds).
+- **Send to the funder**, on an outside application: download a clean package (a PDF with a cover,
+  every question and answer in order, the budget summary and the list of files; a ZIP with that PDF,
+  the files and `answers.txt`), or email it to a funder contact under your name with replies to you,
+  after a preview of exactly what goes out. Only this application's files and the vault documents
+  used for its checklist are included; an answer that looks like a bank, card or identity number
+  stops the package and names the question. Up to five emails a day per application and 20 MB of
+  files per email (larger: download it instead). The footer follows the workspace's Powered by
+  setting.
+- **Guest reviewers**: an external reviewer who accepts an invitation lands on a one-screen welcome
+  (funder, competition, how many applications, due date, the conflict-of-interest steps, Start
+  reviewing). After their last review a done screen thanks them and offers once to run a review
+  panel for their own organization.
+- **Opt-in Monday digests**, each off until the person turns it on, per workspace: New matches (up
+  to 10 new opportunities from OpenGrants and from funders here, never one already sent, saved or
+  applied to), Deadlines (the next 3 weeks) and, for funder staff, This week's activity (counts and
+  links only, never applicants' answers). "What we email you" in Notifications → Digest settings,
+  a one-time prompt on Find funding and the funder dashboard, one-click unsubscribe with
+  List-Unsubscribe headers, plain text and HTML with no tracking.
+- **Moving from another grants system**: funders bring their grant history from Good Grants,
+  SurveyMonkey Apply, Submittable, Foundant GLM, SmartSimple or OpenWater: choose the system, see how
+  to export from it, drop in the export (CSV, Excel, or OpenWater's JSON) and the columns are matched
+  for you. Each system's export format is recognised loosely; you confirm each field. A plain file
+  from one of these systems is recognised too, and applications the export marks as never awarded
+  are set aside with the reason.
+- Read grant history straight from **Fluxx** (an application you create in your Fluxx instance) or
+  **Zengine** (an access token), read-only, up to 5,000 records a run, continuing where the last run
+  stopped. Credentials are checked, kept encrypted, never shown again, and deleted when the import
+  is finished, on disconnect, or after a week unused. No request follows a redirect.
+- After an import, add the system's zip of PDFs and files: each is matched to its award and attached
+  for your team only (listed on the funder's award page, never the grantee's); the GMS does not read
+  what is in them.
+- MCP tools `get_award_share_kit`, `list_social_posts`, `list_funds`, `get_send_package` and
+  `get_digest_preview`, all read only.
+- API routes for award sharing, social posting and `POST /webhooks/zernio`, funds, the send package,
+  guest review, digests and the importer adapters (see `docs/api-surface.md`).
+
+### Changed
+
+- Past awards on a funder's public page follow award sharing's listing switch and its one public
+  rule, link to each award's page, and stay listed while amounts are hidden (shown as a dash, never
+  $0). **The older transparency setting is retired**: it no longer lists anything and is no longer
+  a workspace setting.
+- **Open data** decides confidential, individual and unlisted awards with award sharing's rule, and
+  its per-award Confidential switch sets the same flag. Marks made in v1.8.0 are still read for one
+  release. An award whose grantee chose "Don't list us publicly" is left out ("The grantee asked not
+  to be listed publicly").
+- Every program belongs to a fund; existing programs are in their workspace's Default fund, and a
+  program created without naming a fund goes there. An approval request an agent files for a fund
+  advisor must name records of that advisor's funds.
+- Scheduled reports are never sent to, or scheduled by, a member limited to some funds (the report
+  covers every fund); the workspace ledger is for admins and auditors of every fund.
+- Accepting an invitation as an external reviewer opens the guest welcome; its conflict-of-interest
+  link opens the policy signing.
+- The mailers carry attachments (Resend's attachment objects), so a package can be emailed.
+- Applicant workspaces can set `poweredBy` through the workspace settings too.
+- The jobs Worker runs content digests on Mondays at 15:10 UTC and can use `OPENGRANTS_API_KEY`.
+- The sitemap names listed award pages and each funder's grants-awarded page.
+
+### Fixed
+
+- A fund advisor's event digest, and the Monday activity digest, could count other funds' records;
+  both are now limited to the advisor's funds.
+- A reviewer limited to one fund could be assigned another fund's application (and then could not
+  open it); that assignment is now refused, and auto-assign leaves them out.
+
+### Upgrade notes
+
+- **Database migrations `0037_award_sharing.sql`, `0038_social_posting.sql`, `0039_funds.sql`,
+  `0040_send_package.sql`, `0041_content_digests.sql`, then `0042_importer_adapters.sql`, in that
+  order, before deploying the API.**
+  - `0037` adds `awards.confidential`, `awards.recipient_unlisted`, `awards.public_slug` and
+    `programs.awards_confidential`, and copies v1.8.0's open-data confidential marks into
+    `awards.confidential`. **Listing of awards is off by default**: nothing becomes public until a
+    funder turns on "List awards on my public page". A funder that used the old transparency
+    setting should turn listing on to keep its past awards on its page.
+  - `0038` adds the social tables and lets inbound events take Zernio deliveries.
+  - `0039` **creates a "Default fund" for every funder workspace** and moves its existing programs
+    into it (program dates are kept). A member whose scope names funds is no longer "staff" for
+    row-level security; the Workers use the service role, so served requests do not change.
+  - `0040` adds `package_sends`; `0041` adds the digest tables (everyone starts opted out); `0042`
+    widens three checks and adds two nullable columns to `import_runs`. None of them removes or
+    rewrites an existing row beyond `programs.fund_id`.
+- **Zernio (optional; social posting stays hidden without it):** set the Wrangler secrets
+  `ZERNIO_API_KEY` and `ZERNIO_WEBHOOK_SECRET` on the API Worker (the webhook secret is one you
+  choose and also set on the endpoint), and add a Zernio webhook to
+  `https://gms.opengrants.io/webhooks/zernio` (your `GMS_BASE_URL`) for `account.connected`,
+  `account.disconnected`, `post.scheduled`, `post.published`, `post.partial`, `post.failed` and
+  `post.cancelled`, for all profiles (`docs/social.md`).
+- **`OPENGRANTS_API_KEY` on the jobs Worker** (today it is set only on the API): without it, new
+  matches in digests come only from this site. Confirm `CREDENTIALS_ENCRYPTION_KEY`,
+  `RESEND_API_KEY` and `RESEND_FROM` are set on the jobs Worker too; no digest is sent without them.
+- **Resend:** confirm open and click tracking are off for the sending domain (gms.opengrants.io); the
+  digests promise no tracking.
+- No other new secrets: Fluxx and Zengine use `CREDENTIALS_ENCRYPTION_KEY`, imported files the
+  existing file storage, package email the existing Resend settings.
+- Redeploy the API, then the jobs Worker, then the web app and the front Worker, so award pages,
+  cards, `/badge` and the fund pages are served.
+
 ## v1.8.0 — 2026-11-15
 
 ### Added

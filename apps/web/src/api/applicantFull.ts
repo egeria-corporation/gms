@@ -87,9 +87,12 @@ export interface FundingAlert {
 export interface PastAward {
   year: string;
   recipient: string;
-  amountMinor: number;
+  /** Null when the funder hides amounts: shown as a dash, never as $0. */
+  amountMinor: number | null;
   currency: string;
   purpose: string;
+  /** The award's own public page, when the server sends it. */
+  page?: string | null;
 }
 export interface PublicExtras {
   pastAwards: PastAward[];
@@ -170,8 +173,9 @@ interface RawAward {
   title: string;
   awardedAmount: { amount: string; currency: string } | null;
   year: number;
+  page?: string | null;
 }
-const toPastAward = (a: RawAward): PastAward => ({ year: String(a.year), recipient: a.recipient ?? "Recipient not named", amountMinor: Math.round(Number(a.awardedAmount?.amount ?? 0) * 100), currency: a.awardedAmount?.currency ?? "USD", purpose: a.title });
+const toPastAward = (a: RawAward): PastAward => ({ year: String(a.year), recipient: a.recipient ?? "Recipient not named", amountMinor: a.awardedAmount ? Math.round(Number(a.awardedAmount.amount) * 100) : null, currency: a.awardedAmount?.currency ?? "USD", purpose: a.title, page: a.page ?? null });
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 /** Published FAQ entries, whichever key names the funder's page used. */
 export function toFaq(raw: unknown): PublicExtras["faq"] {
@@ -269,7 +273,7 @@ export function createHttpApplicantFullApi(opts: HttpApplicantFullOptions): Appl
       return { text: r.output.text ?? r.output.adapted ?? "", overLimit: !!r.output.overLimit, answerVersion: r.answerVersion ?? null };
     },
 
-    // Past awards appear only when the funder has turned transparency on; the questions are the
+    // Past awards appear only when the funder lists its awards (award sharing); the questions are the
     // ones its open opportunities publish.
     publicExtras: async (handle) => {
       type Card = { slug: string; status: string };

@@ -29,6 +29,7 @@
     "@gms/protocol": "workspace:*",
     "@gms/review": "workspace:*",
     "@gms/rules": "workspace:*",
+    "@gms/social": "workspace:*",
     "@gms/webhooks": "workspace:*",
     "@gms/workflow": "workspace:*",
     "@supabase/supabase-js": "2.118.0",

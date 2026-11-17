@@ -48,7 +48,7 @@ export function DeadlineBadge({ opp, now = new Date() }: { opp: Pick<PublicOppor
   );
 }
 
-function OpportunityCard({ handle, opp }: { handle: string; opp: PublicOpportunityCard }) {
+export function OpportunityCard({ handle, opp }: { handle: string; opp: PublicOpportunityCard }) {
   const to = `/f/${handle}/o/${opp.slug}`;
   const close = opp.keyDates.closeDate;
   const count = formatAwardCount(opp.funding);
@@ -113,6 +113,12 @@ export default function FunderPage() {
 
   const { funder, opportunities } = page.data;
   const open = opportunities.filter((o) => o.status === "open");
+  // Funds as sections when more than one fund has open calls (sent once the public data carries funds).
+  const withOpen = (page.data.funds ?? []).map((f) => ({ ...f, open: open.filter((o) => f.opportunityIds.includes(o.id)) })).filter((f) => f.open.length > 0);
+  const byFund = withOpen.length > 1;
+  // Each named fund is a section; the default fund's calls and any others come last, together.
+  const fundSections = withOpen.filter((f) => !f.isDefault);
+  const others = open.filter((o) => !fundSections.some((f) => f.open.includes(o)));
   const forecasted = opportunities.filter((o) => o.status === "forecasted");
   const nextForecast = forecasted[0];
   const site = funder.website?.replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -128,6 +134,7 @@ export default function FunderPage() {
           <>
             <a href="#open">Open opportunities</a>
             {forecasted.length > 0 && <a href="#forecast">Forecasted</a>}
+            {page.data.pastAwards != null && <Link to={`/f/${funder.handle}/awards`}>Grants awarded</Link>}
           </>
         }
         hero={
@@ -180,7 +187,32 @@ export default function FunderPage() {
                 {open.length} open
               </span>
             </div>
-            {open.length > 0 ? (
+            {open.length > 0 && byFund ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+                {[...fundSections.map((f) => ({ key: `f-${f.slug}`, title: f.name, slug: f.slug, description: f.description, open: f.open })), { key: "other-opportunities", title: "Other opportunities", slug: "", description: null, open: others }]
+                  .filter((f) => f.open.length > 0)
+                  .map((f) => (
+                    <section key={f.key} aria-labelledby={`fund-${f.key}`}>
+                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+                        <h3 id={`fund-${f.key}`} style={{ fontSize: "20px" }}>
+                          {f.title}
+                        </h3>
+                        {f.slug && (
+                          <Link to={`/f/${funder.handle}/${f.slug}`} style={{ fontSize: "14px", fontWeight: 700 }} aria-label={`All of ${f.title}`}>
+                            Fund page <ArrowRight className="ic ic-sm" aria-hidden="true" />
+                          </Link>
+                        )}
+                      </div>
+                      {f.description && <p style={{ fontSize: "15px", color: "var(--og-gray-600)", marginBottom: "12px" }}>{f.description}</p>}
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))", gap: "20px" }}>
+                        {f.open.map((o) => (
+                          <OpportunityCard key={o.id} handle={funder.handle} opp={o} />
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+              </div>
+            ) : open.length > 0 ? (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))", gap: "20px" }}>
                 {open.map((o) => (
                   <OpportunityCard key={o.id} handle={funder.handle} opp={o} />

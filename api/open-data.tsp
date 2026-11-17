@@ -32,6 +32,7 @@ namespace GMS.Models {
     individual: "individual",
     no_organization: "no_organization",
     confidential: "confidential",
+    unlisted: "unlisted",
     no_amount: "no_amount",
   }
 

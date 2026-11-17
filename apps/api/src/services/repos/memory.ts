@@ -13,7 +13,8 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   invitations: () => ({ scope: {}, invited_by: null, accepted_at: null }),
   passport_links: () => ({ client_id: null, client_secret_enc: null, refresh_token_enc: null, access_token_enc: null, access_token_expires_at: null, token_version: 0, scopes: [], linked_by_user_id: null, revoked_at: null, last_ok_at: null }),
   consents: () => ({ scopes: [], granted_by: null, revoked_at: null }),
-  programs: () => ({ description: null, fiscal_year: null, budget_amount_minor: null, currency: "USD", defaults: {} }),
+  programs: () => ({ description: null, fiscal_year: null, budget_amount_minor: null, currency: "USD", defaults: {}, awards_confidential: false, fund_id: null }),
+  funds: () => ({ description: null, brand: {}, budgets: [], is_default: false }),
   forms: () => ({
     version: 1,
     workspace_id: null,
@@ -73,7 +74,7 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   templates: () => ({ workspace_id: null, version: 1 }),
   approvals: () => ({ input: {}, summary: null, impact: null, subject_type: null, subject_id: null, status: "pending", side: "funder", error: null, decided_by: null, decided_at: null, decision_note: null, result: null, expires_at: null }),
   award_invitations: () => ({ message: null, sent_count: 1, accepted_at: null, accepted_by: null, accepted_workspace_id: null, declined_at: null, decline_reason: null, revoked_at: null }),
-  awards: () => ({ recipient_workspace_id: null, recipient_individual: null, application_id: null, opportunity_id: null, program_id: null, parent_award_id: null, description: null, status: "offered", cg_status: "awarded", funding: {}, key_dates: {}, conditions: [], passport_award_id: null, passport_synced_at: null, disbursed_at: null, cg: null }),
+  awards: () => ({ recipient_workspace_id: null, recipient_individual: null, application_id: null, opportunity_id: null, program_id: null, parent_award_id: null, description: null, status: "offered", cg_status: "awarded", funding: {}, key_dates: {}, conditions: [], passport_award_id: null, passport_synced_at: null, disbursed_at: null, cg: null, confidential: false, recipient_unlisted: false, public_slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12) }),
   agreements: () => ({ template_id: null, version: 1, status: "draft", rendered_pdf_path: null, document_sha256: null, grantee_signature: null, funder_signature: null, executed_at: null }),
   payment_schedules: () => ({ currency: "USD", notes: null }),
   tranches: () => ({ currency: "USD", condition: { type: "manual" }, status: "scheduled", due_at: null, released_by: null, released_at: null, mode: null, passport_disbursement_id: null, passport_status: null, external: null, hold_reason: null, idempotency_key: null }),
@@ -152,6 +153,13 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   workspace_sso_domains: () => ({ status: "pending", require_sso: false, provider_id: null, verified_at: null, last_checked_at: null, last_check_result: null, activated_at: null, created_by: null }),
   gallery_items: (at) => ({ author_workspace_id: null, licence: "CC-BY-4.0", status: "approved", version: 1, tags: { fieldOfWork: [], grantSize: [], audience: [] }, uses_count: 0, published_at: at, withdrawn_at: null }),
   gallery_submissions: () => ({ status: "pending", tags: { fieldOfWork: [], grantSize: [], audience: [] }, stripped: [], decided_at: null, decided_by: null, decision_reason: null, item_id: null, withdrawn_at: null }),
+  social_profiles: () => ({ created_by: null }),
+  social_accounts: () => ({ username: null, status: "active", connected_by: null, disconnected_at: null }),
+  social_posts: () => ({ zernio_post_id: null, targets: [], status: "sending", scheduled_at: null, timezone: null, error: null, metrics: {}, metrics_at: null, sent_at: null }),
+  package_sends: () => ({ sent_at: null }),
+  // 0041: opt-in content digests (all off until a person turns one on) and what was sent.
+  digest_subscriptions: () => ({ new_matches: false, deadlines: false, funder_activity: false, prompt_dismissed_at: null }),
+  digest_sends: () => ({ item_keys: [], message_id: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -190,6 +198,14 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   gallery_items: [{ columns: ["slug"] }],
   // One pending submission per source record (gallery_submissions_one_pending_idx).
   gallery_submissions: [{ columns: ["workspace_id", "source_type", "source_id"], whereEquals: { status: "pending" } }],
+  social_profiles: [{ columns: ["workspace_id"] }, { columns: ["zernio_profile_id"] }],
+  social_accounts: [{ columns: ["zernio_id"] }],
+  social_posts: [{ columns: ["workspace_id", "idempotency_key"] }, { columns: ["zernio_post_id"], whereNotNull: "zernio_post_id" }],
+  // `funds (workspace_id) where is_default` is kept by services/funds.ts, which creates the default once.
+  funds: [{ columns: ["workspace_id", "slug"] }],
+  package_sends: [{ columns: ["outside_application_id", "day", "slot"] }],
+  digest_subscriptions: [{ columns: ["member_id"] }],
+  digest_sends: [{ columns: ["workspace_id", "user_id", "digest", "iso_week"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -231,6 +247,11 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   // 0034 checks these with its own trigger (gms.report_rows_check).
   report_schedules: { view_id: "report_views" },
   report_files: { view_id: "report_views", schedule_id: "report_schedules" },
+  programs: { fund_id: "funds" },
+  // 0040 checks this one with its own trigger (gms.package_sends_same_workspace).
+  package_sends: { outside_application_id: "outside_applications" },
+  // 0041 checks this one with its own trigger (gms.digest_subscription_check), with the person too.
+  digest_subscriptions: { member_id: "workspace_members" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

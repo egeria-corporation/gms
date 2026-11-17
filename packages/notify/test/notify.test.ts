@@ -15,6 +15,8 @@ import {
   renderEmail,
   renderTemplate,
   ResendMailer,
+  MAX_ATTACHMENT_BYTES,
+  base64Bytes,
   runReminders,
   scheduleReminders,
   stripQuotedReply,
@@ -200,6 +202,28 @@ describe("mailer", () => {
     expect(JSON.parse(String(seen[0]!.init.body))).toMatchObject({ reply_to: "thread+thr_000001@reply.gms.example", to: ["maria@aldercreek.example"] });
     const bad = new ResendMailer("test-key", async () => new Response("maria@aldercreek.example is invalid", { status: 422 }));
     await expect(bad.send({ from: "a@b.example", to: ["x"], subject: "s", html: "h", text: "t" })).rejects.toMatchObject({ status: 422, retryable: false, message: "Resend refused the send (HTTP 422)." });
+  });
+
+  it("passes attachments to Resend as filename, base64 content and content_type, under the size cap", async () => {
+    const seen: RequestInit[] = [];
+    const ok: typeof fetch = async (_url, init) => {
+      seen.push(init!);
+      return new Response(JSON.stringify({ id: "re_att" }), { status: 200 });
+    };
+    const mailer = new ResendMailer("test-key", ok);
+    expect(mailer.sendsAttachments).toBe(true);
+    const pdf = btoa("%PDF-1.7 package");
+    await mailer.send({ from: "a@gms.example", to: ["b@funder.example"], subject: "s", html: "h", text: "t", attachments: [{ filename: "package.pdf", content: pdf, contentType: "application/pdf" }, { filename: "answers.txt", content: btoa("answers") }] });
+    expect(JSON.parse(String(seen[0]!.body)).attachments).toEqual([{ filename: "package.pdf", content: pdf, content_type: "application/pdf" }, { filename: "answers.txt", content: btoa("answers") }]);
+    // Without attachments the body has none.
+    await mailer.send({ from: "a@gms.example", to: ["b@funder.example"], subject: "s", html: "h", text: "t" });
+    expect(JSON.parse(String(seen[1]!.body))).not.toHaveProperty("attachments");
+    // Over the cap: refused before anything is sent, and the message says to download instead.
+    const big = "A".repeat(Math.ceil(((MAX_ATTACHMENT_BYTES + 1) * 4) / 3) + 4);
+    await expect(mailer.send({ from: "a@gms.example", to: ["b@funder.example"], subject: "s", html: "h", text: "t", attachments: [{ filename: "big.zip", content: big }] })).rejects.toMatchObject({ status: 413, retryable: false, message: expect.stringContaining("download the package instead") });
+    expect(seen).toHaveLength(2);
+    expect(base64Bytes(btoa("hello"))).toBe(5);
+    expect(base64Bytes(btoa("hell"))).toBe(4);
   });
 });
 

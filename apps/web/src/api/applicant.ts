@@ -120,7 +120,8 @@ export interface ApplicantApi {
   // ---- applications ----
   applications(): Promise<MyApplication[]>;
   applicationStatus(id: string): Promise<ApplicationStatusView>;
-  startApplication(competitionId: string): Promise<Application>;
+  /** `utmSource: "social"` when the person came from a shared social link (lib/socialLanding.ts). */
+  startApplication(competitionId: string, opts?: { utmSource?: "social" }): Promise<Application>;
   application(id: string): Promise<Application>;
   /** The pinned version of a form an application answers. */
   form(formId: string, version: number): Promise<FormDefinition>;
@@ -341,7 +342,8 @@ export function createHttpApplicantApi(opts: HttpApplicantOptions): ApplicantApi
 
     applications: () => get("/gms/my/applications"),
     applicationStatus: (id) => get(`${my(id)}/status`),
-    startApplication: async (competitionId) => toApplication(await call<CgApplication>("POST", "/common-grants/applications/start", { competitionId: bare(competitionId) })),
+    // The source travels in the query string: the CommonGrants start body takes no other field.
+    startApplication: async (competitionId, opts) => toApplication(await call<CgApplication>("POST", `/common-grants/applications/start${opts?.utmSource === "social" ? "?utm_source=social" : ""}`, { competitionId: bare(competitionId) })),
     application: async (id) => toApplication(await get<CgApplication>(cg(id))),
     form: async (formId, version) => toFormDefinition(await get<CgForm>(`/common-grants/forms/${e(bare(formId))}?version=${version}`), version),
     saveForm: async (id, formId, patch) => toAppForm(await call<CgFormResponse>("PUT", `${cg(id)}/forms/${e(bare(formId))}`, { response: patch })),

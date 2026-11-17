@@ -62,6 +62,7 @@ const mappingFunction = z
 export const FUNDER_TOOLS = {
   list_programs: tool("listPrograms", "programs:read", "List the workspace's programs with budget and fiscal year.", z.object({ fiscalYear: z.number().int().optional(), ...paging })),
   get_program: tool("getProgram", "programs:read", "Get one program, including its defaults (rubric, templates, requirement and reminder plans).", z.object({ programId })),
+  list_funds: tool("listFunds", "programs:read", "List the funds you can see, the default fund first, each with its budget per fiscal year beside its programs' budgets. A fund advisor sees their own funds only. Creating funds and inviting advisors is done by a workspace admin in the GMS.", z.object({})),
 
   list_opportunities: tool("listOpportunities", "opportunities:read", "List opportunities, optionally by status or program.", z.object({ status: z.enum(["forecasted", "open", "closed"]).optional(), programId: programId.optional(), search: z.string().max(200).optional(), ...paging })),
   get_opportunity: tool("getOpportunity", "opportunities:read", "Get one opportunity with its CommonGrants projection and eligibility rules.", z.object({ opportunityId })),
@@ -108,6 +109,7 @@ export const FUNDER_TOOLS = {
 
   list_awards: tool("listAwards", "awards:read", "List awards by status, program or recipient.", z.object({ status: z.array(awardStatus).optional(), programId: programId.optional(), recipientWorkspaceId: applicantWorkspaceId.optional(), ...paging })),
   get_award: tool("getAward", "awards:read", "Get one award: lifecycle status, funding (disbursed amount is read from Passport), dates and conditions.", z.object({ awardId })),
+  get_award_share_kit: tool("getAwardShareKit", "awards:read", "Get the share kit for an award on the public grants-awarded page: three ready-to-edit posts (LinkedIn, short, newsletter), the award page link, the card image and the “Funded by” badge snippet, from public fields only. Null when the award is not public (confidential, unlisted, not accepted, or the funder does not list awards). Nothing is posted by this tool; marking an award confidential or unlisted, and listing awards, are a person's, in the GMS.", z.object({ awardId })),
   create_direct_award: tool(
     "createDirectAward",
     "awards:write",
@@ -160,6 +162,9 @@ export const FUNDER_TOOLS = {
   // The report builder: read only. Saving and scheduling a view are done by a person in the GMS.
   list_report_views: tool("listReportViews", "analytics:read", "List report views: the six starter views and the saved views this person may see (shared ones and their own), with data set, owner and schedule.", z.object({})),
   run_report_view: tool("runReportView", "analytics:read", "Run a report view and return its first 200 rows (or groups) with the column labels. Also needs the read scope of the view's data set.", z.object({ viewId: z.string().min(1).max(80).describe("A view id from list_report_views: a UUID or starter-<key>") })),
+  // Social posting (v1.9.0): read only. No tool posts, schedules or connects an account; a person does, in the GMS.
+  list_social_posts: tool("listSocialPosts", "analytics:read", "List the social posts this workspace sent through Zernio, with each account's status and link and Zernio's counts (impressions, clicks, engagements), for one opportunity or award or all; for an opportunity, also the applications started from a shared link. Reading only: no tool posts, schedules or connects an account.", z.object({ opportunityId: opportunityId.optional(), awardId: awardId.optional() })),
+  get_digest_preview: tool("getDigestPreview", "applications:read", "Read next Monday's opt-in digest email for the signed-in person, as it would be written now: new_matches or deadlines in an applicant workspace, funder_activity in a funder one. Nothing is sent or recorded. Turning a digest on or off is a person's own choice; no tool does it.", z.object({ digest: z.enum(["funder_activity"]) })),
 
   draft_letter: tool("draftLetter", "assist", "Draft a letter from a template. The draft is never sent by this tool.", z.object({ kind: letterContext, applicationId: applicationId.optional(), awardId: awardId.optional(), templateId: uuid("Template id").optional(), instructions: z.string().max(2000).optional() })),
   summarize_application: tool("summarizeApplication", "assist", "Summarize an application. Applicant text is quoted and labeled applicant-supplied.", z.object({ applicationId })),

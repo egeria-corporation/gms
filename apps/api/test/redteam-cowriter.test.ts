@@ -103,6 +103,9 @@ const PERSONAL_ROUTES = new Set([
   // and whether the person moderates the template gallery is about them, not the workspace.
   "post /gms/sso/join",
   "get /gms/gallery/moderation/me",
+  // One-click unsubscribe from a digest: public, the signed link is the proof (a sample token is refused with 400).
+  "post /gms/digests/unsubscribe",
+  "get /gms/digests/unsubscribe",
 ]);
 
 /**
@@ -127,6 +130,17 @@ const WAVE_B_AREAS: Record<string, RegExp> = {
   "gallery share and moderation": /^\w+ \/gms\/(workspaces\/\{workspaceId\}\/gallery|gallery\/moderation)\//,
   review: /^\w+ \/gms\/(competitions\/\{id\}\/(coi-policy|conflicts-register|review-settings)|review-assignments)/,
   docket: /^\w+ \/gms\/competitions\/\{id\}\/dockets/,
+};
+
+/** The v1.9.0 areas a cowriter must never reach: award sharing, social posting, funds, the send package, guest review, digests, importer adapters. */
+const WAVE_C_AREAS: Record<string, RegExp> = {
+  "award sharing": /^\w+ \/gms\/(awards\/\{id\}\/(sharing|confidential)|my\/awards\/\{id\}\/(sharing|listing)|award-sharing\/|programs\/\{id\}\/award-sharing)/,
+  "social posting": /^\w+ \/gms\/social(\/|$)/,
+  funds: /^\w+ \/gms\/funds(\/|$)/,
+  "send package": /^\w+ \/gms\/(outside-applications\/\{id\}\/package|send-package\/)/,
+  "guest review": /^\w+ \/gms\/guest-review\//,
+  digests: /^\w+ \/gms\/digests(\/preview)?$/,
+  "importer adapters": /^\w+ \/gms\/imports\/(connections|zengine|runs\/\{id\}\/files)/,
 };
 
 /** A report definition the report builder accepts. */
@@ -488,6 +502,15 @@ describe.skipIf(!existsSync(SPEC))("a cowriter invited into one outside draft, o
       const mine = calls.filter((c) => re.test(c.key) && !PERSONAL_ROUTES.has(c.key) && !ANYONE_ROUTES.has(c.key));
       expect(mine.length, `${area}: routes in the document`).toBeGreaterThan(0);
       expect(mine.filter((c) => c.status !== 403 && c.status !== 404).map((c) => `${area}: ${c.status} ${c.key} ${c.text.slice(0, 160)}`)).toEqual([]);
+    }
+  });
+
+  it("reaches none of award sharing, social posting, funds, the send package, guest review, digests or importer adapters", () => {
+    for (const [area, re] of Object.entries(WAVE_C_AREAS)) {
+      const mine = calls.filter((c) => re.test(c.key) && !PERSONAL_ROUTES.has(c.key) && !ANYONE_ROUTES.has(c.key));
+      expect(mine.length, `${area}: routes in the document`).toBeGreaterThan(0);
+      // Even on the invited draft: its package is the team's to send, not a cowriter's.
+      expect(mine.filter((c) => c.status !== 403 && c.status !== 404).map((c) => `${area}: ${c.status} ${c.key}${c.own ? " (the invited draft)" : ""} ${c.text.slice(0, 160)}`)).toEqual([]);
     }
   });
 

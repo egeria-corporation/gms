@@ -13,6 +13,13 @@ import "./reports.tsp";
 import "./sso.tsp";
 import "./review.tsp";
 import "./gallery.tsp";
+import "./award-sharing.tsp";
+import "./social.tsp";
+import "./funds.tsp";
+import "./send-package.tsp";
+import "./guest-review.tsp";
+import "./digests.tsp";
+import "./importer-adapters.tsp";
 
 using TypeSpec.Http;
 

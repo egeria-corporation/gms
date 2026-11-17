@@ -82,6 +82,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 |---|---|---|---|
 | `list_programs` | `programs:read` | — | List the workspace's programs with budget and fiscal year. |
 | `get_program` | `programs:read` | — | Get one program, including its defaults (rubric, templates, requirement and reminder plans). |
+| `list_funds` | `programs:read` | — | The funds the caller sees, the default first, each with its budget per fiscal year beside its programs' budgets. A fund advisor sees their own funds only; creating funds and inviting advisors is a person's work in the GMS. |
 | `list_opportunities` | `opportunities:read` | — | List opportunities, optionally by status or program. |
 | `get_opportunity` | `opportunities:read` | — | Get one opportunity with its CommonGrants projection and eligibility rules. |
 | `create_opportunity` | `opportunities:write` | — | Create a draft opportunity in a program. |
@@ -115,6 +116,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `commit_decisions` | `decisions:write` | Approval | Commit proposed decisions: creates awards in offered, queues letters. Refused when the program would be over-allocated. |
 | `list_awards` | `awards:read` | — | List awards by status, program or recipient. |
 | `get_award` | `awards:read` | — | Get one award: lifecycle status, funding (disbursed amount is read from Passport), dates and conditions. |
+| `get_award_share_kit` | `awards:read` | — | Get the share kit for an award listed on the funder's grants-awarded page: three ready-to-edit posts, the award page link, the card image and the "Funded by" badge snippet, from public fields only. Nothing for an award that is not public. Nothing is posted; listing, confidential and unlisted are a person's, in the GMS (no tool). |
 | `create_award_from_application` | `awards:write` | — | Create an award in offered from an accepted application. |
 | `amend_award` | `awards:write` | — | Record an amendment (extension, reallocation, scope or supplemental). Amount and period changes are mirrored to Passport. |
 | `close_award` | `awards:write` | — | Complete or cancel an award. |
@@ -142,6 +144,8 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `open_data_summary` | `analytics:read` | — | Count the awards an open data export (360Giving, CommonGrants) would publish for a year or date range, and those left out with the reason for each. Reads only; publishing is done by a person (docs/open-data.md). |
 | `list_report_views` | `analytics:read` | — | List report views: the six starter views and the saved views this person may see (shared ones and their own), with data set, owner and schedule. |
 | `run_report_view` | `analytics:read` | — | Run a report view and return its first 200 rows (or groups) with the column labels. Also needs the read scope of the view's data set. |
+| `list_social_posts` | `analytics:read` | — | The social posts this workspace sent through Zernio, for one opportunity or award or all: each account's status and link, Zernio's counts, and for a call the applications started from a shared link. No tool posts, schedules or connects an account; only a person does, in the GMS (docs/social.md). |
+| `get_digest_preview` | `applications:read` | — | Read next Monday's opt-in "This week's activity" email for the signed-in person, as it would be written now (counts and links only). Nothing is sent. No tool turns a digest on or off; only the person does (`docs/digests.md`). |
 | `draft_letter` | `assist` | — | Draft a letter from a template. The draft is never sent by this tool. |
 | `summarize_application` | `assist` | — | Summarize an application. Applicant text is quoted and labeled applicant-supplied. |
 | `compare_to_rubric` | `assist` | — | Compare an application to a rubric, criterion by criterion. A draft for a human reviewer, never a score. |
@@ -185,6 +189,9 @@ migration-request tool either (the switch pages' "Request a free migration" is a
 | `get_funding_summary` | `applications:read` | — | Applications by fiscal year, win rate, asked and awarded. |
 | `alert_on_next_cycle` | `discovery` | — | A funding alert on the program name, through the GMS's own alerts. |
 | `get_import_preview` | `applications:write` | — | Read an applications import check a person made: rows to create, skip or fix, amounts by year, and the names of columns left out. No tool imports the rows; only a person does, in the GMS. |
+| `list_social_posts` | `awards:read` | — | The social posts this workspace sent through Zernio about its awards: each account's status and link and Zernio's counts. No tool posts, schedules or connects an account. |
+| `get_send_package` | `applications:read` | — | Describe the send-to-funder package: cover, questions in order, budget summary, attached files (this application's own and the vault documents used for its checklist), any answer that looks like a bank, card or identity number, and the PDF and ZIP download paths. No tool emails the package; only a person does, in the GMS. |
+| `get_digest_preview` | `applications:read` | — | Read next Monday's opt-in "New matches" or "Deadlines" email for the signed-in person, as it would be written now. Nothing is sent. No tool turns a digest on or off; only the person does (`docs/digests.md`). |
 
 ### Applicant tools
 
@@ -208,6 +215,7 @@ migration-request tool either (the switch pages' "Request a free migration" is a
 | `withdraw_application` | `applications:write` | — | Withdraw an application that has not reached a decision. |
 | `list_awards` | `awards:read` | — | List awards made to this workspace. |
 | `get_award` | `awards:read` | — | Get one award with its payment schedule and requirements. |
+| `get_award_share_kit` | `awards:read` | — | Get the share kit for an award listed on the funder's grants-awarded page: three ready-to-edit posts, the award page link, the card image and the "Funded by" badge snippet, from public fields only. Nothing for an award that is not public. Nothing is posted; listing, confidential and unlisted are a person's, in the GMS (no tool). |
 | `accept_award` | `awards:write` | Always a person | Accept an award offer. Always requires a person. |
 | `sign_agreement` | `agreements:write` | Always a person | Sign a grant agreement. Always requires a person: the signature records their typed name, time, IP and the document hash. |
 | `request_amendment` | `awards:write` | — | Request an amendment to an award. |

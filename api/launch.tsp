@@ -58,6 +58,9 @@ model InstallAvailability {
 
   /** Custom MCP servers a workspace may add. */
   customMcp: boolean;
+
+  /** Social posting through Zernio (ZERNIO_API_KEY and ZERNIO_WEBHOOK_SECRET set). */
+  social: boolean;
 }
 
 /** One sign-in session of the calling person. */

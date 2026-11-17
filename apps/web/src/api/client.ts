@@ -45,6 +45,7 @@ import type { DraftLanding } from "./invites.ts";
 import { createHttpFunderMoneyApi, type FunderMoneyApi } from "./funderMoney.ts";
 import { createHttpFunderFullApi, type FunderFullApi } from "./funderFull.ts";
 import { createHttpDirectAwardsApi, type DirectAwardsApi } from "./directAwards.ts";
+import { createHttpFundsApi, type FundsApi } from "./funds.ts";
 
 export type WorkspaceKind = "funder" | "applicant";
 
@@ -86,7 +87,7 @@ export interface Workspace {
   pendingApprovals: number;
 }
 
-export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi, DirectAwardsApi {
+export interface GmsApi extends FunderApi, FunderMoneyApi, FunderFullApi, DirectAwardsApi, FundsApi {
   me(): Promise<Me>;
   /**
    * After a Passport sign-in: present the one-time token this session was redeemed from, so that
@@ -297,6 +298,7 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     ...createHttpFunderMoneyApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     ...createHttpFunderFullApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     ...createHttpDirectAwardsApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
+    ...createHttpFundsApi({ baseUrl: opts.baseUrl, fetch: opts.fetch, token: opts.token, workspaceId: () => workspaceId, fail: (status, message, errors) => new ApiError(status, message, errors) }),
     me,
     claimPassportSecondStep,
     publicFunder: (handle) => get(`/gms/public/funders/${e(handle)}`),

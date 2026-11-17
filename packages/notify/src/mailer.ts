@@ -1,6 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Mail port. Production uses Resend's HTTP API; tests and local development use the in-memory fake.
 
+/** A file sent with an email: `content` is the file's bytes in base64, as Resend's `attachments` take them. */
+export interface MailAttachment {
+  filename: string;
+  content: string;
+  contentType?: string;
+}
+
+/**
+ * The most an email's attachments may weigh, decoded: well under Resend's 40 MB per email (counted
+ * after base64, which adds a third). A larger package is downloaded instead (send-package.ts).
+ */
+export const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+/** The decoded size of base64 content, without decoding it. */
+export const base64Bytes = (content: string): number => {
+  const clean = content.replace(/\s/g, "");
+  return Math.floor((clean.length * 3) / 4) - (clean.endsWith("==") ? 2 : clean.endsWith("=") ? 1 : 0);
+};
+
 export interface OutboundEmail {
   from: string;
   to: string[];
@@ -12,6 +31,8 @@ export interface OutboundEmail {
   /** Sent as Resend's `Idempotency-Key`: a retry with the same key never sends twice. */
   idempotencyKey?: string;
   tags?: { name: string; value: string }[];
+  /** Files sent with the email; only a mailer with `sendsAttachments = true` passes them on. */
+  attachments?: MailAttachment[];
 }
 
 export interface Mailer {
@@ -30,6 +51,9 @@ export class MailerError extends Error {
 }
 
 export class ResendMailer implements Mailer {
+  /** Passes `attachments` on to Resend (send-package.ts sends a package only through such a mailer). */
+  readonly sendsAttachments = true;
+
   constructor(
     private readonly apiKey: string,
     // A wrapper, not `fetch` itself: called as `this.fetchImpl(...)`, the platform's `fetch` throws
@@ -39,6 +63,8 @@ export class ResendMailer implements Mailer {
   ) {}
 
   async send(email: OutboundEmail): Promise<{ id: string }> {
+    const files = email.attachments ?? [];
+    if (files.reduce((n, a) => n + base64Bytes(a.content), 0) > MAX_ATTACHMENT_BYTES) throw new MailerError(`The attachments are larger than ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB; download the package instead.`, 413, false);
     const res = await this.fetchImpl(`${this.baseUrl}/emails`, {
       method: "POST",
       headers: {
@@ -55,6 +81,8 @@ export class ResendMailer implements Mailer {
         ...(email.replyTo ? { reply_to: email.replyTo } : {}),
         ...(email.headers ? { headers: email.headers } : {}),
         ...(email.tags ? { tags: email.tags } : {}),
+        // Resend's attachment objects: filename, base64 content, and content_type when given.
+        ...(files.length ? { attachments: files.map((a) => ({ filename: a.filename, content: a.content, ...(a.contentType ? { content_type: a.contentType } : {}) })) } : {}),
       }),
     });
     if (!res.ok) {
@@ -68,6 +96,8 @@ export class ResendMailer implements Mailer {
 }
 
 export class MemoryMailer implements Mailer {
+  /** Keeps attachments with what it records, as Resend would send them. Tests may switch it off. */
+  sendsAttachments = true;
   readonly sent: (OutboundEmail & { id: string })[] = [];
   private readonly byKey = new Map<string, string>();
   /** Set to make the next send throw, to exercise retries. */

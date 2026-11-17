@@ -407,6 +407,9 @@ model Program {
   ownerName?: string | null;
   owner?: ProgramOwner | null;
 
+  /** The fund the program belongs to (funds.tsp) */
+  fundId?: CommonGrants.Types.uuid | null;
+
   /** The funder's budget categories for awards under the program (`defaults.budgetCategories`) */
   budgetCategories?: string[];
 
@@ -430,6 +433,9 @@ model Program {
 model ProgramInput {
   /** Must be a member of the workspace (422 `owner_not_a_member`); null clears it */
   ownerUserId?: CommonGrants.Types.uuid | null;
+
+  /** The fund the program belongs to; the default fund when a new program names none. A fund advisor names one of their funds (422 `fund_required` when they have several) */
+  fundId?: CommonGrants.Types.uuid;
 
   name: string;
   description?: string | null;
@@ -2316,6 +2322,35 @@ model PublicOpportunityCard {
 model FunderPage {
   funder: PublicFunder;
   opportunities: PublicOpportunityCard[];
+
+  /** The awards the funder lists on its page (award sharing's one public rule), newest first; null while it does not list awards. */
+  pastAwards?: FunderPastAward[] | null;
+
+  /** The funder's funds, each with the ids of its opportunities on this page (api/funds.tsp). */
+  funds?: PublicFundSection[];
+}
+
+/** One listed award on the funder page. */
+model FunderPastAward {
+  recipient: string;
+  title: string;
+
+  /** Null when the funder hides amounts. */
+  awardedAmount: Money | null;
+
+  year: int32;
+
+  /** The award's own public page. */
+  page: url;
+}
+
+/** The fund an opportunity belongs to, as its page names it ("{Fund} · A fund of {Funder}"). */
+model OpportunityFund {
+  name: string;
+  slug: string;
+
+  /** The default fund: the page names no fund for it. */
+  isDefault: boolean;
 }
 
 model PublicCompetition {
@@ -2342,6 +2377,9 @@ model OpportunityPage {
 
     /** The eligibility rules' plain-language labels */
     eligibility: string[];
+
+    /** The opportunity's fund, through its program; null without one. */
+    fund?: OpportunityFund | null;
   };
   competitions: PublicCompetition[];
 

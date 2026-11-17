@@ -4,10 +4,12 @@
 // anywhere: not the records it writes, not the import run or its log, not the saved mappings, not
 // the ledger, mail, files or webhooks, and no answer carries them. Run for both targets, from a CSV,
 // an Excel workbook (made at run time, ./xlsx-writer.ts), Google Sheets and Airtable, with a mapping
-// that tries to use the dropped columns, and through the two older direct imports.
+// that tries to use the dropped columns, through the two older direct imports, and (v1.9.0) through
+// every importer adapter: each grants system's export, as a file and as an Excel workbook.
 //
 // Every sensitive-looking value is made up at run time, and the headers are put together from
 // parts, so no file in the repository holds one (`pnpm gate:sensitive`).
+import { readFileSync } from "node:fs";
 import { TABLE_NAMES } from "@gms/db";
 import { parseCsv } from "@gms/importers";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -145,6 +147,47 @@ describe("an import with bank and identity data in it", () => {
     // Saved mappings never point at a dropped column.
     for (const m of await h.repos.table("import_mappings").find({})) expect(Object.values(m.mapping as Record<string, string>).filter((c) => DROPPED.includes(c)), JSON.stringify(m.mapping)).toEqual([]);
 
+    expect(found(await everythingStored())).toEqual([]);
+    expect(found(answers.join("\n"))).toEqual([]);
+  });
+
+  it("keeps none of them through any grants system's export, read with that system's adapter", async () => {
+    const funder = await headers(USER_ADMIN, WS_FUNDER);
+    const fixture = (name: string) => readFileSync(new URL(`../../../packages/importers/test/fixtures/adapters/${name}`, import.meta.url), "utf8");
+    /** The export with the sensitive columns added to every row, made up at run time. */
+    const withSensitive = (csv: string) => {
+      const g = parseCsv(csv).filter((r) => r.some((c) => c !== ""));
+      return toCsv([[...g[0]!, ...DROPPED], ...g.slice(1).map((r) => [...r, ...SENSITIVE_COLUMNS.map(([, v]) => v)])]);
+    };
+    const exports: [string, Record<string, unknown>][] = [
+      ["good_grants", { kind: "csv", text: withSensitive(fixture("good-grants.csv")), fileName: "good-grants.csv" }],
+      ["sm_apply", { kind: "csv", text: withSensitive(fixture("sm-apply.csv")), fileName: "sm-apply.csv" }],
+      ["submittable", { kind: "csv", text: withSensitive(fixture("submittable.csv")), fileName: "submittable.csv" }],
+      ["foundant_glm", { kind: "csv", text: withSensitive(fixture("foundant-glm.csv")), fileName: "foundant.csv" }],
+      ["smartsimple", { kind: "csv", text: withSensitive(fixture("smartsimple.csv")), fileName: "smartsimple.csv" }],
+      ["openwater", { kind: "csv", text: withSensitive(fixture("openwater.csv")), fileName: "openwater.csv" }],
+      ["submittable", { kind: "xlsx", base64: base64Of(xlsxOf({ Submissions: parseCsv(withSensitive(fixture("submittable.csv"))) })), sheet: "Submissions", fileName: "submittable.xlsx" }],
+    ];
+    // OpenWater's JSON export, each record given the sensitive fields too.
+    const ow = JSON.parse(fixture("openwater.json")) as { applications: Record<string, unknown>[] };
+    for (const r of ow.applications) for (const [name, v] of SENSITIVE_COLUMNS) r[name] = v;
+    exports.push(["openwater", { kind: "json", text: JSON.stringify(ow), fileName: "openwater.json" }]);
+
+    for (const [adapter, source] of exports) {
+      const read = await ok<{ columns: { name: string }[]; dropped: { column: string }[]; mapping: Record<string, string> }>(funder, "POST", "/gms/imports/read", { target: "award_history", source, adapter });
+      // Every sensitive column is dropped (the export's own IBAN or birth-year columns too), and none is offered or mapped.
+      expect(read.dropped.map((d) => d.column), adapter).toEqual(expect.arrayContaining(DROPPED));
+      expect(read.columns.map((c) => c.name).filter((n) => DROPPED.includes(n)), adapter).toEqual([]);
+      expect(Object.values(read.mapping).filter((c) => DROPPED.includes(c)), adapter).toEqual([]);
+      // The system's preset, plus a mapping that asks for the dropped columns.
+      const sneaky = Object.fromEntries(["description", "programName", "recipientEin", "paidReference"].map((field, i) => [field, DROPPED[i]!]));
+      const checked = await call<{ run: { id: string } }>(funder, "POST", "/gms/imports/preview", { target: "award_history", source, adapter, mapping: { ...sneaky, ...read.mapping }, saveMapping: true });
+      expect(checked.status, `${adapter} ${checked.text.slice(0, 300)}`).toBe(201);
+      for (let i = 0; i < 10; i++) if ((await ok<{ done: boolean }>(funder, "POST", `/gms/imports/runs/${checked.data.run.id}/commit`)).done) break;
+      await ok(funder, "GET", `/gms/imports/runs/${checked.data.run.id}`);
+    }
+    // The imports did their work, and kept none of the values anywhere.
+    expect(await h.repos.table("awards").count({ workspace_id: WS_FUNDER })).toBeGreaterThan(0);
     expect(found(await everythingStored())).toEqual([]);
     expect(found(answers.join("\n"))).toEqual([]);
   });

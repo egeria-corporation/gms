@@ -45,7 +45,8 @@ export const updateWorkspaceInput = z.object({ displayName: z.string().trim().mi
 export const USER_SETTINGS: Record<WorkspaceKind, Record<string, z.ZodType>> = {
   funder: {
     contactEmail: z.email().max(320),
-    transparency: z.boolean(),
+    // `transparency` (v1.0 to v1.8.0: past awards on the funder page) is retired in v1.9.0: award
+    // sharing's "List awards on my public page" (`settings.awardSharing`, its own route) decides.
     gatedTools: z.array(z.string().regex(/^[a-z_]{1,64}$/)).max(100),
     defaultRail: z.enum(["auto", "standard", "instant"]),
     // v1.7.0: "Powered by OpenGrants Grant Management System" on the public pages, the embed widget
@@ -54,6 +55,8 @@ export const USER_SETTINGS: Record<WorkspaceKind, Record<string, z.ZodType>> = {
   },
   applicant: {
     gatedTools: z.array(z.string().regex(/^[a-z_]{1,64}$/)).max(100),
+    // v1.9.0: the "Powered by" line in the send-to-funder package's footer (send-package.ts reads it).
+    poweredBy: z.boolean(),
     // v1.6.0: the go/no-go scorecard on the Deciding stage, and its weights (defaults 3, 2, 2, 1).
     goNoGoEnabled: z.boolean(),
     goNoGoWeights: z.object({ fit: z.number().int().min(0).max(10), capacity: z.number().int().min(0).max(10), effort: z.number().int().min(0).max(10), relationship: z.number().int().min(0).max(10) }).strict().refine((w) => w.fit + w.capacity + w.effort + w.relationship > 0, "At least one weight is above zero"),

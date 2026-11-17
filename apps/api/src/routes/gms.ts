@@ -4,20 +4,26 @@
 import { Hono } from "hono";
 import type { AppEnv } from "../app.ts";
 import { authenticate, requireRole, requireUser } from "../auth/middleware.ts";
+import { forbidden } from "../auth/verify.ts";
 import { secondStepVerified } from "../auth/second-step.ts";
 import { LEDGER_ROLES } from "../auth/scopes.ts";
 import { ApiError, notImplemented, ok, pageInfo, paginated, parsePagination } from "../lib/errors.ts";
 import { bareUuid } from "../lib/ids.ts";
 import { confirmPassportLink } from "../services/passport-signin.ts";
 import * as sessions from "../services/sessions.ts";
+import { fundScopeOf } from "../services/context.ts";
 import { listMyWorkspaces } from "../services/workspaces.ts";
 import { applicationRoutes } from "./gms/applications.ts";
+import { awardSharingRoutes } from "./gms/award-sharing.ts";
 import { approvalRoutes } from "./gms/approvals.ts";
 import { assistRoutes } from "./gms/assist.ts";
+import { fundRoutes } from "./gms/funds.ts";
 import { designRoutes } from "./gms/design.ts";
+import { digestRoutes } from "./gms/digests.ts";
 import { adminRoutes } from "./gms/admin.ts";
 import { grantRoutes } from "./gms/grants.ts";
 import { importRoutes } from "./gms/imports.ts";
+import { importAdapterRoutes } from "./gms/import-adapters.ts";
 import { insightRoutes } from "./gms/insights.ts";
 import { inviteRoutes } from "./gms/invites.ts";
 import { moneyRoutes } from "./gms/money.ts";
@@ -28,6 +34,9 @@ import { migrationRequestRoutes } from "./gms/migration-request.ts";
 import { reportRoutes } from "./gms/reports.ts";
 import { reviewParityRoutes } from "./gms/reviews.ts";
 import { galleryRoutes } from "./gallery.ts";
+import { socialRoutes } from "./gms/social.ts";
+import { sendPackageRoutes } from "./gms/send-package.ts";
+import { guestReviewRoutes } from "./gms/guest-review.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
@@ -59,6 +68,8 @@ const features = (c: Parameters<typeof config>[0]) => {
       airtable: !!ports.airtable,
       mercury: !!ports.bank && !!cfg.credentialsKey,
       customMcp: !!ports.mcpDirectory && !!cfg.credentialsKey,
+      // Social posting through Zernio: ZERNIO_API_KEY and ZERNIO_WEBHOOK_SECRET.
+      social: !!cfg.zernio,
     },
   };
 };
@@ -106,6 +117,9 @@ gms.get("/whoami", authenticate(), (c) => {
 /** Workspace-visible audit ledger: admins and auditors; API clients need `workspace:admin`. */
 gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
   const p = c.get("principal");
+  // The workspace ledger reads the whole workspace: never a member limited to some funds (a fund
+  // advisor reads their funds' activity on each record instead).
+  if (fundScopeOf({ kind: "funder", role: p.role, memberScope: p.memberScope })) throw forbidden("fund_scope", "The workspace ledger is for admins and auditors of every fund");
   const { page, pageSize, offset } = parsePagination({ page: c.req.query("page"), pageSize: c.req.query("pageSize") });
   const iso = (k: "from" | "to") => {
     const v = c.req.query(k);
@@ -124,6 +138,8 @@ gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
 gms.route("/public", publicPages);
 // The embeddable apply widget's data, also public.
 gms.route("/public", embedPages);
+// Opt-in content digests; their one-click unsubscribe needs no token, so they come before the routers below.
+gms.route("/", digestRoutes);
 // Registered first: its paths are more specific than the routers below (`/templates/usage` before `/templates/:id`).
 gms.route("/", insightRoutes);
 gms.route("/", workspaceRoutes);
@@ -137,6 +153,7 @@ gms.route("/", grantRoutes);
 gms.route("/", reviewParityRoutes);
 gms.route("/", moneyRoutes);
 gms.route("/", importRoutes);
+gms.route("/", importAdapterRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
 // The switch pages' free migration request: no token needed, never an API or agent token.
@@ -149,6 +166,14 @@ gms.route("/", reportRoutes);
 gms.route("/", ssoRoutes);
 // The template gallery: public reads, moderation, and a funder workspace's copy and share.
 gms.route("/", galleryRoutes);
+// Award sharing (v1.9.0): the share panel, confidential and unlisted switches, listing settings.
+gms.route("/", awardSharingRoutes);
+gms.route("/", socialRoutes);
+// Funds (v1.9.0).
+gms.route("/", fundRoutes);
+// Send to the funder, and the guest reviewer loop (C4).
+gms.route("/", sendPackageRoutes);
+gms.route("/", guestReviewRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

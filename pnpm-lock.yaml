@@ -101,6 +101,9 @@ importers:
       '@gms/rules':
         specifier: workspace:*
         version: link:../../packages/rules
+      '@gms/social':
+        specifier: workspace:*
+        version: link:../../packages/social
       '@gms/webhooks':
         specifier: workspace:*
         version: link:../../packages/webhooks
@@ -178,6 +181,9 @@ importers:
       '@gms/rules':
         specifier: workspace:*
         version: link:../../packages/rules
+      '@gms/social':
+        specifier: workspace:*
+        version: link:../../packages/social
       '@gms/workflow':
         specifier: workspace:*
         version: link:../../packages/workflow
@@ -280,6 +286,9 @@ importers:
       '@gms/workflow':
         specifier: workspace:*
         version: link:../workflow
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       read-excel-file:
         specifier: 9.3.17
         version: 9.3.17
@@ -317,6 +326,8 @@ importers:
   packages/review: {}
 
   packages/rules: {}
+
+  packages/social: {}
 
   packages/webhooks: {}
 
@@ -2688,6 +2699,7 @@ packages:
 
   tldts-core@7.4.20:
     resolution: {integrity: sha512-C630TWXZCZmLq0F2bW4QqwnaaxCQ/svpAqvJwnC4JvgEM5ohhBnGsEzTLSOXcN+xjz+kEaHS5uoWIw2klnqd0A==}
+    deprecated: Partial release, see https://github.com/remusao/tldts/issues/2735. Use >=7.4.22.
 
   tldts@7.4.19:
     resolution: {integrity: sha512-48dH6aSpQnpbzDUc4vIQZ1VjB8tkK+e8c1yx05/SZK+rkssgjEOlxDd/yU8/a4vGYQ9vRgJr9dwMq9TJ0b3X2Q==}

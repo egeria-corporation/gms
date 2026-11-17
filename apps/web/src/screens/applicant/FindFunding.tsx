@@ -19,10 +19,12 @@ import type { OppFunding } from "../../api/types.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, FunderChip, Loaded } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
+import { DigestPrompt } from "../../components/DigestPrompt.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Notice, TabPanel, Tabs } from "../../components/ui.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
 import { FundingAlerts } from "./fundingAlerts.tsx";
+import { socialSourceFor } from "../../lib/socialLanding.ts";
 
 type Tab = "here" | "index" | "saved" | "alerts";
 
@@ -541,7 +543,11 @@ export default function FindFunding() {
     wantedCard.current?.scrollIntoView?.({ block: "center" });
   }, [wanted, loaded]);
   const [startingId, setStartingId] = useState<string | null>(null);
-  const start = useApplicantMutation((api, competitionId: string) => api.startApplication(competitionId));
+  const start = useApplicantMutation((api, competitionId: string) => {
+    const item = query.status === "ready" ? query.data.competitions.find((c) => c.competitionId === competitionId) : undefined;
+    const utmSource = socialSourceFor(item?.funder.handle, item?.opportunity.slug);
+    return api.startApplication(competitionId, utmSource ? { utmSource } : undefined);
+  });
   const saveGms = useApplicantMutation((api, item: DiscoverItem) => api.save({ source: "gms", externalId: item.opportunity.id, title: item.opportunity.title, ...(item.url ? { url: item.url } : {}) }));
   const startOutside = useOutsideMutation((api, l: OpenGrantsListing) => outsideFromListing(api, l, "drafting"));
   const saveOutside = useOutsideMutation((api, l: OpenGrantsListing) => outsideFromListing(api, l, "prospect"));
@@ -571,6 +577,7 @@ export default function FindFunding() {
               </div>
             </div>
           </div>
+          <DigestPrompt workspaceId={ws.id} digest="new_matches" settingsTo={`${base}/settings#digests`} />
 
           <Loaded query={query} label="Checking what you are eligible for">
             {({ competitions, saved: everySaved, mine }) => {

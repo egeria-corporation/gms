@@ -60,6 +60,9 @@ export interface Env {
    * Unset, nobody moderates and nothing new is published.
    */
   GALLERY_MODERATORS?: string;
+  /** Social posting through Zernio: on only when both are set (docs/social.md). */
+  ZERNIO_API_KEY?: string;
+  ZERNIO_WEBHOOK_SECRET?: string;
   ANTHROPIC_API_KEY?: string;
   ASSISTANT_ENABLED?: string;
   ASSISTANT_MODEL?: string;

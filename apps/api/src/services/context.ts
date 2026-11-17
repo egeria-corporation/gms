@@ -7,7 +7,7 @@ import type { ConsultingStore } from "./consulting.ts";
 import type { DirectAwardStore, InvitationLimiter } from "./direct-award-store.ts";
 import type { SessionsPort } from "./sessions.ts";
 import type { LlmClient } from "@gms/assist";
-import type { AirtableSource, BankFeed, McpDirectory, SheetsSource, WorkspaceApps } from "@gms/connectors";
+import type { AirtableSource, BankFeed, FluxxPuller, McpDirectory, SheetsSource, WorkspaceApps, ZenginePuller } from "@gms/connectors";
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
 import type { Mailer } from "@gms/notify";
 import type { FetchLike } from "@gms/passport-client";
@@ -15,6 +15,7 @@ import { fanOut, isWebhookEventType, type WebhookStore } from "@gms/webhooks";
 import type { Scope, WorkspaceKind } from "../auth/scopes.ts";
 import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
+import { scopeToFunds } from "./fund-scope.ts";
 import type { FileStorage, IdentityPort, SecondStepPort, OpenGrantsClient, UserDirectory } from "./ports.ts";
 import { RepoError, type Repos } from "./repos/types.ts";
 
@@ -46,6 +47,20 @@ const named = (v: unknown): boolean => Array.isArray(v) && v.length > 0;
  * route added later is closed to them until it says otherwise.
  */
 export const isOutsideCowriter = (ws: Pick<ServiceWorkspace, "role" | "memberScope">): boolean => ws.role === "consultant" && named(ws.memberScope?.outsideApplicationIds) && !named(ws.memberScope?.applicationIds);
+
+/**
+ * The funds a member may see, or null for all of them. A member of a funder workspace whose scope
+ * names `fundIds` (a fund advisor: a reviewer or program officer invited as "Advisor for {fund}")
+ * sees and acts only on those funds' programs and everything under them; admins, members without
+ * `fundIds` and workspace API clients (no role) see every fund. A `fundIds` that is not a list of
+ * ids scopes the member to nothing rather than to everything.
+ */
+export function fundScopeOf(ws: Pick<ServiceWorkspace, "kind" | "role" | "memberScope"> | null): readonly string[] | null {
+  if (!ws || ws.kind !== "funder" || ws.role === null || ws.role === "admin") return null;
+  const ids = ws.memberScope?.fundIds;
+  if (ids === undefined || ids === null) return null;
+  return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string") : [];
+}
 
 export interface ServiceConfig {
   /** GMS_BASE_URL and WEB_BASE_URL, without trailing slashes. */
@@ -92,6 +107,8 @@ export interface ServiceConfig {
   assistantMonthlyQuota?: number | null;
   /** CONSULTING_REQUEST_TO: where "Get help writing this" requests go; `CONSULTING_REQUEST_TO` of @gms/notify when not set. */
   consultingRequestTo?: string | null;
+  /** ZERNIO_API_KEY and ZERNIO_WEBHOOK_SECRET; null (social posting hidden) unless both are set. */
+  zernio?: { apiKey: string; webhookSecret: string } | null;
 }
 
 /** Outbound side effects a service may cause. Each is optional: a missing port degrades, it never throws. */
@@ -104,6 +121,8 @@ export interface ServicePorts {
   /** Import sources through Composio, read-only: Google Sheets and Airtable. */
   sheets?: SheetsSource;
   airtable?: AirtableSource;
+  /** Import pullers, read-only with the funder's own credentials: Fluxx and Zengine (one of each per isolate when not set). */
+  pullers?: { fluxx: FluxxPuller; zengine: ZenginePuller };
   /** Tool listing for funder-registered MCP servers. */
   mcpDirectory?: McpDirectory;
   /** Where export bundles and ledger archives are written. */
@@ -196,6 +215,9 @@ export async function authorize(ctx: ServiceContext, need: Need): Promise<Servic
 export async function authorize(ctx: ServiceContext, need: Need): Promise<ServiceWorkspace | null> {
   if (need.person && !ctx.actor.userId) throw forbidden("person_required", "This action must be taken by a signed-in person");
   const ws = ctx.workspace;
+  // A fund advisor's context reads and writes through their funds from here on (services/fund-scope.ts).
+  const funds = fundScopeOf(ws);
+  if (ws && funds) scopeToFunds(ctx, ws.id, funds);
   if (need.scope) {
     if (!ws) throw forbidden("workspace_required", "Name a workspace for this action");
     if (!ctx.scopes.includes(need.scope)) throw forbidden("insufficient_scope", `This action needs the ${need.scope} scope`, need.scope);

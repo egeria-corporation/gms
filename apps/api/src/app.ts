@@ -21,6 +21,7 @@ import { mcp } from "./routes/mcp.ts";
 import { OAuthError, oauth, oauthErrorResponse } from "./routes/oauth.ts";
 import { cgOrgs } from "./routes/orgs.ts";
 import { inboundWebhooks } from "./routes/webhooks.ts";
+import { zernioWebhook } from "./routes/zernio-webhook.ts";
 import { commonGrants, sitemap } from "./routes/public.ts";
 import { register } from "./routes/register.ts";
 import { wellknown } from "./routes/wellknown.ts";
@@ -152,6 +153,8 @@ export function createApp(makeDeps: DepsFactory) {
   };
   app.route("/common-grants", placeholder("This CommonGrants protocol route"));
   app.route("/mcp", mcp);
+  // Social posting (Zernio); before /webhooks, whose router answers 404 for any other path.
+  app.route("/webhooks/zernio", zernioWebhook);
   app.route("/webhooks", inboundWebhooks);
 
   app.notFound(() => {

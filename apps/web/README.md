@@ -161,7 +161,7 @@ Counts: 53 live, 0 partial, 14 static (67 artboards). The static ones are refere
 | Artboard | Route | Status | Notes |
 |---|---|---|---|
 | public/Landing | `/` | live | |
-| public/FunderPageRiverbend | `/f/:handle` | live | Past awards (only when the funder turns transparency on) with year filter and CSV, and questions drawn from its open opportunities |
+| public/FunderPageRiverbend | `/f/:handle` | live | Past awards (only when the funder lists awards and shows amounts, Settings › Public page; v1.9.0 also gives them their own pages at `/f/:handle/awards`, see docs/award-sharing.md) with year filter and CSV, and questions drawn from its open opportunities |
 | public/FunderPageCascade | `/f/:handle` | live | Same screen, driven by the handle; forecasted group shown when the funder has one |
 | public/OpportunityPage | `/f/:handle/o/:slug` | live | Form previews, published guideline documents and FAQ; "View as CommonGrants JSON" opens the record in mock mode too |
 | public/SignIn | `/signin` | live | Steps shown one at a time |

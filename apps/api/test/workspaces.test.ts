@@ -208,8 +208,10 @@ describe("workspace settings an admin may set (NP-03)", () => {
     const { patch, stored } = await setup();
     expect((await patch({ ...server, passportPayee: null, invented: "x", gatedTools: ["release_tranche"], transparency: true })).status).toBe(200);
     const s = await stored();
-    expect(s).toMatchObject({ ...server, gatedTools: ["release_tranche"], transparency: true });
+    expect(s).toMatchObject({ ...server, gatedTools: ["release_tranche"] });
     expect(s.invented).toBeUndefined();
+    // Retired in v1.9.0 (award sharing's listing switch decides): dropped like any unknown key.
+    expect(s.transparency).toBeUndefined();
   });
 
   it("checks the shape of the keys it allows", async () => {

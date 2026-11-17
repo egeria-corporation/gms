@@ -13,6 +13,7 @@ import { Dialog } from "../../components/Dialog.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import type { ProgramOwner } from "../../api/launch.ts";
+import { useFundFilter } from "../../components/FundSwitcher.tsx";
 import { BudgetCategoriesEditor, ProgramOutcomes, ProgramOwnerField, useProgramOwners } from "./ProgramExtras.tsx";
 import { DataTable, EmptyState, ErrorBanner, Field, Loading, PageHeader, problemFor, SaveNote, type Column } from "../../components/ui.tsx";
 import { formatDate, formatMinor, parseDollars } from "../../lib/format.ts";
@@ -22,8 +23,10 @@ interface Draft {
   description: string;
   fiscalYear: string;
   budget: string;
+  fundId: string;
 }
-const draftOf = (p?: Program): Draft => ({
+const draftOf = (p: Program | undefined, fundId: string): Draft => ({
+  fundId,
   name: p?.name ?? "",
   description: p?.description ?? "",
   fiscalYear: p?.fiscalYear ? String(p.fiscalYear) : "",
@@ -31,7 +34,10 @@ const draftOf = (p?: Program): Draft => ({
 });
 
 function ProgramDialog({ program, onClose, onSaved }: { program: Program | null; onClose: () => void; onSaved: (p: Program) => void }) {
-  const [draft, setDraft] = useState<Draft>(() => draftOf(program ?? undefined));
+  const fund = useFundFilter();
+  // A new program goes into the fund chosen in the switcher, else the default fund (or the advisor's only fund).
+  const startFund = program ? (fund.fundOf(program) ?? "") : (fund.current?.id ?? (fund.funds.find((f) => f.isDefault) ?? fund.funds[0])?.id ?? "");
+  const [draft, setDraft] = useState<Draft>(() => draftOf(program ?? undefined, startFund));
   const [local, setLocal] = useState<Partial<Record<keyof Draft, string>>>({});
   const save = useApiMutation((api, input: ProgramInput) => (program ? api.updateProgram(program.id, input) : api.createProgram(input)));
   const set = (key: keyof Draft) => (e: { target: { value: string } }) => setDraft((d) => ({ ...d, [key]: e.target.value }));
@@ -46,7 +52,8 @@ function ProgramDialog({ program, onClose, onSaved }: { program: Program | null;
     if (draft.budget.trim() && budget === null) errors.budget = "Enter an amount in dollars, such as 1,200,000";
     setLocal(errors);
     if (Object.keys(errors).length) return;
-    const saved = await save.run({ name: draft.name.trim(), description: draft.description.trim() || null, fiscalYear: year, budgetAmountMinor: budget });
+    const fundId = draft.fundId || startFund;
+    const saved = await save.run({ name: draft.name.trim(), description: draft.description.trim() || null, fiscalYear: year, budgetAmountMinor: budget, ...(fundId && (!program || fundId !== fund.fundOf(program)) ? { fundId } : {}) });
     if (saved) onSaved(saved);
   }
 
@@ -61,6 +68,17 @@ function ProgramDialog({ program, onClose, onSaved }: { program: Program | null;
           <Field id="program-name" label="Name" required error={local.name ?? problemFor(save.error, "name")}>
             <input className={local.name ? "inp err" : "inp"} id="program-name" value={draft.name} onChange={set("name")} aria-invalid={!!local.name} required />
           </Field>
+          {fund.funds.length > 1 && (
+            <Field id="program-fund" label="Fund" help={program ? "Moving a program moves its opportunities, applications and awards with it." : "Everything made in this program belongs to this fund."} error={problemFor(save.error, "fundId")}>
+              <select className="sel" id="program-fund" value={draft.fundId || startFund} onChange={set("fundId")}>
+                {fund.funds.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
           <Field id="program-description" label="Description" help="Shown to your team. The public page describes each opportunity separately.">
             <textarea className="ta" id="program-description" value={draft.description} onChange={set("description")} />
           </Field>
@@ -87,7 +105,7 @@ function ProgramDialog({ program, onClose, onSaved }: { program: Program | null;
   );
 }
 
-function ProgramDetail({ program, opportunities, awards, competitions, received, submissions, base, onEdit, owner, members, onOwnerChanged }: { owner: ProgramOwner | null; members: Member[]; onOwnerChanged: () => void; program: Program; opportunities: Opportunity[]; awards: AwardSummary[]; competitions: Competition[]; received: Map<string, number | null>; submissions: Submission[]; base: string; onEdit: () => void }) {
+function ProgramDetail({ program, opportunities, awards, competitions, received, submissions, base, onEdit, owner, members, onOwnerChanged, fundName }: { owner: ProgramOwner | null; members: Member[]; onOwnerChanged: () => void; program: Program; opportunities: Opportunity[]; awards: AwardSummary[]; competitions: Competition[]; received: Map<string, number | null>; submissions: Submission[]; base: string; onEdit: () => void; fundName: string | null }) {
   const defaults = program.defaults as { reminderPlan?: number[] };
   const competitionOf = (o: Opportunity) => competitions.find((c) => c.opportunityId === o.id);
   const byStatus = (["offered", "accepted", "active", "suspended", "completed"] as const).map((status) => {
@@ -107,6 +125,7 @@ function ProgramDetail({ program, opportunities, awards, competitions, received,
             {program.name}
           </h2>
           <div className="small muted" style={{ marginTop: "4px" }}>
+            {fundName ? `${fundName} · ` : ""}
             {program.fiscalYear ? `FY${program.fiscalYear}` : "No fiscal year"} · Budget {formatMinor(program.budgetAmountMinor, program.currency)} · {owner ? `Owner ${owner.name}` : "No owner"} · Updated {formatDate(program.updatedAt)}
           </div>
         </div>
@@ -211,7 +230,9 @@ export default function Programs() {
   }, [ws.id]);
   const [dialog, setDialog] = useState<{ program: Program | null } | null>(null);
 
-  const programs = data.status === "ready" ? data.data.programs : [];
+  const fund = useFundFilter();
+  // The fund chosen in the switcher narrows the list; the API already left out funds the person does not work on.
+  const programs = data.status === "ready" ? data.data.programs.filter(fund.keepProgram) : [];
   const opportunities = data.status === "ready" ? data.data.opportunities : [];
   const selected = programs.find((p) => p.id === programId) ?? null;
   const countFor = (p: Program) => opportunities.filter((o) => o.programId === p.id).length;
@@ -227,6 +248,7 @@ export default function Programs() {
 
   const columns: Column<Program>[] = [
     { key: "name", header: "Program", cell: (p) => <Link to={`${base}/programs/${p.id}`} className="b" style={{ color: "#0D2A43" }}>{p.name}</Link>, sort: (p) => p.name },
+    ...(fund.several && !fund.current ? [{ key: "fund", header: "Fund", cell: (p: Program) => fund.nameOf(fund.fundOf(p)) ?? "—", sort: (p: Program) => fund.nameOf(fund.fundOf(p)) } satisfies Column<Program>] : []),
     { key: "fy", header: "FY", cell: (p) => p.fiscalYear ?? "—", sort: (p) => p.fiscalYear },
     { key: "budget", header: "Budget", numeric: true, cell: (p) => formatMinor(p.budgetAmountMinor, p.currency), sort: (p) => p.budgetAmountMinor },
     { key: "committed", header: "Committed", numeric: true, cell: (p) => formatMinor(moneyFor(p)?.committedMinor ?? 0, p.currency), sort: (p) => moneyFor(p)?.committedMinor ?? 0 },
@@ -261,6 +283,12 @@ export default function Programs() {
                 </span>
                 <span>·</span>
                 <span>{formatMinor(totalBudget)} budgeted</span>
+                {fund.current && (
+                  <>
+                    <span>·</span>
+                    <span>{fund.current.name}</span>
+                  </>
+                )}
               </>
             )
           }
@@ -308,6 +336,7 @@ export default function Programs() {
                 submissions={data.data.submissions}
                 base={base}
                 onEdit={() => setDialog({ program: selected })}
+                fundName={fund.several ? fund.nameOf(fund.fundOf(selected)) : null}
               />
             )}
           </>
@@ -319,6 +348,7 @@ export default function Programs() {
             onSaved={(p) => {
               setDialog(null);
               data.reload();
+              fund.reload();
               navigate(`${base}/programs/${p.id}`);
             }}
           />
