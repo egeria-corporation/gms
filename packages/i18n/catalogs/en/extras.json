@@ -164,7 +164,7 @@
   "measures.m2.what": "Demand",
   "measures.m3.name": "New applicant workspaces per published call",
   "measures.m3.what": "How many applicants a published call brings",
-  "measures.m3.detail": "{workspaces, plural, one {# new applicant workspace} other {# new applicant workspaces}} for {calls, plural, one {# call} other {# calls}} published",
+  "measures.m3.detail": "{newCount, plural, one {# new applicant workspace} other {# new applicant workspaces}} for {calls, plural, one {# call} other {# calls}} published",
   "measures.m3.noCalls": "No call was published in these 30 days.",
   "measures.m4.name": "Funders who joined from an applicant's link",
   "measures.m4.what": "Applicants bringing funders",

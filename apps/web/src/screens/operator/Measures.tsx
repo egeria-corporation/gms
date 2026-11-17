@@ -80,7 +80,7 @@ function MeasureList({ m }: { m: OperatorMeasures }) {
       <MeasureCard id="m1" name={t("measures.m1.name")} what={t("measures.m1.what")} value={num(m.fundersWithOpenCall.value)} target={t("measures.target", { target: m.fundersWithOpenCall.target })} look={lookOf(m.fundersWithOpenCall.value, m.fundersWithOpenCall.met)} />
       <MeasureCard id="m2" name={t("measures.m2.name")} what={t("measures.m2.what")} value={num(m.activeApplicantWorkspaces.value)} target={t("measures.target", { target: m.activeApplicantWorkspaces.target })} look={lookOf(m.activeApplicantWorkspaces.value, m.activeApplicantWorkspaces.met)} />
       <MeasureCard id="m3" name={t("measures.m3.name")} what={t("measures.m3.what")} value={perCall.value === null ? t("measures.noValue") : t("measures.decimal", { value: one(perCall.value) })} target={t("measures.targetOrMore", { target: perCall.target })} look={lookOf(perCall.value, perCall.met)}>
-        {perCall.callsPublished === 0 ? t("measures.m3.noCalls") : t("measures.m3.detail", { workspaces: perCall.newApplicantWorkspaces, calls: perCall.callsPublished })}
+        {perCall.callsPublished === 0 ? t("measures.m3.noCalls") : t("measures.m3.detail", { newCount: perCall.newApplicantWorkspaces, calls: perCall.callsPublished })}
       </MeasureCard>
       <MeasureCard id="m4" name={t("measures.m4.name")} what={t("measures.m4.what")} value={num(m.fundersJoinedFromApplicantLinks.value)} target={t("measures.target", { target: m.fundersJoinedFromApplicantLinks.target })} look={lookOf(m.fundersJoinedFromApplicantLinks.value, m.fundersJoinedFromApplicantLinks.met)}>
         {t("measures.m4.detail")}

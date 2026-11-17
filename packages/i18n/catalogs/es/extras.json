@@ -164,7 +164,7 @@
   "measures.m2.what": "La demanda",
   "measures.m3.name": "Nuevos espacios de trabajo de solicitantes por convocatoria publicada",
   "measures.m3.what": "Cuántos solicitantes atrae una convocatoria publicada",
-  "measures.m3.detail": "{workspaces, plural, one {# nuevo espacio de trabajo de solicitante} other {# nuevos espacios de trabajo de solicitantes}} para {calls, plural, one {# convocatoria publicada} other {# convocatorias publicadas}}",
+  "measures.m3.detail": "{newCount, plural, one {# nuevo espacio de trabajo de solicitante} other {# nuevos espacios de trabajo de solicitantes}} para {calls, plural, one {# convocatoria publicada} other {# convocatorias publicadas}}",
   "measures.m3.noCalls": "No se publicó ninguna convocatoria en estos 30 días.",
   "measures.m4.name": "Financiadores que se unieron desde el enlace de un solicitante",
   "measures.m4.what": "Solicitantes que atraen financiadores",
