@@ -76,7 +76,7 @@ describe.skipIf(!existsSync(SPEC))("report builder contract", () => {
 
   it("builds, saves, runs, schedules and downloads as the document says", async () => {
     const sets = (await valid("/gms/reports/data-sets", "get", "/gms/reports/data-sets", 200)) as unknown as { key: string }[];
-    expect(sets.map((s) => s.key)).toEqual(["applications", "awards", "payments", "requirements", "organizations"]);
+    expect(sets.map((s) => s.key)).toEqual(["applications", "awards", "payments", "requirements", "organizations", "history"]);
     const definition = { dataSet: "awards", columns: ["title", "program", "amount", "status"], sort: [{ column: "title", dir: "asc" }] };
     const preview = await valid("/gms/reports/preview", "post", "/gms/reports/preview", 200, definition);
     expect(preview.rows).toEqual([

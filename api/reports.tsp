@@ -26,6 +26,9 @@ namespace GMS.Models {
     payments: "payments",
     requirements: "requirements",
     organizations: "organizations",
+
+    /** Imported history: past applications, reviews and reports (v1.12.0). */
+    history: "history",
   }
 
   union ReportColumnType {
