@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What has to be ready before the person submits on the funder's site: the deadlines, the
 // attachments (uploaded here or pinned from the Passport locker) and the team's tasks.
+import { DriveAttachButton } from "../../../components/DriveAttach.tsx";
 import { useState, type FormEvent } from "react";
 import { CalendarPlus, CircleCheck, CircleDashed, FileText, Plus, Upload, X } from "lucide-react";
 import type { AppDocument, ApplicantMember } from "../../../api/applicant.ts";
@@ -333,6 +334,7 @@ function Attachments({ detail, readOnly, onChanged }: { detail: OutsideDetail; r
                 }}
               />
             </label>
+            <DriveAttachButton onFile={async (f) => (await upload.run(f)) && onChanged()} />
             {lockerItems.length > 0 && (
               <>
                 <label className="sr" htmlFor="ock-locker">

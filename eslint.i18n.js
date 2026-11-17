@@ -45,6 +45,12 @@ const SAME_IN_EVERY_LANGUAGE = new Set([
   "Resend",
   "Stripe",
   "Claude",
+  // Connected apps (v1.12.0): product names.
+  "Slack",
+  "Salesforce",
+  "Google Drive",
+  "Google Calendar",
+  "SOQL",
 ]);
 
 // Attributes a person reads or hears.

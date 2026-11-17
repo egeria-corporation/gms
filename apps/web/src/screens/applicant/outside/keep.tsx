@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Small views the vault, the checklist and the award pages share: a document's expiry as icon and
 // words, and the upload dialog that keeps bank and identity paperwork out of the vault.
+import { DriveAttachButton } from "../../../components/DriveAttach.tsx";
 import { useState } from "react";
 import { Link } from "react-router";
 import { CalendarCheck, CalendarClock, CalendarX, FolderLock, ShieldAlert, Upload, X } from "lucide-react";
@@ -47,6 +48,15 @@ export function VaultUploadDialog({ onClose, onDone }: { onClose: () => void; on
   const [expires, setExpires] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const upload = useWKMutation(async (api) => api.uploadVault({ name: file!.name, mime: file!.type || "application/octet-stream", contentBase64: await toBase64(file!), docType: docType as DocType, ...(expires ? { expiresOn: expires } : {}) }));
+  // The same checks for a file from the computer and one copied from Google Drive.
+  const choose = (f: File | null) => {
+    setProblem(null);
+    setFile(null);
+    if (!f) return;
+    if (blockedFilename(f.name)) return setProblem(t("outsideKeep.blocked", { name: f.name, warning: vaultWarning() }));
+    if (f.size > VAULT_MAX_BYTES) return setProblem(t("outsideKeep.tooLarge", { name: f.name }));
+    setFile(f);
+  };
   return (
     <Dialog open onClose={onClose} labelledBy="vup-title">
       <div className="hd">
@@ -80,15 +90,11 @@ export function VaultUploadDialog({ onClose, onDone }: { onClose: () => void; on
               onChange={(e) => {
                 const f = e.target.files?.[0] ?? null;
                 e.target.value = "";
-                setProblem(null);
-                setFile(null);
-                if (!f) return;
-                if (blockedFilename(f.name)) return setProblem(t("outsideKeep.blocked", { name: f.name, warning: vaultWarning() }));
-                if (f.size > VAULT_MAX_BYTES) return setProblem(t("outsideKeep.tooLarge", { name: f.name }));
-                setFile(f);
+                choose(f);
               }}
             />
           </label>
+          <DriveAttachButton onFile={choose} />
           {file && <span className="small b">{file.name}</span>}
           {problem && (
             <span className="err-msg" role="alert">

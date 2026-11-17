@@ -46,6 +46,11 @@ export interface Availability {
   googleWorkspace: boolean;
   mercury: boolean;
   customMcp: boolean;
+  /** Connected apps through Composio (v1.12.0), each only where the server has its auth config. */
+  slack?: boolean;
+  googleCalendar?: boolean;
+  googleDrive?: boolean;
+  salesforce?: boolean;
 }
 
 /** One signed-in session of the current person. */

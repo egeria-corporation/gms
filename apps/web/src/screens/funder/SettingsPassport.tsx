@@ -15,7 +15,7 @@ export function SettingsNav({
   active,
 }: {
   base: string;
-  active: "passport" | "mcp" | "public-page" | "funds" | "security" | "social";
+  active: "passport" | "mcp" | "public-page" | "funds" | "security" | "social" | "apps";
 }) {
   useFunderMessages();
   const items = [
@@ -29,6 +29,7 @@ export function SettingsNav({
     { key: "mcp", label: t("settingsPassport.agentsMcp"), to: `${base}/settings/mcp` },
     { key: "security", label: t("settingsPassport.securitySingleSignOn"), to: `${base}/settings/security` },
     { key: "social", label: t("settingsPassport.socialAccounts"), to: `${base}/settings/social` },
+    { key: "apps", label: t("settingsPassport.connectedApps"), to: `${base}/settings/apps` },
   ] as const;
   return (
     <nav

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Application status: where the application is in the competition's stages, what has happened,
 // the thread shared with the funder, and any revision request.
+import { SaveToDriveButton } from "../../components/DriveAttach.tsx";
 import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowRight, Calendar, Eye, LogOut, Pencil, RotateCcw, Send, type LucideIcon } from "lucide-react";
@@ -109,6 +110,7 @@ export default function ApplicationStatus() {
                           {status.status === "draft" ? t("applicationStatus.continueEditing") : t("applicationStatus.respondToRevision")}
                         </Link>
                       )}
+                      {status.submittedAt && <SaveToDriveButton kind="application" id={status.id} />}
                       {WITHDRAWABLE.includes(status.status) && (
                         <button className="btn btn-danger" type="button" aria-haspopup="dialog" onClick={() => setConfirm(true)}>
                           {t("applicationStatus.withdrawApplication")}

@@ -48,8 +48,9 @@ const OPEN_LINK: Record<Locale, string> = { en: "Open in the GMS", es: "Abrir en
  * written by applicants, so `<!channel>`, `@here` or a link in one must arrive as plain words.
  */
 export function slackSafe(title: string): string {
-  const flat = title
-    .replace(/[\u0000-\u001f\u007f]+/g, " ")
+  const flat = [...title]
+    .map((ch) => (ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f ? " " : ch))
+    .join("")
     .replace(/[<>*_~`|[\]()#]/g, " ")
     .replace(/&/g, "and")
     .replace(/@/g, "@​")
