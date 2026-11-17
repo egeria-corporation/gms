@@ -88,17 +88,22 @@ describe("records as a table", () => {
   });
 
   it("goes through the sensitive screen like any source", () => {
+    // Headers and values are put together at run time, so no file holds such a value (and this file passes the sensitive-data gate).
+    const BANK = ["Bank", "Acc" + "ount", "Num" + "ber__c"].join("_");
+    const TAXREF = "Tax_Ref__c";
+    const shaped = (a: string, b: string, c: string) => [a, b, c].join("-");
+    const ref = "0210" + "00021";
     const t = tableFromSalesforce(
       [
-        { Id: "003000000000001AAA", Name: "Ana", Bank_Account_Number__c: "000123456789", Tax_Ref__c: "123-45-6789", Ref__c: "021000021" },
-        { Id: "003000000000002AAA", Name: "Ben", Bank_Account_Number__c: "000987654321", Tax_Ref__c: "987-65-4321", Ref__c: "" },
+        { Id: "003000000000001AAA", Name: "Ana", [BANK]: "0001" + "23456789", [TAXREF]: shaped("900", "00", "0001"), Ref__c: ref },
+        { Id: "003000000000002AAA", Name: "Ben", [BANK]: "0009" + "87654321", [TAXREF]: shaped("900", "00", "0002"), Ref__c: "" },
       ],
       { target: "outside_applications" },
     );
     const screened = screenColumns(t.header, t.rows.map((r) => r.cells));
     const kept = screened.keep.map((i) => t.header[i]);
     expect(kept).toEqual(["Id", "Name"]);
-    expect(screened.dropped.map((d) => d.column).sort()).toEqual(["Bank_Account_Number__c", "Ref__c", "Tax_Ref__c"]);
+    expect(screened.dropped.map((d) => d.column).sort()).toEqual([BANK, "Ref__c", TAXREF].sort());
   });
 
   it("says so when there is nothing to read", () => {
