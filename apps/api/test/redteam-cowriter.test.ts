@@ -104,6 +104,10 @@ const PERSONAL_ROUTES = new Set([
   // and whether the person moderates the template gallery is about them, not the workspace.
   "post /gms/sso/join",
   "get /gms/gallery/moderation/me",
+  // E4: whether the person moderates the partner directory, and counting a workspace they just
+  // made for the link they came from (their own new workspace only: a sample id is refused with 422).
+  "get /gms/partners/moderation/me",
+  "post /gms/referrals/claim",
   // One-click unsubscribe from a digest: public, the signed link is the proof (a sample token is refused with 400).
   "post /gms/digests/unsubscribe",
   "get /gms/digests/unsubscribe",
