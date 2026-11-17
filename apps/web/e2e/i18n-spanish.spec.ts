@@ -24,7 +24,7 @@ test("a visitor reads the site in Spanish, switches in the footer, and signs in 
   await expect(html(page)).toHaveAttribute("lang", "es");
   await expect(page.getByRole("heading", { level: 1, name: "Otorgue y gestione subvenciones, gratis. Regístrese con su correo." })).toBeVisible();
   const footer = page.getByRole("navigation", { name: "Idioma" });
-  await expect(footer.getByRole("link", { name: "Español (beta)" })).toHaveAttribute("aria-current", "true");
+  await expect(footer.getByRole("link", { name: "Español" })).toHaveAttribute("aria-current", "true");
 
   // English, from the footer: the address stops naming a language and focus stays on the switcher.
   await footer.getByRole("link", { name: "English" }).click();
@@ -35,7 +35,7 @@ test("a visitor reads the site in Spanish, switches in the footer, and signs in 
   await expect(english.getByRole("link", { name: "English" })).toBeFocused();
 
   // Back to Spanish: remembered on this device for the next page.
-  await english.getByRole("link", { name: "Español (beta)" }).click();
+  await english.getByRole("link", { name: "Español" }).click();
   await expect(html(page)).toHaveAttribute("lang", "es");
   expect((await page.context().cookies()).find((c) => c.name === "gms_lang")?.value).toBe("es");
   await page.getByRole("link", { name: "Iniciar sesión" }).first().click();
@@ -77,7 +77,7 @@ test("a signed-in person switches language from the account menu, and focus come
 
   const menuButton = page.getByRole("banner").getByRole("button", { name: /(Funder|Applicant)$/ });
   await menuButton.click();
-  const spanish = page.getByRole("menu").getByRole("menuitemradio", { name: "Español (beta)" });
+  const spanish = page.getByRole("menu").getByRole("menuitemradio", { name: "Español" });
   await expect(spanish).toHaveAttribute("aria-checked", "false");
   await spanish.click();
   await expect(html(page)).toHaveAttribute("lang", "es");
@@ -86,7 +86,7 @@ test("a signed-in person switches language from the account menu, and focus come
   await expect(menuButtonEs).toBeFocused();
 
   await menuButtonEs.click();
-  await expect(page.getByRole("menu").getByRole("menuitemradio", { name: "Español (beta)" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("menu").getByRole("menuitemradio", { name: "Español" })).toHaveAttribute("aria-checked", "true");
   await page.getByRole("menu").getByRole("menuitemradio", { name: "English" }).click();
   await expect(html(page)).toHaveAttribute("lang", "en");
   await expect(rail(page, "Dashboard")).toBeVisible();
