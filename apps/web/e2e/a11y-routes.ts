@@ -109,6 +109,22 @@ const claimLink = async (page: Page) => {
 
 const one = (path: string, who: Who, steps?: RouteCase["steps"]): RouteCase => ({ path, who, ...(steps ? { steps } : {}) });
 
+/** E4: Riverbend runs two funds besides its default (an intermediary), then makes its onboarding link. */
+const asIntermediary = async (page: Page) => {
+  await page.evaluate(async () => {
+    const mock = (window as unknown as { __gmsMock: { workspace(handle: string): Promise<unknown>; createFund(input: { name: string }): Promise<unknown> } }).__gmsMock;
+    await mock.workspace("riverbend");
+    await mock.createFund({ name: "River Health Fund" });
+    await mock.createFund({ name: "Youth Arts Fund" });
+  });
+  // Through another screen, so the partner settings load again with the new funds.
+  await navigate(page, `${F}/settings/funds`);
+  await page.getByRole("button", { name: /^(New fund|Nuevo fondo)$/ }).waitFor();
+  await navigate(page, `${F}/settings/partners`);
+  await page.getByRole("button", { name: /^(Make the onboarding link|Crear el enlace de incorporación)$/ }).click();
+  await page.getByRole("textbox", { name: /^(Onboarding link|Enlace de incorporación)$/ }).waitFor();
+};
+
 /** E4: an address and a note typed, then the invitation's preview open. Names in either language. */
 const previewInvitation = async (page: Page) => {
   await page.getByLabel(/Their email address|Su dirección de correo electrónico/).fill("peer@northwind.example");
@@ -223,7 +239,7 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/w/:ws/settings/funds": [one(`${F}/settings/funds`, "funder-admin")],
   // E4: the invitation's preview is reached by typing an address first, so it is a step, not a dialog case.
   "/w/:ws/settings/invite-funders": [one(`${F}/settings/invite-funders`, "funder-admin"), one(`${F}/settings/invite-funders`, "funder-admin", previewInvitation)],
-  "/w/:ws/settings/partners": [one(`${F}/settings/partners`, "funder-admin")],
+  "/w/:ws/settings/partners": [one(`${F}/settings/partners`, "funder-admin"), one(`${F}/settings/partners`, "funder-admin", asIntermediary)],
   "/w/:ws/settings/connectors": [one(`${F}/settings/connectors`, "funder-admin")],
   "/w/:ws/import": [one(`${F}/import`, "funder-admin"), one(`${A}/import`, "applicant-admin")],
   "/w/:ws/approvals": [one(`${F}/approvals`, "funder-admin")],

@@ -40,7 +40,7 @@ test("an intermediary's co-branded link, and a listing a moderator approves and 
 
   await test.step("the admin makes the link and uploads the logo with its alt text", async () => {
     await page.getByRole("button", { name: "Make the onboarding link" }).click();
-    await expect(page.getByLabel("Onboarding link", { exact: true })).toHaveValue(/\/join\/[a-z0-9]{20}$/);
+    await expect(page.getByRole("textbox", { name: "Onboarding link" })).toHaveValue(/\/join\/[a-z0-9]{20}$/);
     await page.getByLabel("Logo", { exact: true }).setInputFiles({ name: "riverbend.png", mimeType: "image/png", buffer: PNG });
     await page.getByLabel(/What the logo shows/).fill("Riverbend Community Foundation");
     await page.getByRole("button", { name: "Upload logo" }).click();
