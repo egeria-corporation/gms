@@ -4,7 +4,7 @@
 suffix from before the address moved on 2026-11-11, and the API Worker is the `[env.staging]` block
 of `apps/api/wrangler.toml`. There is no separate staging environment: every deploy reaches real users.
 
-**Last deployed:** v1.6.0 on 2026-11-14, with database migrations 0001–0030.
+**Last deployed:** v1.8.0 on 2026-11-17, with database migrations 0001–0036.
 
 | Piece | Where |
 |---|---|
@@ -119,7 +119,7 @@ order: the database first, then the API, the jobs Worker and the web app.
 - `https://gms-staging.opengrants.io/` redirects permanently (308, keeping the path) to `https://gms.opengrants.io/`. The Worker
   `gms-web-staging` shows both hostnames under its custom domains.
 - The landing page, a public opportunity page and the sign-in page load in a browser with no page
-  errors. The only expected console error is the Cloudflare beacon (see Known limits).
+  errors. The only expected console errors are Cloudflare's own scripts (see Known limits).
 - The latest row of `supabase_migrations.schema_migrations` is the release's last migration.
 - `https://gms.opengrants.io/robots.txt` answers 200 and names the sitemap; `/og/home.png` is a PNG;
   the source of a public opportunity page shows its own `<title>` and `og:image`.
@@ -188,5 +188,11 @@ is `select gms.lift_sso_requirement('<workspace id>', '<reason>');`. Details: `d
 
 ## Known limits
 
-- Cloudflare Web Analytics injects a beacon script that the site's Content-Security-Policy blocks. It
-  shows as a console error and is otherwise harmless.
+- Cloudflare injects two scripts of its own into the site's pages, and the site's Content-Security-Policy
+  blocks both:
+  - the Web Analytics beacon;
+  - an inline script for Cloudflare's JavaScript detections (bot management),
+    `/cdn-cgi/challenge-platform/.../jsd`.
+
+  Each shows as a console error and is otherwise harmless. To run either, allow it in the CSP;
+  otherwise switch the feature off in the Cloudflare dashboard.
