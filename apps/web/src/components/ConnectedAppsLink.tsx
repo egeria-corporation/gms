@@ -6,12 +6,13 @@ import { Link } from "react-router";
 import { BellRing } from "lucide-react";
 import { useAppConfig } from "../api/launchHooks.ts";
 import { useCurrentWorkspace } from "../app/workspace.tsx";
-import { translator } from "../i18n/index.tsx";
+import { translator, useExtrasMessages } from "../i18n/index.tsx";
 
-const t = translator("shared");
+const t = translator("extras");
 
 /** A card on the applicant's Settings page that leads to Connected apps. */
 export function ConnectedAppsLinkCard() {
+  useExtrasMessages();
   const ws = useCurrentWorkspace()!;
   const available = useAppConfig().available;
   if (!available?.slack && !available?.googleCalendar && !available?.googleDrive && !available?.salesforce) return null;

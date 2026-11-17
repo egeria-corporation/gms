@@ -17,9 +17,9 @@ import { Dialog } from "./Dialog.tsx";
 import { ErrorBanner, Notice, SaveNote } from "./ui.tsx";
 
 import { formatMoney } from "../lib/format.ts";
-import { intlLocale, translator } from "../i18n/index.tsx";
+import { intlLocale, translator, useExtrasMessages } from "../i18n/index.tsx";
 
-const t = translator("shared");
+const t = translator("extras");
 
 /** Saves a file the browser made, under its name. */
 function save(blob: Blob, name: string) {
@@ -68,6 +68,7 @@ const percentText = (p: number) => new Intl.NumberFormat(intlLocale(), { maximum
 // ------------------------------------------------------------------------------------ the federal share
 
 export function FederalFundingSection({ awardId, federal, onSaved }: { awardId: string; federal: AwardFederalFunding; onSaved: (next: AwardSharing) => void }) {
+  useExtrasMessages();
   const id = useId();
   const [funded, setFunded] = useState(federal.funded);
   const [amount, setAmount] = useState(federal.amount ? String(Number(federal.amount)) : "");
@@ -153,6 +154,7 @@ export function FederalFundingSection({ awardId, federal, onSaved }: { awardId: 
 // ------------------------------------------------------------------------------------ the kit's extras
 
 export function KitExtras({ kit, side, awardId }: { kit: AwardShareKit; side: ShareSide; awardId: string }) {
+  useExtrasMessages();
   const api = useAwardSharingApi();
   const id = (k: string) => `kit-${k}-${awardId}`;
   const [press, setPress] = useState(kit.pressRelease);
@@ -280,6 +282,7 @@ const PLATFORM_NAME: Record<string, string> = { linkedin: "LinkedIn", facebook: 
 // ------------------------------------------------------------------------------------ share-kit settings
 
 export function ShareKitSettings({ side }: { side: ShareSide }) {
+  useExtrasMessages();
   const [open, setOpen] = useState(false);
   return (
     <div>

@@ -11,11 +11,16 @@ import { Link } from "react-router";
 import { Circle, CircleCheck, Download, EyeOff, Globe, Info, Lock, ShieldCheck } from "lucide-react";
 import { badgeDataUrl, notListedText, type AwardShareKit, type AwardSharing, type ShareSide } from "../api/awardSharing.ts";
 import { useAwardSharingMutation, useAwardSharingQuery } from "../api/awardSharingHooks.ts";
-import { FederalFundingSection, KitExtras, ShareKitSettings } from "./AwardKitExtras.tsx";
+import { lazyPanel } from "./lazyPanel.tsx";
 import { CopyButton } from "./CopyButton.tsx";
 import { ErrorBanner, Loading, Notice, SaveNote } from "./ui.tsx";
 
 import { translator } from "../i18n/index.tsx";
+
+// The kit's extras (v1.12.0) load with the panel's kit, not with the award screen.
+const FederalFundingSection = lazyPanel(() => import("./AwardKitExtras.tsx").then((m) => m.FederalFundingSection));
+const KitExtras = lazyPanel(() => import("./AwardKitExtras.tsx").then((m) => m.KitExtras));
+const ShareKitSettings = lazyPanel(() => import("./AwardKitExtras.tsx").then((m) => m.ShareKitSettings));
 
 
 const t = translator("shared");

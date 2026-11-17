@@ -13,11 +13,11 @@ import type { DriveSaveInput, DriveSaved } from "../api/connectedApps.ts";
 import { useAppConfig } from "../api/launchHooks.ts";
 import { useCurrentWorkspace } from "../app/workspace.tsx";
 import { env } from "../env.ts";
-import { translator } from "../i18n/index.tsx";
+import { translator, useExtrasMessages } from "../i18n/index.tsx";
 import { pickDriveFile, type PickedFile, type PickerConfig } from "../lib/googlePicker.ts";
 import { MOCK_DRIVE_FILE_ID } from "../mocks/connectedApps.ts";
 
-const t = translator("shared");
+const t = translator("extras");
 
 const pickerConfig = (): PickerConfig | null => (env.googlePickerApiKey && env.googleOAuthClientId ? { apiKey: env.googlePickerApiKey, clientId: env.googleOAuthClientId } : null);
 /** In mock mode there is no Google: the "picked" file is the mock store's. */
@@ -52,6 +52,7 @@ function Problem({ error }: { error: unknown }) {
  * from the computer. `pick` exists so tests can stand in for Google.
  */
 export function DriveAttachButton({ onFile, pick, disabled }: { onFile: (file: File) => unknown; pick?: (config: PickerConfig, title: string) => Promise<PickedFile | null>; disabled?: boolean }) {
+  useExtrasMessages();
   const on = useDriveOn();
   const [done, setDone] = useState<string | null>(null);
   const copy = useConnectedAppsMutation(async (api) => {
@@ -90,6 +91,7 @@ export function DriveAttachButton({ onFile, pick, disabled }: { onFile: (file: F
 
 /** "Save the as-submitted copy to Google Drive": the PDF of what was submitted, created in My Drive. */
 export function SaveToDriveButton({ kind, id }: { kind: DriveSaveInput["kind"]; id: string }) {
+  useExtrasMessages();
   const on = useDriveOn();
   const [saved, setSaved] = useState<DriveSaved | null>(null);
   const save = useConnectedAppsMutation((api) => api.saveToDrive({ kind, id }));

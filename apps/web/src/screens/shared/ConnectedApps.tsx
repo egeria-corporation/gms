@@ -14,10 +14,10 @@ import { useAppConfig } from "../../api/launchHooks.ts";
 import { useCurrentWorkspace } from "../../app/workspace.tsx";
 import { ApplicantShell, FunderShell } from "../../components/shells.tsx";
 import { ErrorBanner, Field, Loading, Notice, PageHeader } from "../../components/ui.tsx";
-import { intlLocale, translator } from "../../i18n/index.tsx";
+import { intlLocale, translator, useExtrasMessages } from "../../i18n/index.tsx";
 import { SettingsNav } from "../funder/SettingsPassport.tsx";
 
-const t = translator("shared");
+const t = translator("extras");
 const when = (iso: string) => new Date(iso).toLocaleString(intlLocale(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 const EVENT_LABEL: Record<AlertEvent, () => string> = {
@@ -403,6 +403,7 @@ function SimpleAppCard({ app, title, sub, icon, children }: { app: WorkspaceApp;
 }
 
 export default function ConnectedApps() {
+  useExtrasMessages();
   const ws = useCurrentWorkspace()!;
   const available = useAppConfig().available;
   const admin = (ws.member.role ?? "admin") === "admin";

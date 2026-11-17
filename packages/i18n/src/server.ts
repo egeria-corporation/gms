@@ -2,7 +2,7 @@
 // The catalogs the API and jobs Workers read, loaded at once: emails, documents' fixed text, share
 // cards and notification titles (`email`), and API error messages (`errors`). A message is needed
 // synchronously there. Only these two namespaces: the web app's own (`public`, `shared`,
-// `applicant`, `funder`) never ship in a server Worker. Never import this from the web app's
+// `applicant`, `funder`, `extras`) never ship in a server Worker. Never import this from the web app's
 // screens: it would put Spanish in every English visitor's download.
 import type { Catalog } from "./catalogs.ts";
 import { createTranslator, type Translate } from "./translate.ts";

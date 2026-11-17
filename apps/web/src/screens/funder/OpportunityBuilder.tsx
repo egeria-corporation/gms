@@ -24,7 +24,7 @@ import { StatusBadge } from "../../components/status.tsx";
 import { ApplicationsStep } from "./ApplicationsStep.tsx";
 import { EmbedPanel } from "./EmbedPanel.tsx";
 import { SocialPanel } from "../../components/SocialPanel.tsx";
-import { SyndicationPanel } from "./SyndicationPanel.tsx";
+import { lazyPanel } from "../../components/lazyPanel.tsx";
 import { competitionOf, offersApply, OpportunityStatusBadge, takingApplications } from "./applicationsStatus.tsx";
 import { ErrorBanner, Field, Loading, Notice, PageHeader, problemFor, SaveNote } from "../../components/ui.tsx";
 import { applicantTypeLabel, formatAwardCount, formatAwardRange, formatDate, parseDollars, slugify } from "../../lib/format.ts";
@@ -32,6 +32,9 @@ import { rowsToRules, rulesToRows, type RuleRow } from "../../lib/rules.ts";
 import { ApplicantTypes, EligibilityDryRun, rowProblem, RuleRows } from "./EligibilityEditor.tsx";
 import { t, useFunderMessages } from "./i18n.ts";
 import { usePublicMessages } from "../../i18n/index.tsx";
+
+// Share this call shows on the Publish step only: loaded then.
+const SyndicationPanel = lazyPanel(() => import("./SyndicationPanel.tsx").then((m) => m.SyndicationPanel));
 
 const STEPS = [
   { key: "basics", get title() { return t("opportunityBuilder.step.basics.title"); }, get hint() { return t("opportunityBuilder.step.basics.hint"); } },

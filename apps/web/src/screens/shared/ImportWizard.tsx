@@ -26,9 +26,11 @@ import { railLabel } from "../../components/shells.tsx";
 import { ImportTargetPicker, isFunderTarget, KIND_OF, type FunderTarget } from "./ImportTargetPicker.tsx";
 import { formatMinor } from "../../lib/format.ts";
 
-import { intlLocale, translator } from "../../i18n/index.tsx";
+import { intlLocale, translator, useExtrasMessages } from "../../i18n/index.tsx";
 
 const tr = translator("shared");
+/** The Salesforce source's words (the `extras` catalog, loaded with this screen). */
+const trx = translator("extras");
 type Step = "source" | "system" | "connect" | "pick" | "map" | "check" | "import" | "done";
 /** A file, a connected app, an export from a grants system, or a grants system read through its API. */
 type Choice = "file" | "system" | ConnectedApp | ImportPuller;
@@ -396,6 +398,7 @@ function ZipFiles({ runId, adapter, history = false }: { runId: string; adapter:
 }
 
 export function ImportWizard() {
+  useExtrasMessages();
   const ws = useCurrentWorkspace()!;
   const api = useImportsApi();
   const [params] = useSearchParams();
@@ -653,7 +656,7 @@ export function ImportWizard() {
                             )
                           }
                         >
-                          {k === "google_sheets" ? tr("importWizard.pasteTheLinkToA") : k === "salesforce" ? tr("salesforcePick.sourceHelp") : tr("importWizard.pasteTheLinkToA2")}
+                          {k === "google_sheets" ? tr("importWizard.pasteTheLinkToA") : k === "salesforce" ? trx("salesforcePick.sourceHelp") : tr("importWizard.pasteTheLinkToA2")}
                         </SourceOption>
                       ))}
                   </fieldset>
@@ -783,7 +786,7 @@ export function ImportWizard() {
                     {choice === "google_sheets"
                       ? tr("importWizard.youSignInWithGoogle")
                       : choice === "salesforce"
-                        ? tr("salesforcePick.youSignIn")
+                        ? trx("salesforcePick.youSignIn")
                         : tr("importWizard.youSignInWithAirtable")}
                   </span>
                 </p>
@@ -806,12 +809,12 @@ export function ImportWizard() {
           {step === "pick" && choice && (
             <section className="card" aria-labelledby="imp-pick">
               <div className="card-h">
-                <h3 id="imp-pick">{choice === "file" ? tr("importWizard.chooseTheFile") : choice === "system" ? tr("importWizard.chooseTheExport", { value: adapterOf(system)?.system ?? "" }) : choice === "fluxx" ? tr("importWizard.readFromFluxx") : choice === "zengine" ? tr("importWizard.whichZengineForm") : choice === "google_sheets" ? tr("importWizard.whichSpreadsheet") : choice === "salesforce" ? tr("salesforcePick.heading") : tr("importWizard.whichAirtableBase")}</h3>
+                <h3 id="imp-pick">{choice === "file" ? tr("importWizard.chooseTheFile") : choice === "system" ? tr("importWizard.chooseTheExport", { value: adapterOf(system)?.system ?? "" }) : choice === "fluxx" ? tr("importWizard.readFromFluxx") : choice === "zengine" ? tr("importWizard.whichZengineForm") : choice === "google_sheets" ? tr("importWizard.whichSpreadsheet") : choice === "salesforce" ? trx("salesforcePick.heading") : tr("importWizard.whichAirtableBase")}</h3>
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {returned === choice && (
                   <Notice tone="ok" title={tr("importWizard.isConnected", { value: APP_LABEL[choice as ConnectedApp] })}>
-                    {choice === "salesforce" ? tr("salesforcePick.chooseWhatToRead") : tr("importWizard.pasteTheLinkToRead")}
+                    {choice === "salesforce" ? trx("salesforcePick.chooseWhatToRead") : tr("importWizard.pasteTheLinkToRead")}
                   </Notice>
                 )}
                 {isPuller(choice) ? (

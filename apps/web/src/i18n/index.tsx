@@ -79,13 +79,22 @@ export function usePublicMessages(): void {
 }
 
 /**
- * A translator for module scope, for `public` and `shared` (loaded before any screen that reads them renders): it reads the current
+ * Call first in a screen or panel that shows connected apps, the Google Drive attach, the
+ * Salesforce source or the award kit's extras: suspends until the `extras` catalog is loaded, which
+ * no first page carries (v1.12.0).
+ */
+export function useExtrasMessages(): void {
+  useT("extras");
+}
+
+/**
+ * A translator for module scope, for `public`, `shared` and `extras` (loaded before any screen that reads them renders): it reads the current
  * language at each call, so `const t = translator("public")` at the top of a file is safe in any
  * function there. Screens redraw on a language change because the routes remount (app/App.tsx).
  * Never call it while a module loads (a label table built once would stay in one language): build
  * such tables in a function, or use getters.
  */
-export function translator<N extends "public" | "shared">(ns: N): T<N> {
+export function translator<N extends "public" | "shared" | "extras">(ns: N): T<N> {
   const t = ((key: Key<N>, values?: Values) => createTranslator(getLocale(), ns)(key, values)) as T<N>;
   Object.defineProperties(t, {
     rich: { value: (key: Key<N>, values: RichValues) => bind(getLocale(), ns).rich(key, values) },

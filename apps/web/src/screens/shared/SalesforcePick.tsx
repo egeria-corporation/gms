@@ -6,7 +6,7 @@ import { useId } from "react";
 import { ShieldCheck } from "lucide-react";
 import type { ImportSourceInput } from "../../api/imports.ts";
 import { Field } from "../../components/ui.tsx";
-import { translator } from "../../i18n/index.tsx";
+import { translator, useExtrasMessages } from "../../i18n/index.tsx";
 
 export interface SalesforceChoice {
   what: "npsp_grants" | "accounts" | "query";
@@ -21,9 +21,10 @@ export function salesforceSource(c: SalesforceChoice): Extract<ImportSourceInput
   return c.query.trim() ? { kind: "salesforce", query: c.query.trim() } : null;
 }
 
-const tr = translator("shared");
+const tr = translator("extras");
 
 export function SalesforcePick({ value, onChange }: { value: SalesforceChoice; onChange: (next: SalesforceChoice) => void }) {
+  useExtrasMessages();
   const id = useId();
   const options: [SalesforceChoice["what"], string, string][] = [
     ["npsp_grants", tr("salesforcePick.grants"), tr("salesforcePick.grantsHelp")],
