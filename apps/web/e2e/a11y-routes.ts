@@ -196,7 +196,14 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/w/:ws/payments/ledger": [one(`${F}/payments/ledger`, "funder-admin")],
   "/w/:ws/reporting": [one(`${F}/reporting`, "funder-admin"), one(`${F}/reporting?tab=received`, "funder-admin")],
   "/w/:ws/grantees": [one(`${F}/grantees`, "funder-admin")],
-  "/w/:ws/grantees/:granteeId": [one(`${F}/grantees/${GRANTEE}`, "funder-admin")],
+  "/w/:ws/grantees/:granteeId": [
+    one(`${F}/grantees/${GRANTEE}`, "funder-admin"),
+    // Imported history (v1.12.0): a past application opened in place, with its answers and reviews.
+    one(`${F}/grantees/${GRANTEE}`, "funder-admin", async (page) => {
+      await page.getByRole("button", { name: "After-school transport" }).click();
+      await page.getByText("A van for after-school pick-up three days a week.").waitFor();
+    }),
+  ],
   "/w/:ws/analytics": [one(`${F}/analytics`, "funder-admin")],
   "/w/:ws/report-builder": [one(`${F}/report-builder`, "funder-admin")],
   "/w/:ws/communications": [one(`${F}/communications`, "funder-admin")],
@@ -208,7 +215,7 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/w/:ws/settings/social": [one(`${F}/settings/social`, "funder-admin"), one(`${A}/settings/social`, "applicant-admin")],
   "/w/:ws/settings/funds": [one(`${F}/settings/funds`, "funder-admin")],
   "/w/:ws/settings/connectors": [one(`${F}/settings/connectors`, "funder-admin")],
-  "/w/:ws/import": [one(`${F}/import`, "funder-admin"), one(`${A}/import`, "applicant-admin")],
+  "/w/:ws/import": [one(`${F}/import`, "funder-admin"), one(`${A}/import`, "applicant-admin"), one(`${F}/import?target=history_reviews`, "funder-admin")],
   "/w/:ws/approvals": [one(`${F}/approvals`, "funder-admin")],
 
   "/w/:ws/organization": [one(`${A}/organization`, "applicant-admin")],

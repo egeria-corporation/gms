@@ -56,6 +56,13 @@ export const MOCK_DATA_SETS: DataSet[] = [
     available: true,
     columns: [t("name", "Organization", "the workspace's name"), t("verified", "Verified", "Passport verification, or a self-declared profile"), t("fund", "Funds", "funds.name of the programs it applied to or was awarded from"), t("location", "Location", "city and state, while the organization shares its record"), t("region", "State or region", "state, while the organization shares its record"), n("applications", "Applications submitted", "submitted applications to this funder"), n("awardCount", "Awards", "awards from this funder"), m("totalAwarded", "Total awarded", "awarded amounts of committed awards"), t("currency", "Currency", "the currency of those awards, or Mixed")],
   },
+  {
+    key: "history",
+    label: "Imported history",
+    description: "Past applications, reviews and reports brought from the system you used before: what was asked for, decided, scored and reported. Read-only history, never part of a live competition.",
+    available: true,
+    columns: [t("record", "Record", "Past application, Past review or Past report"), t("title", "Title", "the application's or report's title; for a review, its application's"), t("organization", "Organization", "the organization as the export named it"), t("program", "Program", "the program as the export named it, or the linked award's program"), t("fund", "Fund", "funds.name, through the matched program or the linked award's program"), t("call", "Call or round", "history_applications.call_title"), t("outcome", "Outcome", "the outcome, recommendation or report status as the export wrote it"), d("submittedOn", "Submitted on", "when the application or the report was submitted"), t("submittedYear", "Year submitted", "the submitted date"), d("dueOn", "Due on", "history_reports.due_on"), d("reviewedOn", "Reviewed on", "history_reviews.reviewed_on"), m("requested", "Requested amount", "history_applications.requested_amount_minor"), m("awarded", "Awarded amount", "history_applications.awarded_amount_minor"), t("currency", "Currency", "history_applications.currency"), n("score", "Total score", "history_reviews.total_score"), n("reviews", "Reviews", "past reviews of the application"), t("award", "Linked award", "awards.title of the award it was linked to"), t("importedFrom", "From system", "the grants system whose export it came from")],
+  },
 ];
 
 const day = (offset: number, now = new Date()) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + offset * 86_400_000).toISOString().slice(0, 10);
@@ -103,7 +110,16 @@ export function mockRows(now = new Date()): Record<DataSetKey, Rows> {
   ];
   // Every program in mock mode is in the workspace's Default fund (mocks/funds.ts).
   const withFund = (rows: Rows): Rows => rows.map((r) => ({ ...r, fund: "Default fund" }));
-  return { applications: withFund(applications), awards: withFund(awards), payments: withFund(payments), requirements: withFund(requirements), organizations: withFund(organizations) };
+  // Imported history: the made-up records of mocks/history.ts, as rows.
+  const blank = { program: "Community Health 2027", call: null, submittedOn: null, submittedYear: null, dueOn: null, reviewedOn: null, requested: null, awarded: null, currency: null, score: null, reviews: null, award: null, importedFrom: "Submittable" };
+  const history: Rows = [
+    { ...blank, record: "Past application", title: "Mobile Health Navigation for Rural Families", organization: "Alder Creek Family Services", call: "Community Health 2027 · Spring", outcome: "Accepted", submittedOn: "2026-10-20", submittedYear: "2026", requested: 16_000_000, awarded: 15_000_000, currency: "USD", reviews: 1, award: "Mobile Health Navigation for Rural Families" },
+    { ...blank, record: "Past application", title: "After-school transport", organization: "Alder Creek Family Services", program: "No program", call: "Youth 2024", outcome: "Declined", submittedOn: "2024-01-12", submittedYear: "2024", requested: 1_500_000, currency: "USD", reviews: 1 },
+    { ...blank, record: "Past review", title: "Mobile Health Navigation for Rural Families", organization: "Alder Creek Family Services", outcome: "Fund", reviewedOn: "2026-10-28", score: 9, award: "Mobile Health Navigation for Rural Families" },
+    { ...blank, record: "Past review", title: "After-school transport", organization: "Alder Creek Family Services", program: "No program", outcome: "Decline", reviewedOn: "2024-02-02", score: 2 },
+    { ...blank, record: "Past report", title: "2024 final report", organization: "Alder Creek Family Services", program: "No program", outcome: "Approved", submittedOn: "2025-01-24", submittedYear: "2025", dueOn: "2025-01-31", award: "Van route pilot" },
+  ];
+  return { applications: withFund(applications), awards: withFund(awards), payments: withFund(payments), requirements: withFund(requirements), organizations: withFund(organizations), history: history.map((r) => ({ ...r, fund: r.program === "No program" ? "No fund" : "Default fund" })) };
 }
 
 const def = (d: Partial<Definition> & Pick<Definition, "dataSet" | "columns">): Definition => ({ ...emptyDefinition(d.dataSet), ...d });

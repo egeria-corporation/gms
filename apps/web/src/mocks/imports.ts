@@ -7,6 +7,8 @@
 // stand-ins with one spreadsheet and one base. Importer adapters (v1.9.0) run as on the server: a
 // grants system's preset and its never-awarded rows set aside; Fluxx and Zengine are stand-ins
 // with a few made-up records; zip files are matched by path and kept by name and size only.
+// Imported history (v1.12.0): a funder's past applications, reviews and reports are written to the
+// history store (mocks/history.ts), linked as the server links them.
 import {
   ADAPTERS,
   adapterMapping,
@@ -20,7 +22,9 @@ import {
   FILE_ADAPTERS,
   FLUXX,
   idKey,
+  isPastTarget,
   matchAttachments,
+  rowKey,
   mimeFor,
   setAsideNotAwarded,
   tableFromJson,
@@ -48,6 +52,7 @@ import { ApiError } from "../api/client.ts";
 import type { ConnectedApp, ImportCommitted, ImportFile, ImportPreview, ImportPuller, ImportRead, ImportRun, ImportRunDetail, ImportsApi, ImportSourceInput, ImportSources, ImportTarget } from "../api/imports.ts";
 import type { OutsideApi } from "../api/outside.ts";
 import type { OutsideStore } from "./outside.ts";
+import { attachMockHistoryFile, seedHistoryStore, writeMockHistory, type HistoryStore, type MockAwardLinks } from "./history.ts";
 
 /** The stand-in spreadsheet and base. Their links are shown in the wizard's help in mock mode. */
 export const MOCK_SHEET_ID = "1MockSheetAbCdEfGhIjKlMnOpQrStUvWxYz012345";
@@ -63,7 +68,7 @@ interface MockRunRow {
   record: unknown;
   title: string;
   subtitle: string | null;
-  entity: { type: "outside_application" | "award"; id: string } | null;
+  entity: { type: "outside_application" | "award" | "history_application" | "history_review" | "history_report"; id: string } | null;
   written: boolean;
 }
 
@@ -83,6 +88,8 @@ export interface ImportsStore {
   zengine: { forms: { id: string; name: string; workspaceId: string; workspaceName: string }[]; columns: string[]; records: Record<string, string>[] };
   /** Files attached from a zip: names and sizes only. */
   files: (ImportFile & { runId: string })[];
+  /** Imported history: past applications, reviews and reports. */
+  history: HistoryStore;
 }
 
 export function seedImportsStore(): ImportsStore {
@@ -122,6 +129,7 @@ export function seedImportsStore(): ImportsStore {
       ],
     },
     files: [],
+    history: seedHistoryStore(),
   };
 }
 
@@ -148,8 +156,9 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
     if (!(await opts.session())) throw new ApiError(401, "Sign in to continue");
     const ws = opts.workspace();
     if (!ws) throw new ApiError(400, "Open a workspace first");
-    if ((target === "award_history") !== (ws.kind === "funder")) throw new ApiError(403, target === "award_history" ? "Grant history is imported into funder workspaces" : "Applications are imported into applicant workspaces");
-    if (target === "award_history" && ws.role !== "admin") throw new ApiError(403, "Only a workspace admin can import grant history");
+    const funderTarget = target !== "outside_applications";
+    if (funderTarget !== (ws.kind === "funder")) throw new ApiError(403, funderTarget ? "Grant history is imported into funder workspaces" : "Applications are imported into applicant workspaces");
+    if (funderTarget && ws.role !== "admin") throw new ApiError(403, "Only a workspace admin can import grant history");
     return ws;
   }
 
@@ -243,9 +252,9 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
           { kind: "xlsx", label: SOURCE_LABEL.xlsx, connected: true, canConnect: false },
           { kind: "google_sheets", label: SOURCE_LABEL.google_sheets, connected: store.connected.google_sheets, canConnect: admin },
           { kind: "airtable", label: SOURCE_LABEL.airtable, connected: store.connected.airtable, canConnect: admin },
-          ...(target === "award_history" ? (["fluxx", "zengine"] as const).map((k) => ({ kind: k, label: PULLER_LABEL[k], connected: !!store.pullers[ws.id]?.[k], canConnect: admin })) : []),
+          ...(target !== "outside_applications" ? (["fluxx", "zengine"] as const).filter((k) => !!ADAPTERS[k].presets[target]).map((k) => ({ kind: k, label: PULLER_LABEL[k], connected: !!store.pullers[ws.id]?.[k], canConnect: admin })) : []),
         ],
-        adapters: adaptersFor(target).map(adapterView),
+        adapters: adaptersFor(target).map((a) => adapterView(a, target)),
       };
     },
 
@@ -328,13 +337,22 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
         }
         let id: string;
         if (r.run.target === "outside_applications") id = await writeOutside(row.record as OutsideRecord);
-        else {
+        else if (isPastTarget(r.run.target)) {
+          // Imported history: linked as the server links it; a record imported before from another file is skipped.
+          id = crypto.randomUUID();
+          const system = r.run.adapter ? { key: r.run.adapter.key as AdapterKey, system: r.run.adapter.system } : null;
+          if ((await writeMockHistory(store.history, r.run.target, row.record, id, awardLinks(ws.id), system, now().toISOString())) === "skipped") {
+            Object.assign(row, { outcome: "skip", reason: "Imported already, from another file of the same export", record: null });
+            continue;
+          }
+        } else {
           const rec = row.record as { title: string; recipientName: string; awardedAmountMinor: number; payment: { amountMinor: number } | null };
           id = `awd_${crypto.randomUUID()}`;
           store.awards.push({ id, title: rec.title, recipientName: rec.recipientName, amountMinor: rec.awardedAmountMinor, paidMinor: rec.payment?.amountMinor ?? null });
         }
         store.written.set(k, now().toISOString());
-        Object.assign(row, { written: true, record: null, entity: { type: r.run.target === "outside_applications" ? "outside_application" : "award", id } });
+        const entityType = r.run.target === "outside_applications" ? "outside_application" : r.run.target === "history_applications" ? "history_application" : r.run.target === "history_reviews" ? "history_review" : r.run.target === "history_reports" ? "history_report" : "award";
+        Object.assign(row, { written: true, record: null, entity: { type: entityType, id } });
         wrote++;
       }
       const progress = progressOf(r.rows);
@@ -412,6 +430,7 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
       if (existing) return clone({ file: existing, created: false });
       const file = { runId, id: crypto.randomUUID(), name, mime: mimeFor(name), size, line: hit.line, award, createdAt: now().toISOString() };
       store.files.push(file);
+      if (isPastTarget(r.run.target)) attachMockHistoryFile(store.history, r.run.target, award, { id: file.id, name, mime: file.mime, size });
       return clone({ file, created: true });
     },
 
@@ -423,11 +442,30 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
     },
   };
 
+  /** What a mock history import links to: the awards mock grant history imports wrote (mocks have no other awards store to share). */
+  function awardLinks(wsId: string): MockAwardLinks {
+    const runs = store.runs.filter((x) => x.workspaceId === wsId && x.run.target === "award_history" && x.run.mapping.sourceId);
+    return {
+      async byExportId(id) {
+        if (!id) return null;
+        const hits = new Set<string>();
+        for (const x of runs) {
+          const key = await rowKey("award_history", { id, scope: x.ref.ref ?? `${x.ref.kind}:${x.run.mapping.sourceId}` });
+          for (const row of x.rows) if (row.key === key && row.entity) hits.add(row.entity.id);
+        }
+        const award = hits.size === 1 ? store.awards.find((a) => a.id === [...hits][0]) : undefined;
+        return award ? { id: award.id, title: award.title } : null;
+      },
+      all: store.awards.map((a) => ({ id: a.id, title: a.title, recipientName: a.recipientName })),
+    };
+  }
+
   async function finishedRun(runId: string) {
     const ws = opts.workspace();
     if (!ws) throw new ApiError(400, "Open a workspace first");
     const r = runOf(runId, ws.id);
     await where(r.run.target);
+    if (r.run.target === "outside_applications" || r.run.target === "history_reviews") throw invalid("files_not_for_target", "Files are attached to imported grant history, past applications and past reports only");
     if (!r.run.finishedAt) throw new ApiError(409, "Finish the import first, then add the files", [{ code: "import_not_finished" }]);
     const adapter = r.run.adapter ? (ADAPTERS[r.run.adapter.key as AdapterKey] ?? null) : null;
     return { r, adapter, keyOf: idKey(r.run.target, r.ref, r.run.mapping.sourceId ?? null) };
@@ -438,6 +476,6 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
 function adapterFor(target: ImportTarget, kind: string, named: AdapterKey | undefined, columns: readonly string[]): { adapter: Adapter | null; detected: ReturnType<typeof detectAdapter> } {
   if (kind === "fluxx" || kind === "zengine") return { adapter: kind === "fluxx" ? FLUXX : ZENGINE, detected: null };
   if (named && (ADAPTERS[named].via === "api" || !ADAPTERS[named].presets[target])) throw new ApiError(422, `${ADAPTERS[named].system} exports are imported as a funder's grant history, from a file`, [{ code: "adapter_not_for_target" }]);
-  const detected = target === "award_history" ? detectAdapter(columns, FILE_ADAPTERS) : null;
+  const detected = target !== "outside_applications" ? detectAdapter(columns, FILE_ADAPTERS.filter((a) => !!a.presets[target])) : null;
   return { adapter: named ? ADAPTERS[named] : (detected?.adapter ?? null), detected };
 }

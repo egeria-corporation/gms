@@ -107,6 +107,31 @@ const DATA_SET: Record<string, { label: Words; description: Words; columns: Reco
       currency: () => t("reportBuilder.col.organizations.currency"),
     },
   },
+  // Imported history (v1.12.0): past applications, reviews and reports.
+  history: {
+    label: () => t("reportBuilder.ds.history.label"),
+    description: () => t("reportBuilder.ds.history.description"),
+    columns: {
+      record: () => t("reportBuilder.col.history.record"),
+      title: () => t("reportBuilder.col.history.title"),
+      organization: () => t("reportBuilder.col.history.organization"),
+      program: () => t("reportBuilder.col.history.program"),
+      fund: () => t("reportBuilder.col.history.fund"),
+      call: () => t("reportBuilder.col.history.call"),
+      outcome: () => t("reportBuilder.col.history.outcome"),
+      submittedOn: () => t("reportBuilder.col.history.submittedOn"),
+      submittedYear: () => t("reportBuilder.col.history.submittedYear"),
+      dueOn: () => t("reportBuilder.col.history.dueOn"),
+      reviewedOn: () => t("reportBuilder.col.history.reviewedOn"),
+      requested: () => t("reportBuilder.col.history.requested"),
+      awarded: () => t("reportBuilder.col.history.awarded"),
+      currency: () => t("reportBuilder.col.history.currency"),
+      score: () => t("reportBuilder.col.history.score"),
+      reviews: () => t("reportBuilder.col.history.reviews"),
+      award: () => t("reportBuilder.col.history.award"),
+      importedFrom: () => t("reportBuilder.col.history.importedFrom"),
+    },
+  },
 };
 
 /** The starter views that ship with every workspace, by id. */

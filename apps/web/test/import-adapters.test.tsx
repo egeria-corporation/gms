@@ -51,7 +51,7 @@ describe("importing from another grants system", () => {
     await userEvent.click(await screen.findByRole("radio", { name: /An export from another grants system/ }));
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     const systems = within(screen.getByRole("group", { name: "System" }).closest("fieldset")!).getAllByRole("radio");
-    expect(systems.map((r) => r.closest("label")!.textContent)).toEqual(["Good Grants", "SurveyMonkey Apply", "Submittable", "Foundant GLM", "SmartSimple", "OpenWater"]);
+    expect(systems.map((r) => r.closest("label")!.textContent)).toEqual(["Good Grants", "SurveyMonkey Apply", "Submittable", "Foundant GLM", "SmartSimple", "OpenWater", "Bonterra CyberGrants"]);
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
     await userEvent.click(screen.getByRole("radio", { name: "Good Grants" }));
     expect(screen.getByRole("group", { name: "How to export from Good Grants" })).toHaveTextContent("Manage applications");

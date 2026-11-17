@@ -23,6 +23,7 @@ import { dateTime } from "./shared.tsx";
 import { SocialPanel } from "../../components/SocialPanel.tsx";
 import { useFundFilter } from "../../components/FundSwitcher.tsx";
 import { t, useFunderMessages } from "./i18n.ts";
+import { ImportedHistory } from "./ImportedHistory.tsx";
 
 const STEPS: Agreement["status"][] = ["draft", "sent", "signed_by_grantee", "executed"];
 const shortHash = (h: string | null) => (h ? `${h.slice(0, 8)}…${h.slice(-4)}` : "—");
@@ -438,6 +439,7 @@ export default function AwardAgreement() {
               <TabPanel idPrefix="award" tab="closeout" active={tab}>
                 <AwardCloseout award={award.data} onChanged={reload} />
               </TabPanel>
+              <ImportedHistory query={{ award: award.data.id }} />
               <ShareAwardPanel awardId={award.data.id} side="funder" settingsHref={`${base}/settings/public-page`} />
               <SocialPanel subject={{ type: "award", id: award.data.id }} />
             </>
