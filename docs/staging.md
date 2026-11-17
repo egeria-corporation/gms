@@ -171,6 +171,17 @@ until both are set, social posting is hidden. New in v1.12.0, all optional:
 - `DIRECTORY_MODERATORS` (API, a secret, not a `[vars]` entry): until set, `GALLERY_MODERATORS`
   moderate the partner directory.
 
+New in v1.13.0, all optional (secrets, never `[vars]` entries):
+- `COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID` (API and jobs, with `COMPOSIO_API_KEY` on both): until set,
+  Settings › Accounting, the "In QuickBooks" badges and the `/gms/accounting` routes stay hidden
+  (503 `connector_not_configured`) and nothing is sent to QuickBooks (`docs/accounting.md`);
+- `OPERATORS` (API): until set, `GALLERY_MODERATORS` are the operators who read `/operator/measures`;
+- `COMPOSIO_SEARCH_CONSOLE_AUTH_CONFIG_ID` (API): until set, the measures screen hides Google Search
+  Console and shows organic visits as not set up (`docs/measures.md`).
+- Nothing new for live co-editing: run migration `0050` before the API, then turn off Realtime's
+  **Allow public access** (Supabase › Realtime › Settings); optionally a JWT expiry of 15 minutes or
+  less (`docs/co-editing.md`).
+
 ## Sign in with Passport
 
 Live. The GMS client at Passport (`OpenGrants GMS`, owned by Egeria Corporation) has the sign-in
@@ -183,8 +194,11 @@ When the person has set it up, Passport's authenticator serves as the second ste
 
 ## Single sign-on (SAML)
 
-Not switched on yet. It needs the `gms-staging` project on the Supabase Pro plan or above with SAML 2.0
-switched on (Authentication → Providers → SAML 2.0) and migration `0035`. Per workspace domain, after
+Not switched on yet (on 2026-11-17 production had no SSO provider, domain or SSO account). **Register
+no SAML provider before v1.13.0 is deployed**: before it, a provider could assert an address on a
+domain it was not registered for (`docs/sso.md`). It needs the `gms-staging` project on the Supabase
+Pro plan or above with SAML 2.0 switched on (Authentication → Providers → SAML 2.0) and migrations
+`0035` and `0053`. Per workspace domain, after
 the admin's DNS check passes: dry run, then `--apply`, with `SUPABASE_ACCESS_TOKEN` set (never printed):
 
 ```

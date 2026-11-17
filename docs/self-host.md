@@ -55,13 +55,19 @@ node scripts/bootstrap-supabase.ts --db-url "postgresql://postgres:<password>@db
    add `https://gms.example.org/auth/callback` to the redirect URLs.
 6. Authentication → SMTP: point Supabase's own mail (sign-in codes) at Resend's SMTP, or any SMTP
    you run. The built-in sender is rate-limited and not for production.
-7. Realtime is used for presence in the application editor; leave it enabled.
+7. Realtime is used for presence in the application editors (live co-editing, v1.13.0); leave it
+   enabled, and in Realtime → Settings turn **Allow public access** off, so only private channels
+   can be joined. The GMS opens no public channel (`apps/web/test/realtime-channels.test.ts`); run
+   migration `0050` first, so the drafts' private channels have their policies. Optionally set the
+   JWT expiry (Authentication → Sessions) to 15 minutes or less, so a removed person's open channel
+   is refused sooner (`docs/co-editing.md`).
 8. Single sign-on (optional, v1.8.0): the project must be on the Pro plan or above, with
    Authentication → Providers → SAML 2.0 switched on, and `https://gms.example.org/signin` on the
    redirect URLs. Register each workspace's identity provider with `scripts/sso/register-provider.mjs`
    (it reads `SUPABASE_ACCESS_TOKEN` from your own shell; it is never a Worker secret), then run the
    `gms.activate_sso_domain` line it prints. Without this no workspace can require single sign-on.
-   See `docs/sso.md`.
+   Register no SAML provider on a GMS older than v1.13.0: before it, a provider could assert an
+   address on a domain it was not registered for. See `docs/sso.md`.
 
 Row Level Security is on for every table. The Workers use the service-role key and filter by
 workspace in code; the `authenticated` role has read-only policies and no user ever needs the
@@ -159,7 +165,9 @@ Set each secret with `wrangler secret put <NAME> --env production`, in `apps/api
 | `COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID` | api | Optional (v1.12.0). Composio auth config for applicants' Google Drive, `drive.file` only, on **the same Google OAuth client as the Picker** (`VITE_GOOGLE_OAUTH_CLIENT_ID`), so the connection can read the file the Picker granted. Unset, "Attach from Google Drive" and "Save to Google Drive" are hidden |
 | `COMPOSIO_SALESFORCE_AUTH_CONFIG_ID` | api | Optional (v1.12.0). Composio auth config for Salesforce as a read-only import source (`api refresh_token`; the GMS only runs a SOQL SELECT). Unset, Salesforce is not offered as an import source |
 | `COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID` | api, jobs | Optional (v1.13.0). Composio auth config for the QuickBooks Online sync, record-keeping only (`docs/accounting.md`): scope `com.intuit.quickbooks.accounting` only, never Payments or Payroll. Unset, Settings › Accounting says QuickBooks is not set up and nothing is sent |
-| `GALLERY_MODERATORS` | api | Optional (v1.8.0). Who moderates the template gallery: comma-separated user ids or email addresses. A secret, never a `[vars]` entry, so the addresses are not published in `wrangler.toml`. Unset, nobody moderates and nothing new is published (the nine starters still show) |
+| `COMPOSIO_SEARCH_CONSOLE_AUTH_CONFIG_ID` | api | Optional (v1.13.0). Composio auth config on `google_search_console` with `https://www.googleapis.com/auth/webmasters.readonly` only, for the operators' organic visits (`docs/measures.md`). A Wrangler secret, never a `[vars]` entry. Unset, the measures screen hides Search Console and shows organic visits as not set up |
+| `OPERATORS` | api | Optional (v1.13.0). OpenGrants' operators, who read the growth measures at `/operator/measures`: comma-separated user ids or email addresses. A Wrangler secret, never a `[vars]` entry. Unset or blank, `GALLERY_MODERATORS` are the operators. An email entry never matches a single sign-on session (`docs/sso.md`) |
+| `GALLERY_MODERATORS` | api | Optional (v1.8.0). Who moderates the template gallery: comma-separated user ids or email addresses (an email entry never matches a single sign-on session, v1.13.0). A secret, never a `[vars]` entry, so the addresses are not published in `wrangler.toml`. Unset, nobody moderates and nothing new is published (the nine starters still show) |
 | `DIRECTORY_MODERATORS` | api | Optional (v1.12.0). Who moderates the partner directory (`/partners/moderation`): comma-separated user ids or email addresses. A secret, never a `[vars]` entry. Unset or blank, `GALLERY_MODERATORS` moderate it |
 | `ZERNIO_API_KEY`, `ZERNIO_WEBHOOK_SECRET` | api | Optional (v1.9.0). Social posting through Zernio, which a person approves post by post (`docs/social.md`): the API key, and the signing secret of the Zernio webhook endpoint `{GMS_BASE_URL}/webhooks/zernio`. Without both, every social control is hidden |
 | `VITE_GOOGLE_OAUTH_CLIENT_ID`, `VITE_GOOGLE_PICKER_API_KEY` | web build | Optional, build-time and public (not Worker secrets). The Google Picker: the funder's Drive export and (v1.12.0) applicants' "Attach from Google Drive". The OAuth client's authorised JavaScript origin is the web origin; the API key is restricted to the Google Picker API and that origin. With both set the Content-Security-Policy allows `accounts.google.com`, `apis.google.com` and `docs.google.com` |

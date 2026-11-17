@@ -42,6 +42,12 @@ COMPOSIO_SLACK_AUTH_CONFIG_ID=
 COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID=
 COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID=
 COMPOSIO_SALESFORCE_AUTH_CONFIG_ID=
+# QuickBooks Online sync, record-keeping only (v1.13.0, docs/accounting.md): an auth config with
+# com.intuit.quickbooks.accounting only (also on the jobs Worker). Unset, QuickBooks is hidden.
+COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID=
+# Google Search Console for operators, read only (v1.13.0, docs/measures.md): an auth config on
+# google_search_console with webmasters.readonly. Unset, Search Console is hidden on the measures screen.
+COMPOSIO_SEARCH_CONSOLE_AUTH_CONFIG_ID=
 # Social posting through Zernio (docs/social.md); both, or social posting is hidden.
 ZERNIO_API_KEY=
 ZERNIO_WEBHOOK_SECRET=
@@ -51,6 +57,9 @@ RESEND_FROM=
 GALLERY_MODERATORS=
 # Partner directory moderators (v1.12.0): optional; while unset or blank, GALLERY_MODERATORS moderate (a secret, never in wrangler.toml)
 DIRECTORY_MODERATORS=
+# OpenGrants' operators, who read the growth measures (v1.13.0): user ids or email addresses; while
+# unset or blank, GALLERY_MODERATORS. An email entry never matches a single sign-on session. A secret, never in wrangler.toml.
+OPERATORS=
 RESEND_INBOUND_SECRET=
 # Domain that receives replies (thread+<id>@domain); defaults to the domain of RESEND_FROM
 RESEND_INBOUND_DOMAIN=

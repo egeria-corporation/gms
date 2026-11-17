@@ -679,3 +679,44 @@ says which connected apps this server offers (`available.slack`, `googleCalendar
 | `POST /gms/translations/forms/{id}/draft`, `POST /gms/translations/opportunities/{id}/draft` | Implemented | `assist` with `forms:write` / `opportunities:write`, funders. The assistant's drafts of missing or stale texts; saves nothing; one call against the monthly quota (agents may draft) |
 | `GET /gms/public/funders/{handle}/opportunities/{slug}` | Changed | Title, summary and eligibility in the reader's language (`?lang=`, cookie, `Accept-Language`); `opportunity.language` and `opportunity.translations`; `Vary: Accept-Language, Cookie` |
 
+
+## Live co-editing, the QuickBooks sync, the operators' measures and single sign-on (v1.13.0)
+
+### Live co-editing (`docs/co-editing.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `POST /gms/presence/passes` | Implemented | A signed-in person's session only (agents and API clients 403 `person_required`). The pass to a draft's private Realtime channel, issued by `access()`/`loadOutside()`; 404 to anyone who cannot open the draft, 409 `not_a_draft` once submitted. The editor leaves the channel when any call for the draft answers 403 or 404 |
+
+### Share-kit downloads (`docs/award-sharing.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `POST /gms/awards/{id}/sharing/uses`, `POST /gms/my/awards/{id}/sharing/uses` | Implemented | A person's session only (403 `person_required` for tokens). `{ kind: "press_release" \| "portrait" }`: counted in `share_kit_uses` as the award, the part and the day, once a day; 409 `not_public`, 404 for another side's award |
+| `GET /gms/awards/{id}/sharing/carousel.pdf`, `GET /gms/my/awards/{id}/sharing/carousel.pdf` | Changed | A person's download is counted the same way (an agent's is not) |
+
+### QuickBooks sync, record-keeping only (`docs/accounting.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `POST /gms/connectors/quickbooks`, `DELETE /gms/connectors/quickbooks` | Implemented | A workspace admin, signed in (agents and API clients refused). Connect through Composio, accounting scope only; disconnecting turns the sync off |
+| `GET /gms/accounting`, `GET /gms/accounting/options`, `GET /gms/accounting/vendors` | Implemented | `payments:read`, admins and finance staff (and their agents): the mapping, QuickBooks' accounts, classes, locations and vendors (any run of five or more digits in a name shown as "•••" and the last four) |
+| `PUT /gms/accounting/settings`, `PUT /gms/accounting/vendors` | Implemented | Admins and finance staff, in person (`humanOnly`, before the body is read): the mapping, the switch, a grantee's vendor |
+| `GET /gms/accounting/entries` | Implemented | `payments:read`. Settled and returned payments (newest 200) next to their QuickBooks entries; `?compare=true` reads at most 25 back from QuickBooks, writing nothing |
+| `POST /gms/accounting/entries/{id}/handled`, `POST /gms/accounting/entries/{id}/retry` | Implemented | Admins and finance staff, in person: "Mark as fixed" and "Try again". The GMS never changes or deletes a QuickBooks entry and never moves money |
+| MCP `get_accounting_sync` | Implemented | Read only |
+
+### The operators' growth measures (`docs/measures.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/operator/me` | Implemented | A signed-in person's session only (tokens 401 `session_required`): whether they are on `OPERATORS` (else `GALLERY_MODERATORS`); an email entry never matches a single sign-on session |
+| `GET /gms/operator/measures` | Implemented | Operators only (403 `not_an_operator`, before any body is read). The nine measures over the last 30 days, counts only |
+| `POST /gms/operator/lost-deals` | Implemented | Operators only. `{ reason, day? }` from a fixed list; no free text |
+| `GET /gms/operator/search-console`, `DELETE …`, `POST …/connect`, `PUT …/site`, `GET …/report` | Implemented | Operators only. Google Search Console through Composio, `webmasters.readonly`; the GMS's own property; clicks and impressions by kind of page, never by address |
+
+### Single sign-on (`docs/sso.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| Every route that accepts a person's session | Changed | A single sign-on session is accepted only when its address's domain is an active domain registered for one of its identity providers; otherwise 403 `sso_domain_mismatch` |
