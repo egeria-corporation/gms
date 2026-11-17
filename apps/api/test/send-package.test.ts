@@ -166,7 +166,10 @@ describe("the package", () => {
       last = at;
     }
     expect(text).not.toContain("2027-04-25");
-    expect(text).toContain("Prepared with the OpenGrants Grant Management System, free for funders and applicants · gms.opengrants.io");
+    // E4: the footer links funders to "for funders" with this applicant's package link.
+    const ref = (await h.repos.table("referral_links").one({ workspace_id: WS_APPLICANT, kind: "package" }))!.token;
+    // The PDF's footer is the short form, so it fits the page beside the page number.
+    expect(text).toContain(`OpenGrants GMS, free for funders · app.gms.test/for-funders?ref=${ref}`);
     for (const never of ["Audit 2026", "Other application file", "Funder guidelines"]) expect(text).not.toContain(never);
 
     const { bytes: zip } = await bytesOf(`/gms/outside-applications/${oaId}/package.zip`);
@@ -178,7 +181,7 @@ describe("the package", () => {
     const answers = entries.get("answers.txt")!.toString("utf8");
     expect(answers.indexOf("1. Summarize the project.")).toBeLessThan(answers.indexOf("2. Describe the need."));
     expect(answers).toContain("3. Who is served?\n\n(no answer given)");
-    expect(answers.trimEnd().endsWith("gms.opengrants.io")).toBe(true);
+    expect(answers.trimEnd().endsWith(`/for-funders?ref=${ref}`)).toBe(true);
   });
 
   it("gives the same bytes for the same content, and reads the same with zip tools", async () => {
@@ -371,14 +374,14 @@ describe("the footer setting", () => {
     const sum = await data<{ footer: { shown: boolean } }>(s.applicant, "GET", `/gms/outside-applications/${oaId}/package`);
     expect(sum.footer.shown).toBe(false);
     const pdf = (await bytesOf(`/gms/outside-applications/${oaId}/package.pdf`)).bytes;
-    expect(pdfText(pdf)).not.toContain("Prepared with");
+    expect(pdfText(pdf)).not.toContain("for-funders");
     expect(pdfText(pdf)).toContain("Page 1 of");
     const answers = unzip((await bytesOf(`/gms/outside-applications/${oaId}/package.zip`)).bytes).get("answers.txt")!.toString();
     expect(answers).not.toContain("Prepared with");
     const p = await data<{ text: string; html: string }>(s.applicant, "POST", `/gms/outside-applications/${oaId}/package/email/preview`, { to: "lee@northwind.example" });
     expect(p.text + p.html).not.toContain("Prepared with");
     await data(s.applicant, "PUT", "/gms/send-package/settings", { poweredBy: true });
-    expect(pdfText((await bytesOf(`/gms/outside-applications/${oaId}/package.pdf`)).bytes)).toContain("Prepared with");
+    expect(pdfText((await bytesOf(`/gms/outside-applications/${oaId}/package.pdf`)).bytes)).toContain("OpenGrants GMS, free for funders");
   });
 });
 
