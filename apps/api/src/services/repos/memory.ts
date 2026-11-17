@@ -167,6 +167,9 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   calendar_links: () => ({ status: "pending", calendar_id: null, calendar_name: null, event_map: {}, last_sync_at: null }),
   // 0045: a call's submission to a listing service (Philanthropy News Digest).
   syndication_sends: () => ({ message_id: null, sent_at: null }),
+  // 0051: QuickBooks sync (off until a person turns it on) and one entry per payment.
+  accounting_links: () => ({ provider: "quickbooks", expense_ref: null, expense_name: null, paid_from_ref: null, paid_from_name: null, tracking: "none", program_map: {}, vendor_map: {}, vendor_policy: "create", currency: "USD", sync_enabled: false, sync_from: null, locale: "en", updated_by: null }),
+  accounting_entries: () => ({ provider: "quickbooks", status: "posting", reason: null, external_id: null, vendor_ref: null, vendor_name: null, attempts: 1, posted_at: null, attention: null, attention_at: null, handled_by: null, handled_at: null }),
   // 0046: imported history (past applications, reviews and reports), written by the import only.
   history_applications: () => ({ organization_workspace_id: null, award_id: null, program_id: null, program_name: null, call_title: null, submitted_on: null, outcome_label: null, currency: "USD", requested_amount_minor: null, awarded_amount_minor: null, answers: [], source_key: null, source_system: null, import_run_id: null }),
   history_reviews: () => ({ application_id: null, application_key: null, application_title: null, organization_name: null, reviewer_name: null, scores: [], total_score: null, recommendation: null, comment: null, reviewed_on: null, source_key: null, source_system: null, import_run_id: null }),
@@ -230,6 +233,9 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   calendar_links: [{ columns: ["workspace_id", "user_id"] }],
   // One submission per call and listing service (0045).
   syndication_sends: [{ columns: ["opportunity_id", "target"] }],
+  // 0051: one mapping per workspace and provider; one entry per payment, and the GMS reference once per workspace.
+  accounting_links: [{ columns: ["workspace_id", "provider"] }],
+  accounting_entries: [{ columns: ["workspace_id", "tranche_id"], whereNotNull: "tranche_id" }, { columns: ["workspace_id", "doc_number"] }],
   // 0047: one invitation per address per workspace, the weekly places, one live link of each kind.
   peer_invitations: [{ columns: ["workspace_id", "email_hash"] }, { columns: ["workspace_id", "week_start", "slot"] }, { columns: ["token_hash"] }],
   referral_links: [{ columns: ["token"] }, { columns: ["workspace_id", "kind"], whereNull: "revoked_at" }],

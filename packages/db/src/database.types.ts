@@ -6,6 +6,144 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      accounting_entries: {
+        Row: {
+          amount_minor: number;
+          attempts: number;
+          attention: Json | null;
+          attention_at: string | null;
+          created_at: string;
+          currency: string;
+          doc_number: string;
+          external_id: string | null;
+          handled_at: string | null;
+          handled_by: string | null;
+          id: string;
+          memo: string;
+          paid_on: string;
+          posted_at: string | null;
+          provider: string;
+          reason: string | null;
+          status: string;
+          tranche_id: string | null;
+          updated_at: string;
+          vendor_name: string | null;
+          vendor_ref: string | null;
+          workspace_id: string;
+        };
+        Insert: {
+          amount_minor: number;
+          attempts?: number;
+          attention?: Json | null;
+          attention_at?: string | null;
+          created_at?: string;
+          currency: string;
+          doc_number: string;
+          external_id?: string | null;
+          handled_at?: string | null;
+          handled_by?: string | null;
+          id?: string;
+          memo: string;
+          paid_on: string;
+          posted_at?: string | null;
+          provider?: string;
+          reason?: string | null;
+          status?: string;
+          tranche_id?: string | null;
+          updated_at?: string;
+          vendor_name?: string | null;
+          vendor_ref?: string | null;
+          workspace_id: string;
+        };
+        Update: {
+          amount_minor?: number;
+          attempts?: number;
+          attention?: Json | null;
+          attention_at?: string | null;
+          created_at?: string;
+          currency?: string;
+          doc_number?: string;
+          external_id?: string | null;
+          handled_at?: string | null;
+          handled_by?: string | null;
+          id?: string;
+          memo?: string;
+          paid_on?: string;
+          posted_at?: string | null;
+          provider?: string;
+          reason?: string | null;
+          status?: string;
+          tranche_id?: string | null;
+          updated_at?: string;
+          vendor_name?: string | null;
+          vendor_ref?: string | null;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      accounting_links: {
+        Row: {
+          created_at: string;
+          currency: string;
+          expense_name: string | null;
+          expense_ref: string | null;
+          id: string;
+          locale: string;
+          paid_from_name: string | null;
+          paid_from_ref: string | null;
+          program_map: Json;
+          provider: string;
+          sync_enabled: boolean;
+          sync_from: string | null;
+          tracking: string;
+          updated_at: string;
+          updated_by: string | null;
+          vendor_map: Json;
+          vendor_policy: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          currency?: string;
+          expense_name?: string | null;
+          expense_ref?: string | null;
+          id?: string;
+          locale?: string;
+          paid_from_name?: string | null;
+          paid_from_ref?: string | null;
+          program_map?: Json;
+          provider?: string;
+          sync_enabled?: boolean;
+          sync_from?: string | null;
+          tracking?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          vendor_map?: Json;
+          vendor_policy?: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          currency?: string;
+          expense_name?: string | null;
+          expense_ref?: string | null;
+          id?: string;
+          locale?: string;
+          paid_from_name?: string | null;
+          paid_from_ref?: string | null;
+          program_map?: Json;
+          provider?: string;
+          sync_enabled?: boolean;
+          sync_from?: string | null;
+          tracking?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          vendor_map?: Json;
+          vendor_policy?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       agreements: {
         Row: {
           award_id: string;
@@ -4616,4 +4754,4 @@ export type Tables<T extends TableName> = PublicTables[T]["Row"];
 export type TablesInsert<T extends TableName> = PublicTables[T]["Insert"];
 export type TablesUpdate<T extends TableName> = PublicTables[T]["Update"];
 
-export const TABLE_NAMES = ["agreements","alert_deliveries","alert_subscriptions","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","calendar_links","coi_policies","coi_signatures","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","digest_sends","digest_subscriptions","directory_listings","discover_saved","documents","form_responses","forms","funder_records","funds","gallery_items","gallery_submissions","grantee_records","history_applications","history_reports","history_reviews","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","package_sends","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","peer_invitations","programs","referral_joins","referral_links","reminder_sends","report_files","report_schedules","report_views","requirements","review_assignments","reviews","rubrics","share_kit_profiles","social_accounts","social_posts","social_profiles","social_reminder_prompts","submissions","syndication_sends","tasks","templates","threads","tranches","user_preferences","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspace_sso_domains","workspaces"] as const satisfies readonly TableName[];
+export const TABLE_NAMES = ["accounting_entries","accounting_links","agreements","alert_deliveries","alert_subscriptions","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","calendar_links","coi_policies","coi_signatures","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","digest_sends","digest_subscriptions","directory_listings","discover_saved","documents","form_responses","forms","funder_records","funds","gallery_items","gallery_submissions","grantee_records","history_applications","history_reports","history_reviews","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","package_sends","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","peer_invitations","programs","referral_joins","referral_links","reminder_sends","report_files","report_schedules","report_views","requirements","review_assignments","reviews","rubrics","share_kit_profiles","social_accounts","social_posts","social_profiles","social_reminder_prompts","submissions","syndication_sends","tasks","templates","threads","tranches","user_preferences","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspace_sso_domains","workspaces"] as const satisfies readonly TableName[];
