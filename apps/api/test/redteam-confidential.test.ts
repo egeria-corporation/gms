@@ -10,6 +10,9 @@
 //   * the digests: the funder's activity digest (counts only) and the new-matches digest;
 //   * a scheduled report: sent to members of the workspace only, by user id, with counts and a link,
 //     never the file, so no title reaches an inbox outside the workspace.
+//   * (v1.12.0) the open-call feeds and the OpenGrants index feed, "Meet our grantees" (the program
+//     post's composer), and imported history: its rows on a confidential award are read by the
+//     funder's staff only, never by a reviewer, the grantee or the public.
 // Marking an award confidential takes it off every surface at once, and clearing it brings it back.
 import { describe, expect, it } from "vitest";
 import * as content from "../src/services/content-digests.ts";
@@ -44,7 +47,21 @@ async function setup() {
   // The funder lists its awards and publishes open data with a feed.
   await put("/gms/award-sharing/settings", { listAwards: true });
   await put("/gms/open-data/settings", { threeSixtyGivingPrefix: PREFIX, publishFeed: true });
-  return { h, listed, secret, unlisted, admin, grantee, put };
+  // v1.12.0: social posting on (for Meet our grantees), a published open call in the feeds, and
+  // imported history on each award (the confidential one's says so in its own words).
+  h.env.ZERNIO_API_KEY = "zk_test_made_up";
+  h.env.ZERNIO_WEBHOOK_SECRET = "zernio-webhook-secret-for-unit-tests";
+  await h.repos.table("opportunities").insert({ workspace_id: WS_FUNDER, program_id: PROGRAM, slug: "community-health-2028", title: "Community Health 2028", description: "Open call.", status: "open", published_at: "2027-04-01T12:00:00.000Z", publish: { publicPage: true, openGrantsIndex: true, sitemap: true } } as never);
+  for (const [a, title] of [[listed, LISTED], [secret, SECRET], [unlisted, UNLISTED]] as const) {
+    await h.repos.table("history_applications").insert({ workspace_id: WS_FUNDER, award_id: a.id, program_id: PROGRAM, organization_workspace_id: WS_APPLICANT, title: `${title} (past application)`, organization_name: "Alder Creek Family Services", outcome: "awarded" } as never);
+    await h.repos.table("history_reports").insert({ workspace_id: WS_FUNDER, award_id: a.id, organization_workspace_id: WS_APPLICANT, title: `${title} (past report)`, award_title: title, report_state: "approved" } as never);
+  }
+  const reviewer = await (async () => {
+    const id = "15151515-1515-4151-8151-151515151515";
+    await h.repos.table("workspace_members").insert({ workspace_id: WS_FUNDER, user_id: id, role: "reviewer" });
+    return who(id, WS_FUNDER);
+  })();
+  return { h, listed, secret, unlisted, admin, grantee, reviewer, put };
 }
 type S = Awaited<ReturnType<typeof setup>>;
 
@@ -64,6 +81,15 @@ async function everywhere(s: S): Promise<string> {
   // The digests: the funder's activity and the grantee's new matches, as next Monday's emails.
   await text("/gms/digests/preview?digest=funder_activity", s.admin);
   await text("/gms/digests/preview?digest=new_matches", s.grantee);
+  // v1.12.0: the open-call feeds and the OpenGrants index feed; "Meet our grantees" for the program
+  // (the funder's composer: what would be posted); imported history as a reviewer and as the
+  // grantee would ask for it, by organization and by each award.
+  for (const path of ["/gms/public/feeds/opportunities.json", "/gms/public/feeds/opportunities.csv", "/gms/public/feeds/opportunities.rss", "/gms/public/feeds/opengrants.json"]) await text(path);
+  await text(`/gms/social/compose?subjectType=program&subjectId=${PROGRAM}`, s.admin);
+  for (const as of [s.reviewer, s.grantee]) {
+    await text(`/gms/history?organization=${WS_APPLICANT}`, as);
+    for (const a of [s.listed, s.secret, s.unlisted]) await text(`/gms/history?award=awd_${a.id}`, as);
+  }
   return parts.join("\n\n");
 }
 
@@ -78,6 +104,31 @@ describe("a confidential or unlisted award, everywhere outside the parties' own 
     for (const a of [s.secret, s.unlisted]) {
       expect((await s.h.request(`/gms/public/funders/riverbend/awards/${slugOf(a)}`)).status).toBe(404);
       expect((await s.h.request(`/gms/public/badges/${slugOf(a)}.svg`)).status).toBe(404);
+    }
+  });
+
+  it("is never introduced in Meet our grantees, which lists the award beside it", async () => {
+    const s = await setup();
+    const d = (await (await s.h.request(`/gms/social/compose?subjectType=program&subjectId=${PROGRAM}`, { headers: s.admin })).json()) as { data: { shareable: boolean; grantees: { awardId: string }[]; suggestions: { text: string }[] } };
+    expect(d.data.shareable).toBe(true);
+    expect(d.data.grantees.map((g) => g.awardId)).toEqual([`awd_${s.listed.id}`]);
+    const text = d.data.suggestions.map((x) => x.text).join(" ");
+    expect(text).toContain(LISTED);
+    for (const hidden of [SECRET, UNLISTED]) expect(text).not.toContain(hidden);
+  });
+
+  it("keeps its imported history to the funder's staff: no reviewer, grantee or public page reads it", async () => {
+    const s = await setup();
+    // The staff read every past record, the confidential award's included, on the award's page.
+    const staff = await (await s.h.request(`/gms/history?award=awd_${s.secret.id}`, { headers: s.admin })).text();
+    expect(staff).toContain(`${SECRET} (past application)`);
+    expect(staff).toContain(`${SECRET} (past report)`);
+    for (const as of [s.reviewer, s.grantee]) {
+      for (const path of [`/gms/history?award=awd_${s.secret.id}`, `/gms/history?organization=${WS_APPLICANT}`]) {
+        const res = await s.h.request(path, { headers: as });
+        expect([403, 404], path).toContain(res.status);
+        expect(await res.text()).not.toContain("(past ");
+      }
     }
   });
 
