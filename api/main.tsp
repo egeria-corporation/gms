@@ -21,6 +21,7 @@ import "./guest-review.tsp";
 import "./digests.tsp";
 import "./importer-adapters.tsp";
 import "./connectors.tsp";
+import "./syndication.tsp";
 
 using TypeSpec.Http;
 

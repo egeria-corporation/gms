@@ -332,8 +332,11 @@ export async function hasLivePassportLink(ctx: ServiceContext, ws: Ws): Promise<
   return !!ws.passport_org_id && !!(await ctx.repos.table("passport_links").one({ workspace_id: ws.id, mode: "applicant_consent", revoked_at: null }));
 }
 
-/** The one source an application start records: a shared social link (services/social.ts counts it). */
-export const START_SOURCES = ["social"] as const;
+/**
+ * The sources an application start records: a shared social link (services/social.ts counts it),
+ * an open-call feed item and a Philanthropy News Digest listing (services/syndication.ts counts those).
+ */
+export const START_SOURCES = ["social", "feed", "pnd"] as const;
 export type StartSource = { utmSource?: (typeof START_SOURCES)[number] };
 export const startSourceOf = (utm: string | undefined): StartSource => ((START_SOURCES as readonly string[]).includes(utm ?? "") ? { utmSource: utm as StartSource["utmSource"] } : {});
 

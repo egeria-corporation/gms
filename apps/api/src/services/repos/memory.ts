@@ -164,6 +164,8 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   alert_subscriptions: (at) => ({ provider: "slack", events: [], enabled: true, locale: "en", alerts_from: at, created_by: null }),
   alert_deliveries: () => ({ status: "sending", attempts: 1, slack_ts: null }),
   calendar_links: () => ({ status: "pending", calendar_id: null, calendar_name: null, event_map: {}, last_sync_at: null }),
+  // 0045: a call's submission to a listing service (Philanthropy News Digest).
+  syndication_sends: () => ({ message_id: null, sent_at: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -213,6 +215,8 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   alert_subscriptions: [{ columns: ["workspace_id", "provider"] }],
   alert_deliveries: [{ columns: ["subscription_id", "event_key"] }],
   calendar_links: [{ columns: ["workspace_id", "user_id"] }],
+  // One submission per call and listing service (0045).
+  syndication_sends: [{ columns: ["opportunity_id", "target"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -259,6 +263,8 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   package_sends: { outside_application_id: "outside_applications" },
   // 0041 checks this one with its own trigger (gms.digest_subscription_check), with the person too.
   digest_subscriptions: { member_id: "workspace_members" },
+  // 0045 checks this one with its own trigger (gms.syndication_sends_same_workspace).
+  syndication_sends: { opportunity_id: "opportunities" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

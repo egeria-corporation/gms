@@ -160,6 +160,8 @@ const RULES: { [T in TableName]: Rule } = {
   social_posts: SUBJECT,
   social_profiles: OPEN,
   submissions: parent("award_id", "awards", "Award"),
+  // 0045: a call's submission to a listing service is its call's.
+  syndication_sends: parent("opportunity_id", "opportunities", "Opportunity"),
   tasks: SUBJECT,
   templates: OPEN,
   threads: { kind: "check", allowed: SUBJECT.allowed, inWorkspace: async (r, v) => r.workspace_id === v.workspaceId || r.funder_workspace_id === v.workspaceId },

@@ -37,6 +37,7 @@ import * as openData from "./open-data.ts";
 import * as opportunities from "./opportunities.ts";
 import * as outside from "./outside.ts";
 import * as sendPackage from "./send-package.ts";
+import * as syndication from "./syndication.ts";
 import * as org from "./organization.ts";
 import * as payments from "./payments.ts";
 import * as programs from "./programs.ts";
@@ -105,6 +106,7 @@ const IMPLEMENTED: Impl = {
   listOpportunities: (ctx, i) => opportunities.listOpportunities(ctx, paged(i), { status: i.status, programId: i.programId }),
   getOpportunity: (ctx, i) => opportunities.getOpportunity(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),
   publishOpportunity: (ctx, i) => opportunities.publishOpportunity(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),
+  getOpportunitySyndication: (ctx, i) => syndication.syndicationOf(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),
   listCompetitions: (ctx, i) => competitions.listCompetitions(ctx, i.opportunityId ? { opportunityId: uuidOf("opportunity", i.opportunityId, "Opportunity") } : {}),
   getCompetition: (ctx, i) => competitions.getCompetition(ctx, uuidOf("competition", i.competitionId, "Competition")),
   quickSetupCompetition: (ctx, i) => quickSetup.quickSetupCompetition(ctx, uuidOf("opportunity", i.opportunityId, "Opportunity")),

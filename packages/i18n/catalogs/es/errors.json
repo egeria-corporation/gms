@@ -360,5 +360,11 @@
   "code.drive_too_large": "El archivo supera el tamaño permitido para una carga.",
   "code.drive_not_found": "Google Drive no permitió que el GMS abriera ese archivo. Vuelva a elegirlo en el selector de Google, con la sesión iniciada en la cuenta de Google que se conectó.",
   "code.drive_folder": "Eso es una carpeta. Elija un archivo.",
-  "code.drive_not_downloadable": "Ese tipo de archivo de Google no se puede copiar. Elija un documento, una hoja de cálculo, una presentación o un archivo."
+  "code.drive_not_downloadable": "Ese tipo de archivo de Google no se puede copiar. Elija un documento, una hoja de cálculo, una presentación o un archivo.",
+  "code.pnd_already_sent": "Esta convocatoria ya se envió a Philanthropy News Digest. Cada convocatoria se envía una sola vez",
+  "code.pnd_sending": "Esta convocatoria se está enviando a Philanthropy News Digest. Vuelva a revisar en un minuto",
+  "code.pnd_not_listed": "Publique esta convocatoria con su página pública activada antes de enviarla a Philanthropy News Digest",
+  "code.pnd_call_closed": "Esta convocatoria está cerrada, así que Philanthropy News Digest no la publicaría",
+  "code.pnd_too_late": "Philanthropy News Digest necesita recibir la convocatoria cuatro semanas antes de su primera fecha límite, y esa fecha ya pasó",
+  "code.pnd_no_reply_to": "Agregue un correo de contacto público en Configuración, Página pública, para que Philanthropy News Digest pueda responder"
 }
