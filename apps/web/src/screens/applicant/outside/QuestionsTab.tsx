@@ -2,7 +2,9 @@
 // The questions of an outside application and the answers to them. Questions are typed in or
 // pasted from the funder's guidelines (split into questions for review before anything is saved).
 // Each answer is written here with live counts against the funder's limit, can start from the
-// answer library or an organization fact, and every save is a new version.
+// answer library or an organization fact, and every save is a new version. Written together, each
+// question shows who is in it, is read-only while someone else types in it, and takes their saved
+// answer within seconds unless this person has unsaved changes there (lib/presence.ts).
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router";
 import { BookOpen, Bot, CircleCheck, ClipboardList, Clock, FileClock, Pencil, Plus, Sparkles, Trash, TriangleExclamationPoint, Building, X } from "lucide-react";
@@ -29,6 +31,8 @@ import { InviteDialog, InviteOptions, InvitePicker, InviteSentNote, TeamNote, us
 import { GuidelinesReader } from "./guidelines.tsx";
 import { orgFacts } from "./shared.tsx";
 import { AiUseNote, CommentsButton, CommentsPanel, DraftPanel, ReuseDialog, StaleBadge } from "./writeFaster.tsx";
+import type { DraftPresence } from "../../../lib/presence.ts";
+import { ChangedNote, EditingChips, LockNote } from "../editorPresence.tsx";
 import { t } from "../i18n.ts";
 import { limitPhrase, variantLabel } from "../labels.ts";
 
@@ -670,8 +674,11 @@ export function QuestionCard({
   cowriter = false,
   invites = null,
   onInvite,
+  live = null,
 }: {
   q: OutsideQuestion;
+  /** The draft's live channel: who is in this question, its soft lock, and announcing a save. */
+  live?: DraftPresence | null;
   n: number;
   applicationId: string;
   /** The signed-in person is a consultant invited into this draft: they write answers, the team sets up the questions. */
@@ -720,28 +727,59 @@ export function QuestionCard({
   const nameOf = (id: string | null) => members.find((m) => m.userId === id)?.name ?? (id ? t("outsideQuestionsTab.aTeammate") : t("outsideQuestionsTab.someone"));
   const headId = `oq-${q.id}-h`;
 
+  // Live co-editing. Someone else typing here makes the answer read-only for this person (never
+  // while this person is in it); a new saved answer replaces what is shown unless this person has
+  // unsaved changes, which stay, with "{name} changed this" and the other version a click away.
+  const [inside, setInside] = useState(false);
+  const holder = live?.lockOf(q.id);
+  const lockedOut = !!holder && !inside;
+  const answerReadOnly = readOnly || lockedOut;
+  const here = (live?.inField(q.id) ?? []).filter((p) => p !== holder);
+  const lastSaved = useRef(saved);
+  const lastSent = useRef<string | null>(null);
+  const [clash, setClash] = useState<{ by: string; theirs: string } | null>(null);
+  useEffect(() => {
+    const was = lastSaved.current;
+    if (saved === was) return;
+    lastSaved.current = saved;
+    if (draft === was || draft === saved) {
+      setDraft(saved);
+      return;
+    }
+    const mine = saved === lastSent.current || (!!myId && q.answer?.createdBy === myId);
+    if (!mine) setClash({ by: nameOf(q.answer?.createdBy ?? null), theirs: saved });
+    // Only a new saved answer decides; the draft is read as it is at that moment.
+  }, [saved]);
+  const announce = () => live?.saved(q.id, [q.id]);
+
   const save = async () => {
+    lastSent.current = draft;
     const r = await put.run({ body: draft, ...(fromAi ? { provenance: "assist" as const } : {}) });
     if (r) {
       setFromAi(false);
+      announce();
       onChanged();
     }
   };
   const insertLibrary = async (a: LibraryAnswer, text: string) => {
+    lastSent.current = text;
     const r = await put.run({ body: text, libraryAnswerId: a.id });
     if (r) {
       setDraft(text);
       setFromAi(false);
       setDialog(null);
+      announce();
       onChanged();
     }
   };
   const acceptAi = async (text: string) => {
+    lastSent.current = text;
     const r = await put.run({ body: text, provenance: "assist" });
     if (r) {
       setDraft(text);
       setFromAi(false);
       setAi(false);
+      announce();
       onChanged();
     }
   };
@@ -784,6 +822,7 @@ export function QuestionCard({
             {q.prompt}
           </h3>
           {q.guidance && <p className="small muted">{q.guidance}</p>}
+          <EditingChips peers={here} />
         </div>
         <StatusBadge kind="outsideQuestion" status={q.status} />
       </div>
@@ -869,51 +908,75 @@ export function QuestionCard({
         <label className="lbl" htmlFor={`oq-answer-${q.id}`}>
           {t("outsideQuestionsTab.answerTo", { n })}
         </label>
+        {lockedOut && holder ? <LockNote peer={holder} id={`oq-lock-${q.id}`} /> : null}
+        {clash && (
+          <ChangedNote
+            name={clash.by}
+            theirs={clash.theirs || null}
+            onKeep={() => setClash(null)}
+            onUseTheirs={() => {
+              setDraft(clash.theirs);
+              setClash(null);
+            }}
+          />
+        )}
         <textarea
           ref={area}
           id={`oq-answer-${q.id}`}
           className={isOverLimit(counts, q.limitKind, q.limitValue) ? "ta err" : "ta"}
           style={{ minHeight: "140px" }}
-          readOnly={readOnly}
+          readOnly={answerReadOnly}
           value={draft}
-          aria-describedby={`oq-counts-${q.id}`}
+          aria-describedby={lockedOut ? `oq-lock-${q.id} oq-counts-${q.id}` : `oq-counts-${q.id}`}
           onChange={(e) => setDraft(e.target.value)}
           onSelect={(e) => (cursor.current = e.currentTarget.selectionStart)}
-          onBlur={(e) => (cursor.current = e.currentTarget.selectionStart)}
+          onFocus={() => {
+            setInside(true);
+            live?.focus({ ...(q.section ? { section: q.section } : {}), field: q.id });
+          }}
+          onInput={() => {
+            if (!answerReadOnly) live?.input(q.id);
+          }}
+          onBlur={(e) => {
+            cursor.current = e.currentTarget.selectionStart;
+            setInside(false);
+            live?.blur(q.id);
+            live?.focus(q.section ? { section: q.section } : {});
+          }}
         />
         <Counters id={`oq-counts-${q.id}`} counts={counts} limitKind={q.limitKind} limitValue={q.limitValue} />
         <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
           {!readOnly && (
-            <button type="button" className="btn btn-sm btn-primary" disabled={!dirty || put.state === "saving"} onClick={() => void save()}>
+            <button type="button" className="btn btn-sm btn-primary" disabled={!dirty || put.state === "saving" || lockedOut} onClick={() => void save()}>
               {put.state === "saving" ? t("outsideQuestionsTab.saving") : t("outsideQuestionsTab.saveAnswer")}
             </button>
           )}
           {!readOnly && (
-            <button type="button" className="btn btn-sm btn-secondary" aria-haspopup="dialog" disabled={!answers.length} onClick={() => setDialog("library")}>
+            <button type="button" className="btn btn-sm btn-secondary" aria-haspopup="dialog" disabled={!answers.length || lockedOut} onClick={() => setDialog("library")}>
               <BookOpen className="ic" aria-hidden="true" />
               {t("outsideQuestionsTab.insertFromLibrary")}
             </button>
           )}
           {!readOnly && (
-            <button type="button" className="btn btn-sm btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("fact")}>
+            <button type="button" className="btn btn-sm btn-secondary" aria-haspopup="dialog" disabled={lockedOut} onClick={() => setDialog("fact")}>
               <Building className="ic" aria-hidden="true" />
               {t("outsideQuestionsTab.insertAFact")}
             </button>
           )}
           {!readOnly && assistOn && (
-            <button type="button" className="btn btn-sm btn-secondary" aria-expanded={ai} onClick={() => setAi((v) => !v)}>
+            <button type="button" className="btn btn-sm btn-secondary" aria-expanded={ai} disabled={lockedOut} onClick={() => setAi((v) => !v)}>
               <Sparkles className="ic" aria-hidden="true" />
               {t("outsideQuestionsTab.draftWithAi")}
             </button>
           )}
           {!readOnly && assistOn && answers.length > 0 && (
-            <button type="button" className="btn btn-sm btn-secondary" aria-expanded={fit} onClick={() => setFit((v) => !v)}>
+            <button type="button" className="btn btn-sm btn-secondary" aria-expanded={fit} disabled={lockedOut} onClick={() => setFit((v) => !v)}>
               <Sparkles className="ic" aria-hidden="true" />
               {t("outsideQuestionsTab.fitToLimit")}
             </button>
           )}
           {!readOnly && reportOf && (
-            <button type="button" className="btn btn-sm btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("reuse")}>
+            <button type="button" className="btn btn-sm btn-secondary" aria-haspopup="dialog" disabled={lockedOut} onClick={() => setDialog("reuse")}>
               <FileClock className="ic" aria-hidden="true" />
               {t("outsideQuestionsTab.reuseFromAnEarlierReport")}
             </button>
@@ -997,7 +1060,7 @@ export function useCanApprove(ownerUserId: string | null | undefined): boolean {
   return mayApprove(ws?.member.role ?? null, meState.status === "ready" ? meState.me.userId : null, ownerUserId);
 }
 
-export function QuestionsTab({ detail, members, answers, org, readOnly, onChanged }: { detail: OutsideDetail; members: ApplicantMember[]; answers: LibraryAnswer[]; org: MyOrganization | null; readOnly: boolean; onChanged: () => void }) {
+export function QuestionsTab({ detail, members, answers, org, readOnly, onChanged, live = null }: { detail: OutsideDetail; members: ApplicantMember[]; answers: LibraryAnswer[]; org: MyOrganization | null; readOnly: boolean; onChanged: () => void; live?: DraftPresence | null }) {
   const [adding, setAdding] = useState(false);
   const [pasting, setPasting] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -1133,6 +1196,7 @@ export function QuestionsTab({ detail, members, answers, org, readOnly, onChange
             onChanged={onChanged}
             cowriter={cowriter}
             invites={inviteList}
+            live={live}
             {...(inviteList?.canInvite ? { onInvite: (questionId: string) => setInviting({ questionId }) } : {})}
           />
         ))
