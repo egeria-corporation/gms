@@ -181,7 +181,7 @@ describe("opportunity translations", () => {
     expect(esBody.opportunity).toMatchObject({ title: "Subvenciones de Salud Comunitaria 2027", description: TR.es.description.text, language: "es", eligibility: ["Organización sin fines de lucro", "Atiende a la región", "Annual budget under $5M"] });
     // The CommonGrants record on the page stays canonical.
     expect(esBody.commonGrants.title).toBe("Community Health Grants 2027");
-    for (const headers of [{ Cookie: "gms_lang=es" }, { "Accept-Language": "es-MX,es;q=0.9" }]) expect((((await (await page("", headers)).json()) as { data: Page }).data.opportunity.title)).toBe("Subvenciones de Salud Comunitaria 2027");
+    for (const headers of [{ Cookie: "gms_lang=es" }, { "Accept-Language": "es-MX,es;q=0.9" }] as Record<string, string>[]) expect((((await (await page("", headers)).json()) as { data: Page }).data.opportunity.title)).toBe("Subvenciones de Salud Comunitaria 2027");
     const en = ((await (await page()).json()) as { data: Page }).data;
     expect(en.opportunity).toMatchObject({ title: "Community Health Grants 2027", language: "en", eligibility: ["Nonprofit organization", "Serves the region", "Annual budget under $5M"] });
     expect(en.opportunity.translations).toEqual({ es: { title: "Subvenciones de Salud Comunitaria 2027", description: TR.es.description.text } });
