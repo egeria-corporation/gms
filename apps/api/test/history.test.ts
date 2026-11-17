@@ -6,6 +6,7 @@
 // becomes a live application, review, decision, payment or requirement; only the funder's staff
 // read it (never a reviewer, a grantee, a fund advisor outside its funds, or a token without the
 // scope); and the report builder's "Imported history" data set carries no reviewer or contact column.
+import type { TableName } from "@gms/db";
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it } from "vitest";
 import { USER_ADMIN, USER_AUDITOR, USER_OFFICER, WS_APPLICANT, WS_FUNDER, bearer, clientCredentialsToken, harness, type Harness } from "./helpers.ts";
@@ -56,10 +57,10 @@ const csvImport = async (target: string, text: string, mapping: Record<string, s
   throw new Error("the import did not finish");
 };
 
-const t = (name: Parameters<Harness["repos"]["table"]>[0]) => h.repos.table(name);
+const t = <T extends TableName>(name: T) => h.repos.table(name);
 async function liveCounts() {
   const tables = ["applications", "review_assignments", "reviews", "decisions", "tranches", "payment_schedules", "requirements", "submissions"] as const;
-  return Object.fromEntries(await Promise.all(tables.map(async (x) => [x, await t(x).count({})] as const)));
+  return Object.fromEntries(await Promise.all(tables.map(async (x) => [x, await t(x).count({})] as const))) as Record<(typeof tables)[number], number>;
 }
 
 beforeEach(async () => {
