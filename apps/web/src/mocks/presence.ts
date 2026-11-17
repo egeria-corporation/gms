@@ -52,8 +52,8 @@ export interface PresenceRelay {
   listen(receive: (message: string) => void): void;
 }
 interface StoreSync {
-  copy(topic: string, target: string): unknown;
-  apply(topic: string, target: string, copy: unknown): void;
+  copy(topic: string, saved: SavedMessage): unknown;
+  apply(topic: string, saved: SavedMessage, copy: unknown): void;
 }
 
 export interface PresenceHub extends PresenceTransport {
@@ -112,7 +112,7 @@ export function createPresenceHub(opts: { authorize?: (topic: string, me: Presen
       r.delete(key);
       later(() => sync(w.topic));
     } else if (w.t === "send") {
-      if (w.event === "saved" && w.copy !== undefined) opts.sync?.apply(w.topic, (w.payload as SavedMessage).target, w.copy);
+      if (w.event === "saved" && w.copy !== undefined) opts.sync?.apply(w.topic, w.payload as SavedMessage, w.copy);
       later(() => deliver(w.topic, key, w.event, w.payload));
     }
   });
@@ -154,7 +154,7 @@ export function createPresenceHub(opts: { authorize?: (topic: string, me: Presen
         },
         send(event: "lock" | "saved", payload: LockMessage | SavedMessage) {
           if (!r.has(key) || !online) return;
-          const copy = event === "saved" && opts.relay ? opts.sync?.copy(topic, (payload as SavedMessage).target) : undefined;
+          const copy = event === "saved" && opts.relay ? opts.sync?.copy(topic, payload as SavedMessage) : undefined;
           wire({ t: "send", topic, from: key, event, payload, ...(copy !== undefined ? { copy } : {}) });
           later(() => deliver(topic, key, event, payload));
         },
@@ -173,28 +173,42 @@ export function createPresenceHub(opts: { authorize?: (topic: string, me: Presen
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
-/** Copies a saved answer between two pages' mock stores (end-to-end tests only; see the top of the file). */
+/**
+ * Copies a saved answer between two pages' mock stores (end-to-end tests only; see the top of the
+ * file): the saved questions of a form, as the API merges a save field by field, or an outside
+ * question's versions.
+ */
 export function mockStoreSync(stores: { applicant: ApplicantStore; outside: OutsideStore }): StoreSync {
   const find = (topic: string, target: string) => {
     const [, kind, id] = topic.split(":");
     if (kind === "application") {
       const form = stores.applicant.applications.find((a) => a.uuid === id)?.forms.find((f) => f.formId === target);
-      return form ? { kind, form } : null;
+      return form ? { form } : null;
     }
     const q = stores.outside.applications.find((a) => bare(a.id) === id)?.questions.find((x) => x.id === target);
-    return q ? { kind, q } : null;
+    return q ? { q } : null;
   };
+  const keyOf = (field: string) => field.replace(/^\//, "").split("/")[0] ?? "";
   return {
-    copy(topic, target) {
-      const f = find(topic, target);
-      if (!f) return undefined;
-      return f.kind === "application" ? clone(f.form) : clone({ versions: f.q!.versions, status: f.q!.status });
+    copy(topic, saved) {
+      const f = find(topic, saved.target);
+      if (f?.form) return { response: Object.fromEntries(saved.fields.map(keyOf).filter(Boolean).map((k) => [k, f.form.response[k] ?? null])), lastModifiedAt: f.form.lastModifiedAt };
+      if (f?.q) return clone({ versions: f.q.versions, status: f.q.status });
+      return undefined;
     },
-    apply(topic, target, copy) {
-      const f = find(topic, target);
-      if (!f || !copy || typeof copy !== "object") return;
-      if (f.kind === "application") Object.assign(f.form!, clone(copy));
-      else Object.assign(f.q!, clone(copy));
+    apply(topic, saved, copy) {
+      const f = find(topic, saved.target);
+      if (!copy || typeof copy !== "object") return;
+      if (f?.form) {
+        const c = copy as { response?: Record<string, unknown>; lastModifiedAt?: string };
+        const response = { ...f.form.response } as Record<string, unknown>;
+        for (const [k, v] of Object.entries(c.response ?? {})) {
+          if (v === null) delete response[k];
+          else response[k] = clone(v);
+        }
+        f.form.response = response as typeof f.form.response;
+        if (c.lastModifiedAt) f.form.lastModifiedAt = c.lastModifiedAt;
+      } else if (f?.q) Object.assign(f.q, clone(copy));
     },
   };
 }

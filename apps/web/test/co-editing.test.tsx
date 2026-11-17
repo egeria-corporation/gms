@@ -63,7 +63,7 @@ const flush = async () => {
 };
 
 /** A room on the hub that records what it sees and the locks that pass by. */
-function watcher(hub: PresenceHub, who = JAMAL, opts: { canWrite?: boolean; clock?: Clock } = {}) {
+function watcher(hub: PresenceHub, who: { userId: string; name: string } = JAMAL, opts: { canWrite?: boolean; clock?: Clock } = {}) {
   const seen: { snap: RoomSnapshot; saved: string[] } = { snap: { status: "connecting", peers: [] }, saved: [] };
   const room = createDraftRoom({ transport: hub, topic: TOPIC, me: who, canWrite: opts.canWrite ?? true, ...(opts.clock ? { clock: opts.clock } : {}), onChange: (s) => (seen.snap = s), onSaved: (m) => seen.saved.push(`${m.target} ${m.fields.join(",")}`) });
   return { room, seen, lockOf: (userId: string) => seen.snap.peers.find((p) => p.userId === userId)?.lock };
@@ -230,7 +230,8 @@ function openEditor(opts: { hub?: PresenceHub | null; refuse?: boolean; api?: (b
     </MemoryRouter>,
   );
   const lenaApi = createMockApplicantApi({ session: async () => demoSession(), store, actor: LENA });
-  return { ...view, store, hub, outside, lenaApi, services };
+  // Without a channel there is no hub to speak on; a spare one keeps the type simple.
+  return { ...view, store, hub: hub ?? createPresenceHub(), outside, lenaApi, services };
 }
 const lenaIn = (hub: PresenceHub, topic = TOPIC) => createDraftRoom({ transport: hub, topic, me: LENA, canWrite: true, onChange: () => undefined, onSaved: () => undefined });
 const rail = (locale: "en" | "es" = "en") => screen.getByRole("navigation", { name: locale === "en" ? "Application sections" : "Secciones de la solicitud" });
