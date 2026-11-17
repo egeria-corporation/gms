@@ -3,7 +3,7 @@
 // where it stands and offers the next move; the tabs hold the questions and answers, what has to
 // be ready, where and how it was submitted, notes, and who did what. Written together, the team and
 // an invited cowriter see who is in the draft now and each other's answers live (lib/presence.ts).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { Archive, ArchiveArrowUp, Award, HandHelping, Pencil, RotateCcw, Scale, Send } from "lucide-react";
 import type { ApplicantApi } from "../../api/applicant.ts";
@@ -76,6 +76,12 @@ export default function OutsideApplication() {
   const move = useOutsideMutation((api, to: OutsideStage) => api.move(outsideId, to));
   const reopen = useOutsideMutation((api) => api.reopen(outsideId));
   const archive = useOutsideMutation((api, on: boolean) => (on ? api.archive(outsideId) : api.unarchive(outsideId)));
+  // A reload or a change refused with 403/404 (the person lost access to this draft): leave its live channel now.
+  const queryError = query.status === "error" ? query.error : null;
+  const { apiFailed } = live;
+  useEffect(() => {
+    for (const e of [queryError, move.error, reopen.error, archive.error]) if (e) apiFailed(e);
+  }, [queryError, move.error, reopen.error, archive.error, apiFailed]);
   const after = (a: OutsideRecord | undefined, message: string) => {
     if (!a) return;
     setDialog(null);

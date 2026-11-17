@@ -154,6 +154,8 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
     setForms((prev) => ({ ...prev, [next.formId]: { ...next, response: shown } }));
   }, []);
 
+  // An API call for this draft refused (403/404): the editor leaves the live channel at once.
+  const leftOnRefusal = useRef<(error: unknown) => void>(() => undefined);
   // Someone else saved: read the form again through the API, after any save of this person's in flight.
   const onPeerSaved = useCallback(
     (m: SavedMessage, by: Peer | undefined) => {
@@ -161,7 +163,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
       const name = by?.name ?? data.members.find((x) => x.userId === m.by)?.name ?? t("presence.aTeammate");
       saving.current = saving.current.then(async () => {
         const sent = baseline.current[m.target] ?? {};
-        const fresh = await api.application(app.id).catch(() => null);
+        const fresh = await api.application(app.id).catch((error: unknown) => (leftOnRefusal.current(error), null));
         const f = fresh?.forms.find((x) => x.formId === m.target);
         if (f) adopt(f, sent, name);
       });
@@ -169,6 +171,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
     [api, app.id, app.forms, adopt, data.members],
   );
   const live = useDraftPresence({ workspaceId: ws.id, draft: { kind: "application", id: app.id }, me, onSaved: onPeerSaved });
+  leftOnRefusal.current = live.apiFailed;
 
   const push = useCallback(
     (formId: string): Promise<void> => {
@@ -185,12 +188,13 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
           setSave({ state: "saved", at: saved.lastModifiedAt || new Date().toISOString() });
           live.saved(formId, Object.keys(patch).map((k) => `/${k}`));
         } catch (error) {
+          live.apiFailed(error);
           setSave({ state: "error", error });
         }
       });
       return saving.current;
     },
-    [api, app.id, adopt, live.saved],
+    [api, app.id, adopt, live.saved, live.apiFailed],
   );
 
   const active = forms[activeFormId];
@@ -259,6 +263,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
       setSave({ state: "saved", at: saved.lastModifiedAt || new Date().toISOString() });
       live.saved(activeFormId, [`/${field}`]);
     } catch (error) {
+      live.apiFailed(error);
       setSave({ state: "error", error });
     }
   };
@@ -314,6 +319,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
       await api.submit(app.id);
       navigate(`${base}/applications/${app.id}/submitted`);
     } catch (error) {
+      live.apiFailed(error);
       setSubmit({ state: "idle", error });
       if (error instanceof ApiError && error.status === 422) {
         // The server found something this page had not: show every problem and take its state.

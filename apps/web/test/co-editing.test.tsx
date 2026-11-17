@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { ApplicantApi } from "../src/api/applicant.ts";
 import { ApiError } from "../src/api/client.ts";
 import { provideApplicantApi, provideMockApplicantStore } from "../src/api/applicantHooks.ts";
+import type { OutsideApi } from "../src/api/outside.ts";
 import { mockOutsideStore, provideOutsideApi } from "../src/api/outsideHooks.ts";
 import { App } from "../src/app/App.tsx";
 import { createMockServices } from "../src/app/services.tsx";
@@ -213,7 +214,7 @@ describe("live updates in the form", () => {
 
 // ------------------------------------------------------------------------------------ the editors
 
-function openEditor(opts: { hub?: PresenceHub | null; refuse?: boolean; api?: (base: ApplicantApi) => ApplicantApi; path?: string } = {}) {
+function openEditor(opts: { hub?: PresenceHub | null; refuse?: boolean; api?: (base: ApplicantApi) => ApplicantApi; outsideApi?: (base: OutsideApi) => OutsideApi; path?: string } = {}) {
   const services = createMockServices({ session: demoSession() });
   const store = seedApplicantStore();
   const session = () => services.auth.getSession();
@@ -221,7 +222,7 @@ function openEditor(opts: { hub?: PresenceHub | null; refuse?: boolean; api?: (b
   provideMockApplicantStore(services, store);
   provideApplicantApi(services, opts.api ? opts.api(base) : base);
   const outside = createMockOutsideApi({ session, applicant: store, store: mockOutsideStore(services) });
-  provideOutsideApi(services, outside);
+  provideOutsideApi(services, opts.outsideApi ? opts.outsideApi(outside) : outside);
   const hub = opts.hub === undefined ? createPresenceHub() : opts.hub;
   providePresence(services, { transport: hub, api: createMockPresenceApi({ session, ...(opts.refuse ? { refuse: () => true } : {}) }) });
   const view = render(
@@ -330,6 +331,48 @@ describe("the application editor", () => {
     lena.leave();
   });
 
+  it("leaves the channel as soon as a save for the draft is refused (403), and stays out", async () => {
+    // Maria was removed from the team: the API refuses her save before Realtime's next check would.
+    const { hub } = openEditor({ api: (base) => ({ ...base, saveForm: async () => Promise.reject(new ApiError(403, "You are not a member of this workspace", [{ code: "workspace_mismatch" }])) }) });
+    const title = await screen.findByRole("textbox", { name: /Project title/ });
+    const lena = lenaIn(hub);
+    await screen.findByLabelText(/Editing now: .*Lena Fischer/);
+    expect(hub.members(TOPIC).map((m) => m.name).sort()).toEqual(["Lena Fischer", "Maria Santos"]);
+    await userEvent.clear(title);
+    await userEvent.type(title, "x");
+    await waitFor(() => expect(hub.members(TOPIC).map((m) => m.name)).toEqual(["Lena Fischer"]), { timeout: 3000 });
+    expect(await screen.findByText(/Live updates are paused/)).toBeInTheDocument();
+    // Nothing more of the draft's channel reaches her: no lock, no presence.
+    lena.input("/need");
+    await flush();
+    expect(screen.getByRole("textbox", { name: /What need does this project address/ })).toBeEnabled();
+    expect(screen.queryByText(/Lena Fischer/)).toBeNull();
+    lena.leave();
+  });
+
+  it("leaves the channel when reading the draft again answers 404, and a 503 changes nothing", async () => {
+    let answer: "ok" | "404" | "503" = "ok";
+    const { hub, lenaApi } = openEditor({
+      api: (base) => ({
+        ...base,
+        application: async (id: string) => (answer === "ok" ? base.application(id) : Promise.reject(answer === "404" ? new ApiError(404, "Application not found", [{ code: "not_found" }]) : new ApiError(503, "The service is not reachable"))),
+      }),
+    });
+    await screen.findByRole("textbox", { name: /Project title/ });
+    const lena = lenaIn(hub);
+    await screen.findByLabelText(/Editing now: .*Lena Fischer/);
+    answer = "503";
+    await lenaApi.saveForm(APP, APPLICANT_IDS.formFull, { familiesServed: 7 });
+    lena.saved(APPLICANT_IDS.formFull, ["/familiesServed"]);
+    await flush();
+    expect(hub.members(TOPIC).map((m) => m.name).sort()).toEqual(["Lena Fischer", "Maria Santos"]);
+    answer = "404";
+    lena.saved(APPLICANT_IDS.formFull, ["/familiesServed"]);
+    await waitFor(() => expect(hub.members(TOPIC).map((m) => m.name)).toEqual(["Lena Fischer"]));
+    expect(await screen.findByText(/Live updates are paused/)).toBeInTheDocument();
+    lena.leave();
+  });
+
   it("pauses when the connection drops and comes back", async () => {
     const { hub } = openEditor();
     await screen.findByRole("textbox", { name: /Project title/ });
@@ -369,6 +412,22 @@ describe("the outside application's questions", () => {
     lena.blur(qid);
     await waitFor(() => expect(first).toHaveValue("Lena wrote this answer."));
     await waitFor(() => expect(first).not.toHaveAttribute("readonly"));
+    lena.leave();
+  });
+
+  it("leaves the channel as soon as saving an answer is refused (403)", async () => {
+    const { hub } = openEditor({ path: `/w/alder-creek/outside/${OUTSIDE_IDS.northwind}`, outsideApi: (base) => ({ ...base, putAnswer: async () => Promise.reject(new ApiError(403, "You are not a member of this workspace", [{ code: "workspace_mismatch" }])) }) });
+    const first = (await screen.findAllByRole("textbox", { name: /^Answer to question/ }))[0]!;
+    const lena = lenaIn(hub, OUTSIDE_TOPIC);
+    await screen.findByLabelText(/Editing now: .*Lena Fischer/);
+    await userEvent.click(first);
+    await userEvent.type(first, " more");
+    const card = first.closest("article") as HTMLElement;
+    const save = within(card).queryByRole("button", { name: /^Save/ });
+    if (save) await userEvent.click(save);
+    else await userEvent.tab();
+    await waitFor(() => expect(hub.members(OUTSIDE_TOPIC).map((m) => m.name)).toEqual(["Lena Fischer"]), { timeout: 3000 });
+    expect(await screen.findByText(/Live updates are paused/)).toBeInTheDocument();
     lena.leave();
   });
 

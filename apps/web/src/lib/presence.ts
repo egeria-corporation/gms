@@ -325,6 +325,19 @@ function portsFor(services: Pick<Services, "auth" | "mock">): { api: PresenceApi
   return { api: p?.api ?? d.api, transport: p && "transport" in p ? (p.transport ?? null) : d.transport };
 }
 
+/**
+ * An API call for the draft answered with one of these: the person may no longer open it (removed
+ * from the team, the draft submitted or deleted). The editor leaves the live channel at once instead
+ * of waiting for Realtime's next check (a new token or the pass's renewal; docs/co-editing.md).
+ */
+export const LEAVE_CHANNEL_ON_STATUS: readonly number[] = [403, 404];
+
+/** Whether an API error says this person may no longer open the draft. */
+export const lostAccess = (e: unknown): boolean => {
+  const status = (e as { status?: unknown } | null)?.status;
+  return typeof status === "number" && LEAVE_CHANNEL_ON_STATUS.includes(status);
+};
+
 export interface DraftPresence extends RoomSnapshot {
   /** The person typing in `field`, when it is someone else. */
   lockOf(field: string): Peer | undefined;
@@ -336,6 +349,11 @@ export interface DraftPresence extends RoomSnapshot {
   input(field: string): void;
   blur(field: string): void;
   saved(target: string, fields: string[]): void;
+  /**
+   * Any API call for this draft failed with `error`: a 403 or 404 leaves the channel now and for as
+   * long as this editor is open (LEAVE_CHANNEL_ON_STATUS). Anything else changes nothing.
+   */
+  apiFailed(error: unknown): void;
 }
 
 export interface DraftPresenceOptions {
@@ -359,15 +377,21 @@ export function useDraftPresence(opts: DraftPresenceOptions): DraftPresence {
   const { api, transport } = portsFor(services);
   const [snap, setSnap] = useState<RoomSnapshot>({ status: "connecting", peers: [] });
   const room = useRef<DraftRoom | null>(null);
+  // The draft an API call said this person lost access to: its channel stays left.
+  const [goneFrom, setGoneFrom] = useState<string | null>(null);
+  const leaveNow = useRef<() => void>(() => undefined);
   const onSaved = useRef(opts.onSaved);
   onSaved.current = opts.onSaved;
   const enabled = opts.enabled ?? true;
   const { workspaceId } = opts;
   const { kind, id } = opts.draft;
   const { userId, name } = opts.me;
+  const gone = goneFrom === `${kind}:${id}`;
 
   useEffect(() => {
-    if (!enabled || !transport) {
+    if (!enabled || !transport || gone) {
+      room.current?.leave();
+      room.current = null;
       setSnap({ status: "paused", peers: [] });
       return;
     }
@@ -378,8 +402,15 @@ export function useDraftPresence(opts: DraftPresenceOptions): DraftPresence {
       room.current = null;
     };
     const pause = () => {
+      if (renew) clearTimeout(renew);
+      renew = null;
       stop();
       if (live) setSnap({ status: "paused", peers: [] });
+    };
+    leaveNow.current = () => {
+      live = false;
+      pause();
+      setSnap({ status: "paused", peers: [] });
     };
     const schedule = (seconds: number) => {
       renew = setTimeout(() => {
@@ -401,10 +432,21 @@ export function useDraftPresence(opts: DraftPresenceOptions): DraftPresence {
     );
     return () => {
       live = false;
+      leaveNow.current = () => undefined;
       if (renew) clearTimeout(renew);
       stop();
     };
-  }, [api, transport, enabled, workspaceId, kind, id, userId, name]);
+  }, [api, transport, enabled, gone, workspaceId, kind, id, userId, name]);
+
+  const apiFailed = useCallback(
+    (error: unknown) => {
+      if (!lostAccess(error)) return;
+      // Leave this moment, before React renders again, and stay out while this draft is open.
+      leaveNow.current();
+      setGoneFrom(`${kind}:${id}`);
+    },
+    [kind, id],
+  );
 
   const focus = useCallback((where: { section?: string; field?: string }) => room.current?.focus(where), []);
   const input = useCallback((field: string) => room.current?.input(field), []);
@@ -420,8 +462,9 @@ export function useDraftPresence(opts: DraftPresenceOptions): DraftPresence {
       input,
       blur,
       saved,
+      apiFailed,
     }),
-    [snap, focus, input, blur, saved],
+    [snap, focus, input, blur, saved, apiFailed],
   );
 }
 

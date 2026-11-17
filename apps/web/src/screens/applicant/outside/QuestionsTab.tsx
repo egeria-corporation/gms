@@ -718,6 +718,11 @@ export function QuestionCard({
   const myId = meState.status === "ready" ? meState.me.userId : null;
   const put = useOutsideMutation((api, input: AnswerInput) => api.putAnswer(q.id, input));
   const patch = useOutsideMutation((api, p: Parameters<typeof api.updateQuestion>[1]) => api.updateQuestion(q.id, p));
+  // A save refused with 403/404 (the person lost access to this draft): leave its live channel now.
+  const apiFailed = live?.apiFailed;
+  useEffect(() => {
+    for (const e of [put.error, patch.error]) if (e) apiFailed?.(e);
+  }, [put.error, patch.error, apiFailed]);
   const remove = useOutsideMutation(async (api) => {
     await api.deleteQuestion(q.id);
     return true;

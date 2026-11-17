@@ -88,10 +88,19 @@ From Supabase's documentation:
   presence guide recommends for anything that changes often.
   <https://supabase.com/docs/guides/realtime/limits>, <https://supabase.com/docs/guides/realtime/presence>
 
-How long someone removed from the team can still see presence: the API refuses their next pass at
-once, and the editor leaves; a client that does not leave keeps receiving presence (names and
-places, never answers) until its access token is renewed or expires (the project's JWT expiry), when
-Realtime checks the policies again and refuses it.
+How long someone removed from the team can still see presence. Realtime checks the policies when a
+person joins and whenever a new access token is sent, not on every message, so:
+
+- **The editor leaves at once** when any API call for that draft answers 403 or 404 (a save, reading
+  the draft again after a teammate's save, inserting from the library, submitting, an outside
+  application's answer, reload or stage change: `LEAVE_CHANNEL_ON_STATUS`, `apiFailed` in
+  `apps/web/src/lib/presence.ts`), and stays out while that draft is open. The next pass renewal
+  (every 4 minutes) is refused too, and leaves as well.
+- **The window that remains** is for a client that makes no API call and does not leave (an idle
+  tab, or a modified client): it keeps receiving presence and lock notices (names and the question
+  each person is in, never an answer: answers are read through the API, which refuses it) until its
+  access token is renewed or expires, at most the project's JWT expiry (an hour by default; 15
+  minutes or less is advised below), when Realtime checks the policies again and refuses it.
 
 ## Setup (owner)
 
@@ -110,8 +119,11 @@ Realtime checks the policies again and refuses it.
   checks a join (a pass opens one topic for one session; expired, other session, removed or expired
   membership, the funder, another workspace and visitors are refused; readers cannot send).
 - `apps/api/test/presence.test.ts`: who gets a pass.
-- `apps/web/test/co-editing.test.tsx`: the lock rules, who joins, both editors, degraded mode, axe in
-  English and Spanish. `apps/web/test/presence-transport.test.tsx`: the private channel and the
-  presence limit.
+- `apps/web/test/co-editing.test.tsx`: the lock rules, who joins, both editors, degraded mode,
+  leaving the channel on a 403 or 404 (and not on a 503), axe in English and Spanish.
+  `apps/web/test/presence-transport.test.tsx`: the private channel and the presence limit.
+  `apps/web/test/realtime-channels.test.ts`: every channel any app or package opens is private, none
+  is built by hand and nothing listens for `postgres_changes` (v1.13.0: the editor's old public
+  channel, `api/applicantRealtime.ts`, was removed).
 - `apps/web/e2e/flow36-co-editing.spec.ts`: two people in two browser contexts. In mock mode the
   channel is an in-page hub (`apps/web/src/mocks/presence.ts`), relayed between the contexts.
