@@ -109,6 +109,12 @@ const claimLink = async (page: Page) => {
 
 const one = (path: string, who: Who, steps?: RouteCase["steps"]): RouteCase => ({ path, who, ...(steps ? { steps } : {}) });
 
+/** "Add Spanish" in a builder (bilingual forms and opportunity text, E6), in either interface language. */
+const addSpanish = async (page: Page) => {
+  await page.getByRole("button", { name: /^(Add Spanish|Agregar español)$/ }).click();
+  await page.getByRole("button", { name: /^(Remove Spanish|Quitar español)$/ }).waitFor();
+};
+
 /** Keyed by the route pattern exactly as App.tsx builds it (children of /w/:ws prefixed). */
 export const ROUTES: Record<string, RouteCase[]> = {
   "/": [one("/", "signed-out")],
@@ -175,10 +181,18 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/w/:ws/programs/:programId": [one(`${F}/programs/${PROGRAM}`, "funder-admin")],
   "/w/:ws/opportunities": [one(`${F}/opportunities`, "funder-admin")],
   "/w/:ws/opportunities/new": [one(`${F}/opportunities/new`, "funder-admin")],
-  "/w/:ws/opportunities/:oppId/edit": [one(`${F}/opportunities/${OPP}/edit`, "funder-admin"), one(`${F}/opportunities/${OPP}/edit#publish`, "funder-admin")],
+  "/w/:ws/opportunities/:oppId/edit": [one(`${F}/opportunities/${OPP}/edit`, "funder-admin"), one(`${F}/opportunities/${OPP}/edit#publish`, "funder-admin"), one(`${F}/opportunities/${OPP}/edit`, "funder-admin", addSpanish)],
   "/w/:ws/opportunities/:oppId/competition": [one(`${F}/opportunities/${OPP}/competition`, "funder-admin")],
   "/w/:ws/forms": [one(`${F}/forms`, "funder-admin")],
-  "/w/:ws/forms/:formId/edit": [one(`${F}/forms/${FORM}/edit`, "funder-admin")],
+  "/w/:ws/forms/:formId/edit": [
+    one(`${F}/forms/${FORM}/edit`, "funder-admin"),
+    // Bilingual forms (E6): the next draft, Spanish added, the side-by-side Translate view.
+    one(`${F}/forms/${FORM}/edit`, "funder-admin", async (page) => {
+      await page.getByRole("button", { name: /^(Create v3 to edit|Crear la v3 para editar)$/ }).click();
+      await addSpanish(page);
+      await page.getByRole("list", { name: /^(Spanish text|Texto en español)$/ }).waitFor();
+    }),
+  ],
   "/w/:ws/competitions/:compId": [one(`${F}/competitions/${COMP}`, "funder-admin")],
   "/w/:ws/competitions/:compId/panel": [one(`${F}/competitions/${COMP}/panel`, "funder-admin")],
   "/w/:ws/applications": [one(`${F}/applications`, "funder-admin"), one(`${R}/applications`, "funder-reviewer"), one(`${A}/applications`, "applicant-admin"), one(`${A}/applications?view=board`, "applicant-admin"), one(`${A}/applications?view=calendar`, "applicant-admin")],
