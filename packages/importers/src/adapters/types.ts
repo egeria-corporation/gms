@@ -7,9 +7,9 @@
 // chosen. Nothing here reads a PDF's contents.
 import type { TargetKey } from "../target.ts";
 
-export type AdapterKey = "good_grants" | "sm_apply" | "submittable" | "foundant_glm" | "smartsimple" | "openwater" | "fluxx" | "zengine";
+export type AdapterKey = "good_grants" | "sm_apply" | "submittable" | "foundant_glm" | "smartsimple" | "openwater" | "cybergrants" | "fluxx" | "zengine";
 /** Systems whose export is a file the person downloads and drops in. */
-export const FILE_ADAPTER_KEYS = ["good_grants", "sm_apply", "submittable", "foundant_glm", "smartsimple", "openwater"] as const satisfies readonly AdapterKey[];
+export const FILE_ADAPTER_KEYS = ["good_grants", "sm_apply", "submittable", "foundant_glm", "smartsimple", "openwater", "cybergrants"] as const satisfies readonly AdapterKey[];
 /** Systems the GMS reads through their API, with the funder's own credentials, read-only. */
 export const API_ADAPTER_KEYS = ["fluxx", "zengine"] as const satisfies readonly AdapterKey[];
 export const ADAPTER_KEYS: readonly AdapterKey[] = [...FILE_ADAPTER_KEYS, ...API_ADAPTER_KEYS];
@@ -41,6 +41,8 @@ export interface ImportAdapter {
   signature: HeaderSignature;
   /** Presets per target. A target with none is not offered for this system. */
   presets: Partial<Record<TargetKey, Preset>>;
+  /** What to export for a target other than grant history, when it differs from `steps` (imported history, v1.12.0). */
+  targetSteps?: Partial<Record<TargetKey, readonly string[]>>;
   /**
    * Grant history only: the rows that were never awarded. A row is set aside when one of these
    * columns (folded headers), or the column mapped to Status, holds one of `notAwarded` (folded),

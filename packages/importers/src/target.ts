@@ -3,9 +3,10 @@
 // column for each, and the validator that turns one row's mapped text into the record to create.
 // Targets live in ./targets; the framework (./plan.ts) is the same for every one of them.
 import { fold } from "./values.ts";
+import { PAST_TARGET_KEYS, type PastTargetKey } from "./targets/past-common.ts";
 
-export type TargetKey = "outside_applications" | "award_history";
-export const TARGET_KEYS: readonly TargetKey[] = ["outside_applications", "award_history"];
+export type TargetKey = "outside_applications" | "award_history" | PastTargetKey;
+export const TARGET_KEYS: readonly TargetKey[] = ["outside_applications", "award_history", ...PAST_TARGET_KEYS];
 
 export type FieldKind = "text" | "longtext" | "date" | "year" | "money" | "currency" | "choice" | "yesno" | "url" | "id";
 
@@ -45,12 +46,24 @@ export interface RowCheck<F extends string, N> {
   subtitle: string | null;
 }
 
+/** A kept column no field is mapped to, and its value in one row (see {@link ImportTarget.readsRest}). */
+export interface RestCell {
+  column: string;
+  value: string;
+}
+
 export interface ImportTarget<F extends string = string, N = unknown> {
   key: TargetKey;
   /** What one record is called, singular and plural. */
   noun: { one: string; many: string };
   fields: readonly FieldSpec<F>[];
-  check(values: Partial<Record<F, string>>): RowCheck<F, N>;
+  /**
+   * Whether the validator also reads the kept columns that no field is mapped to (a past
+   * application's questions and answers, a past review's criterion scores). Their non-blank cells
+   * are passed as `rest`, in source order; a dropped column is never among them.
+   */
+  readsRest?: boolean;
+  check(values: Partial<Record<F, string>>, rest?: readonly RestCell[]): RowCheck<F, N>;
 }
 
 /** The fields a mapping must name before a run can be checked. */
