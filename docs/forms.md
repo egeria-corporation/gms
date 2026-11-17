@@ -52,7 +52,9 @@ Elements: `VerticalLayout`, `HorizontalLayout`, `Group` (label), `Categorization
 `Control` (`scope: "#/properties/…"`). A `rule` has an `effect` (`SHOW`, `HIDE`, `ENABLE`, `DISABLE`)
 and a JSON Forms condition `{ scope, schema }`; a rule on a layout cascades to its controls. An
 unanswered condition field never matches. Control `options`: `widget`, `widgetOptions`, `placeholder`,
-`help`, `reviewerVisible` (default true), `pii` (default false).
+`help`, `reviewerVisible` (default true), `pii` (default false), `identifying` (default false: the
+answer says who applied, so it is hidden from reviewers in a stage with anonymized review; see
+docs/reviews.md).
 
 - `validateUiSchema(ui, jsonSchema)` — save-time errors.
 - `evaluateUi(ui, response)` → `{ controls, hidden, disabled }` for the renderer and the validator.
@@ -102,6 +104,9 @@ JSON pointer.
 - `maskForReviewer(form, response, { external })` — removes `reviewerVisible: false` fields for every
   reviewer and masks `pii` fields for external reviewers. Flags come from control options overlaid with
   `form.fieldMeta` (`fieldMetaFor`).
+- `identifyingFields(form)` — the fields that say who applied: controls marked `identifying` (in their
+  options or `fieldMeta`), widgets that always carry identity (`IDENTIFYING_WIDGETS`: Passport fields,
+  addresses, phones, signatures) and email fields. Anonymized review removes them for reviewers.
 
 ## Versioning
 

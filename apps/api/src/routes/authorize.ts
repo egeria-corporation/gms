@@ -17,6 +17,7 @@ import { CODE_TTL_SEC, readConsentRequest, signConsentRequest } from "../auth/to
 import { trimSlash } from "../env.ts";
 import { ApiError, ok } from "../lib/errors.ts";
 import { keyRing } from "../lib/keys.ts";
+import { assertSsoSatisfied } from "../services/sso.ts";
 
 /** Errors before the redirect URI is validated must not redirect (RFC 6749 §4.1.2.1). */
 const authorizeError = (description: string) => new ApiError(400, "invalid_request", description);
@@ -116,6 +117,8 @@ authorize.post("/authorize/decision", requireUser(), async (c) => {
   const m = await members.getMembership(body.workspaceId, user.userId);
   const at = now();
   if (!m || (m.expiresAt && Date.parse(m.expiresAt) <= at.getTime())) throw new ApiError(403, "workspace_mismatch", "You are not a member of this workspace");
+  // Single sign-on (docs/sso.md): connecting an agent to a workspace that requires it needs a session that came through it.
+  await assertSsoSatisfied(c.get("deps").repos, m.workspaceId, user);
   if (roleRequiresMfa(m.workspaceKind, m.role) && !(await secondStepVerified(c, user))) throw new ApiError(403, "mfa_required", "Verify with your authenticator app before connecting an agent to this workspace");
 
   // Granted = requested ∩ (what the person kept ticked) ∩ (what their role allows). Never more.

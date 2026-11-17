@@ -544,6 +544,9 @@ model Stage {
 
   /** Once true, reviewers of this stage can see each other's submitted reviews */
   panelOpen?: boolean;
+
+  /** Anonymized review: reviewers in this stage do not see who applied. Off by default. */
+  anonymized?: boolean;
 }
 
 model GmsCompetition {
@@ -772,9 +775,10 @@ model GmsApplication {
   submittedAt: utcDateTime | null;
   verificationLevelAtSubmit: VerificationLevel | null;
   applicant: {
-    workspaceId: CommonGrants.Types.uuid;
+    /** Null for a reviewer in a stage with anonymized review. */
+    workspaceId: CommonGrants.Types.uuid | null;
 
-    /** The Passport legal name for a Passport workspace, else the workspace's name. */
+    /** The Passport legal name for a Passport workspace, else the workspace's name; "Applicant A-1042" under anonymized review. */
     name: string | null;
 
     /** The workspace's own display name, when it differs from the Passport legal name in `name`. */
@@ -818,6 +822,9 @@ model GmsApplication {
   formResponses?: InboxFormResponse[];
 
   timeline?: ApplicationEvent[];
+
+  /** Set when the caller reviews in a stage with anonymized review (api/review.tsp): who applied is hidden. */
+  anonymized?: AnonymizedApplicant | null;
 }
 
 model InboxFormResponse {
@@ -997,7 +1004,7 @@ model MemberNotification {
   read: boolean;
 }
 
-alias NotificationCategory = "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent";
+alias NotificationCategory = "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent" | "report";
 
 model NotificationList {
   unread: int32;
@@ -1023,7 +1030,8 @@ model NotificationPreferences {
    * Besides the notification categories, `outside_deadline` sets the outside application deadline
    * reminders, `document_expiring` the vault's expiry warnings, `outside_obligation_due` an outside
    * award's report and condition reminders, and `outside_next_cycle` the next-cycle reminder (no
-   * notification carries those categories).
+   * notification carries those categories). `report` is a scheduled report sent to the person: its
+   * `email` decides whether the report's email goes out (the file stays in the app either way).
    */
   channels: Record<NotificationChannel>;
 }
@@ -1210,6 +1218,15 @@ model ReviewAssignment {
 
   /** On creation only: a possible conflict seen in the applicant's self-declared profile, for staff to check */
   coiHint?: CoiHint | null;
+
+  /** The application's short code ("A-1042") when the caller reviews it anonymized; null otherwise. */
+  applicantCode?: string | null;
+
+  /** The caller reviews this application in a stage with anonymized review. */
+  anonymized?: boolean;
+
+  /** The caller must sign the competition's conflict-of-interest policy first; until then the title and review are withheld. */
+  policyRequired?: boolean;
 }
 
 /** The reviewer's working view: the rubric, their own review, and the application as a reviewer may
@@ -1228,6 +1245,7 @@ model ReviewAssignmentDetail {
     scores: Record<unknown>;
     narrative: string | null;
     recommendation: string | null;
+    visibility?: "panel" | "funder_only";
     submittedAt: utcDateTime | null;
   } | null;
 
@@ -1319,6 +1337,9 @@ model ReviewAssignmentPatch {
 
   narrative?: string;
   recommendation?: string;
+
+  /** save, submit: the narrative and comments are for the panel (default) or for program staff only. */
+  visibility?: "panel" | "funder_only";
 
   /** reschedule */
   dueAt?: utcDateTime | null;

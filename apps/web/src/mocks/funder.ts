@@ -30,6 +30,7 @@ import type { Rubric } from "../api/types.ts";
 import { MOCK_USER } from "./fixtures.ts";
 import { LOI_PROVENANCE, LOI_RESPONSE } from "./forms.ts";
 import { IDS, type WorkspaceData } from "./store.ts";
+import { anonymizeDetail, assignmentAsSeen, cleared, createMockParityApi, isAnonymized, seedParity, type ParityState } from "./reviewParity.ts";
 
 export const USERS = {
   dana: MOCK_USER.userId,
@@ -86,6 +87,8 @@ interface State {
   approvals: Approval[];
   threads: Thread[];
   tasks: Task[];
+  /** Review parity: COI policies and signatures, dockets (mocks/reviewParity.ts). */
+  parity: ParityState;
 }
 
 function application(n: number, name: string, handle: string, title: string, stage: string, status: InboxApplication["status"], eligibility: boolean | "unknown", level: "L0" | "L1" | "L2" | "L3", dollars: number, more: Partial<InboxApplication> = {}): InboxApplication {
@@ -242,6 +245,8 @@ function seed(): State {
   ];
   const task = (n: number, title: string, dueAt: string | null, subjectId: string | null = null): Task => ({ id: uid("4", 20 + n), subjectType: subjectId ? "application" : null, subjectId, title, assigneeUserId: USERS.dana, dueAt, doneAt: null, createdAt: at("2027-04-15T09:00") });
   return {
+    // Everyone reviewing this cycle signed its conflict-of-interest policy (the default, version 1).
+    parity: seedParity(IDS.compHealth27, [USERS.dana, USERS.marcus, USERS.priya, USERS.hollis].map((userId) => ({ userId, name: USER_NAMES[userId]! })), at("2027-04-17T09:00")),
     applications,
     assignments,
     reviews,
@@ -290,7 +295,7 @@ export function overallOf(rubric: Rubric, scores: Record<string, unknown>): { ov
 
 export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
   const states = new Map<string, State>();
-  const empty = (): State => ({ applications: [], assignments: [], reviews: [], decisions: [], awards: [], agreements: [], templates: seed().templates.filter((t) => t.builtIn), communications: [], approvals: [], threads: [], tasks: [] });
+  const empty = (): State => ({ applications: [], assignments: [], reviews: [], decisions: [], awards: [], agreements: [], templates: seed().templates.filter((t) => t.builtIn), communications: [], approvals: [], threads: [], tasks: [], parity: { policies: [], signatures: [], dockets: [], notRequired: [] } });
   async function st(): Promise<{ w: WorkspaceData; s: State }> {
     const w = await ctx.ws();
     if (!states.has(w.record.id)) states.set(w.record.id, w.record.id === IDS.riverbend ? seed() : empty());
@@ -440,6 +445,8 @@ export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
   }
 
   return {
+    // Review parity (v1.8.0): the COI policy, the conflicts register, stage review settings, the docket.
+    ...createMockParityApi({ st: async () => { const { w, s } = await st(); return { w, p: s.parity, apps: s.applications, assignments: s.assignments, names: USER_NAMES }; }, me, now: ctx.now, newId: () => newId(), fail: ctx.fail }),
     async listApplications(filter = {}) {
       const { s } = await st();
       const want = (a: InboxApplication) =>
@@ -562,17 +569,17 @@ export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
     },
 
     async listAssignments(filter = {}) {
-      const { s } = await st();
-      return clone(
-        s.assignments.filter(
-          (a) =>
-            (!filter.competitionId || a.competitionId === filter.competitionId) &&
-            (!filter.applicationId || a.applicationId === filter.applicationId) &&
-            (!filter.reviewerUserId || a.reviewerUserId === filter.reviewerUserId) &&
-            (!filter.stage || a.stage === filter.stage) &&
-            (!filter.status || a.status === filter.status),
-        ),
+      const { w, s } = await st();
+      const rows = s.assignments.filter(
+        (a) =>
+          (!filter.competitionId || a.competitionId === filter.competitionId) &&
+          (!filter.applicationId || a.applicationId === filter.applicationId) &&
+          (!filter.reviewerUserId || a.reviewerUserId === filter.reviewerUserId) &&
+          (!filter.stage || a.stage === filter.stage) &&
+          (!filter.status || a.status === filter.status),
       );
+      // The reviewer portal (their own list): waiting for the policy, or anonymized.
+      return clone(filter.reviewerUserId === me ? rows.map((a) => assignmentAsSeen(s.parity, w, s.applications, a, me)) : rows);
     },
     async createAssignment(input) {
       const { w, s } = await st();
@@ -625,7 +632,11 @@ export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
       const rubric = rubricOf(w, a.rubricId);
       const r = s.reviews.find((x) => x.assignmentId === a.id);
       const own = a.reviewerUserId === me;
-      return { ...clone(a), rubric: { id: rubric.id, version: rubric.version, name: rubric.name, criteria: rubric.criteria as never, overall: rubric.overall }, myReview: r && own ? { scores: r.scores, narrative: r.narrative, recommendation: r.recommendation, submittedAt: r.submittedAt } : null, application: a.status === "recused" ? null : (detail(w, s, find(s.applications, a.applicationId, "Application")) as never) };
+      if (own && a.competitionId && !cleared(s.parity, a.competitionId, me)) throw ctx.fail(409, "Sign the conflict-of-interest policy first. Applications in this competition open once you have signed it", [{ code: "coi_policy_unsigned" }, { code: "coi_policy_unsigned", field: "competitionId", detail: a.competitionId }]);
+      const app = find(s.applications, a.applicationId, "Application");
+      const anonymized = own && !!a.competitionId && isAnonymized(w, a.competitionId, a.stage);
+      const shown = detail(w, s, app);
+      return { ...clone(own ? assignmentAsSeen(s.parity, w, s.applications, a, me) : a), rubric: { id: rubric.id, version: rubric.version, name: rubric.name, criteria: rubric.criteria as never, overall: rubric.overall }, myReview: r && own ? { scores: r.scores, narrative: r.narrative, recommendation: r.recommendation, submittedAt: r.submittedAt } : null, application: a.status === "recused" ? null : ((anonymized ? anonymizeDetail(s.applications, shown) : shown) as never) };
     },
     async updateAssignment(id, patch) {
       const { w, s } = await st();
@@ -641,6 +652,7 @@ export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
         return clone(a);
       }
       assertRole(a);
+      if (a.reviewerUserId === me && a.competitionId && !cleared(s.parity, a.competitionId, me)) throw ctx.fail(409, "Sign the conflict-of-interest policy first", [{ code: "coi_policy_unsigned" }]);
       if (patch.action === "declare_coi") {
         if (a.status !== "assigned") throw conflict();
         a.coi = { declared: !!patch.hasConflict, reason: patch.reason ?? null };

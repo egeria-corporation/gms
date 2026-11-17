@@ -32,6 +32,7 @@ import { createMockFunderMoneyApi } from "./funderMoney.ts";
 import { createMockFunderFullApi } from "./funderFull.ts";
 import { createMockDirectAwardsApi } from "./directAwards.ts";
 import { STARTER_FORM, STARTER_RUBRIC, STARTER_STAGE, starterFormTitle, starterRubricName } from "./quickSetup.ts";
+import { assertMockSso } from "./sso.ts";
 
 export interface MockApiOptions {
   session: () => Promise<Session | null>;
@@ -245,6 +246,8 @@ export function createMockApi(opts: MockApiOptions): GmsApi {
       const shell = shells.find((w) => w.handle === handle);
       const data = store.workspaces.find((w) => w.record.handle === handle);
       if (!profile.workspaces.some((m) => m.handle === handle) || (!shell && !data)) throw new ApiError(404, "Workspace not found");
+      // Single sign-on: a workspace that requires it for this address refuses any other sign-in.
+      assertMockSso(handle, await opts.session());
       currentId = data?.record.id ?? shell?.id ?? null;
       if (!shell) {
         // A workspace created in this session (onboarding): build the shell view from its record.

@@ -3,7 +3,7 @@
 // about; reading is per person and per workspace.
 import { useState } from "react";
 import { Link } from "react-router";
-import { Award, Bell, Bot, Building, ClipboardCheck, FileText, Landmark, Send, Star, type LucideIcon } from "lucide-react";
+import { Award, Bell, Bot, Building, ClipboardCheck, FileSpreadsheet, FileText, Landmark, Send, Star, type LucideIcon } from "lucide-react";
 import type { MemberNotification, NotificationList } from "../../api/applicantMore.ts";
 import { useMoreApi, useMoreQuery } from "../../api/applicantMoreHooks.ts";
 import type { MeWorkspace } from "../../api/client.ts";
@@ -25,6 +25,7 @@ const ICON: Record<MemberNotification["category"], { icon: LucideIcon; cls: stri
   approval: { icon: Bot, cls: "av-a" },
   review: { icon: Star, cls: "" },
   agent: { icon: Bot, cls: "av-a" },
+  report: { icon: FileSpreadsheet, cls: "" },
 };
 
 /** The screen a notification is about, in the workspace it belongs to. */
@@ -32,6 +33,8 @@ export function hrefFor(n: MemberNotification, ws: MeWorkspace): string {
   const base = `/w/${ws.handle}`;
   const funder = ws.kind === "funder";
   if (n.category === "approval") return funder ? `${base}/approvals` : `${base}/team`;
+  if (n.category === "report" && funder && n.subjectId) return `${base}/report-builder?file=${encodeURIComponent(n.subjectId)}`;
+  if (n.type.startsWith("gallery.") && funder) return `${base}/forms`;
   if (n.subjectType === "application" && n.subjectId) return `${base}/applications/${n.subjectId}`;
   if (n.subjectType === "award" && n.subjectId) return funder ? `${base}/awards/${n.subjectId}/agreement` : `${base}/grants/${n.subjectId}`;
   if (n.category === "submission" || n.category === "requirement") return funder ? `${base}/reporting` : `${base}/reports`;

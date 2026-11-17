@@ -576,6 +576,45 @@ export async function listAmendments(ctx: ServiceContext, awardId: string) {
 
 // ------------------------------------------------------------------------------------ CommonGrants
 
+/** A record an award points at, by id and title. */
+export interface AwardRef {
+  id: string;
+  title: string;
+}
+
+/** What the CommonGrants award projection reads, from rows the caller has already loaded. */
+export interface AwardProjectionInput {
+  funder: Row<"workspaces"> | null;
+  /** The recipient organization the caller may name (a Passport organization it shares, or the recipient itself), else null. */
+  recipient: Row<"workspaces"> | null;
+  opportunity: AwardRef | null;
+  application: AwardRef | null;
+  parent: AwardRef | null;
+  /** Leave a named individual out (open data never publishes a person). */
+  withoutIndividual?: boolean;
+}
+
+/**
+ * An award as CommonGrants `AwardBase`, validated with `@common-grants/sdk` (throws ProjectionError).
+ * The one projection of an award: `GET /common-grants/awards` and the open data export both use it.
+ * A recipient is named only as a Passport organization.
+ */
+export function projectAwardRow(a: Award, refs: AwardProjectionInput, opts: { baseUrl: string; webBaseUrl?: string }): AwardBase {
+  const row: AwardRow = { id: a.id, title: a.title, description: a.description, status: a.status as AwardRow["status"], funding: fundingOf(a), key_dates: a.key_dates as AwardRow["key_dates"], recipient_individual: refs.withoutIndividual ? null : (a.recipient_individual as AwardRow["recipient_individual"]), parent_award_id: a.parent_award_id, created_at: a.created_at, updated_at: a.updated_at };
+  const { funder, recipient } = refs;
+  return projectAward(
+    {
+      award: row,
+      funder: funder ? { passport_org_id: funder.passport_org_id, handle: funder.handle, display_name: funder.display_name, legal_name: funder.legal_name, ein: funder.ein } : null,
+      recipient: recipient?.passport_org_id ? { id: recipient.passport_org_id, name: namesOf(recipient).name, ein: recipient.ein } : null,
+      opportunity: refs.opportunity,
+      application: refs.application,
+      parent: refs.parent,
+    },
+    opts,
+  );
+}
+
 async function project(ctx: ServiceContext, a: Award): Promise<AwardBase> {
   const [funder, found, opp, app, parent] = await Promise.all([
     ctx.repos.table("workspaces").one({ id: a.workspace_id }),
@@ -586,18 +625,8 @@ async function project(ctx: ServiceContext, a: Award): Promise<AwardBase> {
   ]);
   // The funder names the recipient's Passport organization (id, name, EIN) only while it shares its record; the recipient always sees itself.
   const recipient = found && (ctx.workspace?.id === found.id || (await sharesWith(ctx, a.workspace_id, found.id))) ? found : null;
-  const row: AwardRow = { id: a.id, title: a.title, description: a.description, status: a.status as AwardRow["status"], funding: fundingOf(a), key_dates: a.key_dates as AwardRow["key_dates"], recipient_individual: a.recipient_individual as AwardRow["recipient_individual"], parent_award_id: a.parent_award_id, created_at: a.created_at, updated_at: a.updated_at };
-  return projectAward(
-    {
-      award: row,
-      funder: funder ? { passport_org_id: funder.passport_org_id, handle: funder.handle, display_name: funder.display_name, legal_name: funder.legal_name, ein: funder.ein } : null,
-      recipient: recipient?.passport_org_id ? { id: recipient.passport_org_id, name: namesOf(recipient).name, ein: recipient.ein } : null,
-      opportunity: opp ? { id: opp.id, title: opp.title } : null,
-      application: app ? { id: app.id, title: app.title } : null,
-      parent: parent ? { id: parent.id, title: parent.title } : null,
-    },
-    { baseUrl: ctx.config.baseUrl },
-  );
+  const ref = (r: { id: string; title: string } | null): AwardRef | null => (r ? { id: r.id, title: r.title } : null);
+  return projectAwardRow(a, { funder, recipient, opportunity: ref(opp), application: ref(app), parent: ref(parent) }, { baseUrl: ctx.config.baseUrl });
 }
 
 /**

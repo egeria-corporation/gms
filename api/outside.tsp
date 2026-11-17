@@ -823,8 +823,8 @@ namespace GMS.Routes.Custom {
     @get @route("/outside-questions/{qid}/answers") @useAuth(GmsOAuth<["applications:read"]> | UserSession)
     op answerVersions(@path qid: CommonGrants.Types.uuid): OkT<OutsideAnswer[]> | AuthErrors | NotFound;
 
-    /** Import outside applications from a CSV (up to 500 rows). A dry run, the default, writes nothing. */
-    @post @route("/outside-applications/import") @useAuth(GmsOAuth<["applications:write"]> | UserSession)
+    /** Import outside applications from a CSV (up to 500 rows). A dry run, the default, writes nothing. A signed-in person only: agent and API-client tokens get 403 `human_only`, as on the import wizard's commit. */
+    @post @route("/outside-applications/import") @useAuth(UserSession)
     op importCsv(@body body: OutsideImportInput): OkT<OutsideImportResult> | BadRequest | AuthErrors | Unprocessable;
 
     @get @route("/outside-applications/export.csv") @useAuth(GmsOAuth<["applications:read"]> | UserSession)

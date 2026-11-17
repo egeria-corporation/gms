@@ -87,6 +87,12 @@ describe("landing page", () => {
     expect(screen.getByText("Do I need OpenGrants Passport?")).toBeInTheDocument();
   });
 
+  it("links funders who are switching to the switch pages, and everyone to the template gallery", async () => {
+    open("/", signedOut());
+    expect(await screen.findByRole("link", { name: "Switching from another system? See what moves over and get a free migration" })).toHaveAttribute("href", "/switch");
+    expect(within(screen.getByRole("contentinfo")).getByRole("link", { name: "Template gallery" })).toHaveAttribute("href", "/templates");
+  });
+
   it("keeps Sign in visible and puts the section links behind a Menu button that Escape closes", async () => {
     open("/", signedOut());
     const menu = await screen.findByRole("button", { name: "Menu" });

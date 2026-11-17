@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // What a shared link and a search engine see for the public pages: the title, description,
 // canonical address, Open Graph and Twitter tags, schema.org JSON-LD, the share card's text and
-// robots.txt. Built only from the public page data (`/gms/public/funders/...`), the same published
-// fields the pages show, so nothing private can reach a preview.
+// robots.txt. Built only from the public page data (`/gms/public/funders/...`, an approved template
+// gallery item at `/gms/gallery/{slug}`) and the switch pages' own text, the same published fields
+// the pages show, so nothing private can reach a preview.
+import { seoFor, switchEntry } from "../content/switch.ts";
 import { daysUntil, formatAwardRange, formatDate } from "../lib/format.ts";
 import type { CardText, Tone } from "./og/card.ts";
 import { cleanText } from "./og/raster.ts";
@@ -59,10 +61,20 @@ export interface OpportunityPageData {
   opportunity: PublicCard;
   competitions?: { status: string }[];
 }
+/** An approved template gallery item (apps/api/src/services/gallery.ts, `GET /gms/gallery/{slug}`). */
+export interface GalleryItemData {
+  slug: string;
+  title: string;
+  summary: string;
+}
 
 // ---- routes ----
 export type PageRoute = { kind: "funder"; handle: string } | { kind: "opportunity"; handle: string; slug: string };
-export type PublicRoute = { kind: "landing" } | PageRoute;
+/** The pages that have their own share image: the landing page and the funder pages. */
+export type ImageRoute = { kind: "landing" } | PageRoute;
+/** The switch pages (`/switch`, `/switch/{system}`) and the template gallery (`/templates`, `/templates/{slug}`). */
+export type ContentRoute = { kind: "switch"; system: string | null } | { kind: "templates" } | { kind: "template"; slug: string };
+export type PublicRoute = ImageRoute | ContentRoute;
 
 /** Handles and slugs are lowercase letters, digits and hyphens; anything else is not looked up. */
 const SEGMENT = /^[a-z0-9][a-z0-9-]{0,127}$/;
@@ -72,15 +84,19 @@ function pageRoute(handle: string | undefined, slug: string | undefined): PageRo
   return slug === undefined ? { kind: "funder", handle } : { kind: "opportunity", handle, slug };
 }
 
-/** The public page a path shows, if it is one: `/`, `/f/{handle}` or `/f/{handle}/o/{slug}`. */
+/** The public page a path shows, if it is one: `/`, `/f/{handle}`, `/f/{handle}/o/{slug}`, `/switch[/{system}]` or `/templates[/{slug}]`. */
 export function routeOf(pathname: string): PublicRoute | null {
   if (pathname === "/") return { kind: "landing" };
+  const sw = /^\/switch(?:\/([^/]+))?\/?$/.exec(pathname);
+  if (sw) return sw[1] === undefined ? { kind: "switch", system: null } : switchEntry(sw[1]) ? { kind: "switch", system: sw[1] } : null;
+  const tpl = /^\/templates(?:\/([^/]+))?\/?$/.exec(pathname);
+  if (tpl) return tpl[1] === undefined ? { kind: "templates" } : SEGMENT.test(tpl[1]) ? { kind: "template", slug: tpl[1] } : null;
   const m = /^\/f\/([^/]+)(?:\/o\/([^/]+))?\/?$/.exec(pathname);
   return m ? pageRoute(m[1], m[2]) : null;
 }
 
 /** The page whose share image a path asks for: `/og/home.png`, `/og/f/{handle}.png` or `/og/f/{handle}/o/{slug}.png`. */
-export function imageRouteOf(pathname: string): PublicRoute | null {
+export function imageRouteOf(pathname: string): ImageRoute | null {
   if (pathname === "/og/home.png") return { kind: "landing" };
   const m = /^\/og\/f\/([^/]+?)(?:\/o\/([^/]+?))?\.png$/.exec(pathname);
   return m ? pageRoute(m[1], m[2]) : null;
@@ -88,7 +104,9 @@ export function imageRouteOf(pathname: string): PublicRoute | null {
 
 export const pagePathOf = (r: PageRoute) => (r.kind === "funder" ? `/f/${r.handle}` : `/f/${r.handle}/o/${r.slug}`);
 export const apiPathOf = (r: PageRoute) => (r.kind === "funder" ? `/gms/public/funders/${r.handle}` : `/gms/public/funders/${r.handle}/opportunities/${r.slug}`);
-export const imagePathOf = (r: PublicRoute) => (r.kind === "landing" ? "/og/home.png" : `/og${pagePathOf(r)}.png`);
+export const imagePathOf = (r: ImageRoute) => (r.kind === "landing" ? "/og/home.png" : `/og${pagePathOf(r)}.png`);
+/** Where a template gallery item's public data is read. */
+export const galleryApiPathOf = (slug: string) => `/gms/gallery/${slug}`;
 
 // ---- words ----
 const clip = (text: string | null | undefined, max = DESCRIPTION_MAX): string => {
@@ -168,6 +186,9 @@ export function cardVersion(card: CardText): string {
 export interface PageMeta {
   title: string;
   description: string;
+  /** Open Graph and Twitter text, where it differs from the title and description. */
+  ogTitle?: string;
+  ogDescription?: string;
   /** The canonical address. */
   url: string;
   image: string;
@@ -184,6 +205,59 @@ export function landingMeta(origin: string): PageMeta {
     image: `${origin}${imagePathOf({ kind: "landing" })}?v=${cardVersion(landingCard(new URL(origin).host))}`,
     imageAlt: `${SITE_NAME}: ${LANDING_CARD.title}`,
     jsonLd: [{ "@context": "https://schema.org", "@type": "WebSite", name: SITE_NAME, url: `${origin}/`, description: DEFAULT_DESCRIPTION }],
+  };
+}
+
+/** The landing page's card, for pages that have no card of their own. */
+const landingImage = (origin: string) => `${origin}${imagePathOf({ kind: "landing" })}?v=${cardVersion(landingCard(new URL(origin).host))}`;
+
+/** `/switch` and `/switch/{system}`: the text the switch pages give for crawlers (content/switch.ts `seoFor`). */
+export function switchMeta(system: string | null, origin: string): PageMeta | null {
+  const entry = system === null ? null : switchEntry(system);
+  if (system !== null && !entry) return null;
+  const seo = seoFor(entry ?? null);
+  const url = `${origin}/switch${entry ? `/${entry.slug}` : ""}`;
+  return {
+    title: seo.title,
+    description: clip(seo.description, 320),
+    ogTitle: seo.ogTitle,
+    ogDescription: clip(seo.ogDescription, 320),
+    url,
+    image: landingImage(origin),
+    imageAlt: `${SITE_NAME}: ${LANDING_CARD.title}`,
+    jsonLd: [{ "@context": "https://schema.org", "@type": "WebPage", name: seo.title, description: clip(seo.description, 500), url, isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${origin}/` } }],
+  };
+}
+
+export const TEMPLATES_TITLE = "Template gallery \u2014 OpenGrants GMS";
+export const TEMPLATES_DESCRIPTION = "Free, ready-to-use grant application forms, rubrics, report forms and email templates. Copy one into your workspace and start in minutes.";
+const CC_BY = "https://creativecommons.org/licenses/by/4.0/";
+
+/** `/templates`: the template gallery. */
+export function templatesMeta(origin: string): PageMeta {
+  const url = `${origin}/templates`;
+  return {
+    title: TEMPLATES_TITLE,
+    description: TEMPLATES_DESCRIPTION,
+    url,
+    image: landingImage(origin),
+    imageAlt: `${SITE_NAME}: ${LANDING_CARD.title}`,
+    jsonLd: [{ "@context": "https://schema.org", "@type": "CollectionPage", name: TEMPLATES_TITLE, description: TEMPLATES_DESCRIPTION, url, license: CC_BY }],
+  };
+}
+
+/** `/templates/{slug}`: one approved gallery item, from its public data. */
+export function templateMeta(item: GalleryItemData, origin: string): PageMeta {
+  const url = `${origin}/templates/${item.slug}`;
+  const title = `${cleanText(item.title)} \u2014 ${TEMPLATES_TITLE}`;
+  const description = clip(item.summary);
+  return {
+    title,
+    description,
+    url,
+    image: landingImage(origin),
+    imageAlt: `${SITE_NAME}: ${cleanText(item.title)}`,
+    jsonLd: [{ "@context": "https://schema.org", "@type": "CreativeWork", name: cleanText(item.title), description: clip(item.summary, 500), url, license: CC_BY, isAccessibleForFree: true, isPartOf: { "@type": "CollectionPage", name: TEMPLATES_TITLE, url: `${origin}/templates` } }],
   };
 }
 
@@ -266,16 +340,16 @@ export function headTags(m: PageMeta): string {
     `<link rel="canonical" href="${attr(m.url)}" />`,
     meta("property", "og:type", "website"),
     meta("property", "og:site_name", SITE_NAME),
-    meta("property", "og:title", m.title),
-    meta("property", "og:description", m.description),
+    meta("property", "og:title", m.ogTitle ?? m.title),
+    meta("property", "og:description", m.ogDescription ?? m.description),
     meta("property", "og:url", m.url),
     meta("property", "og:image", m.image),
     meta("property", "og:image:width", String(IMAGE_WIDTH)),
     meta("property", "og:image:height", String(IMAGE_HEIGHT)),
     meta("property", "og:image:alt", m.imageAlt),
     meta("name", "twitter:card", "summary_large_image"),
-    meta("name", "twitter:title", m.title),
-    meta("name", "twitter:description", m.description),
+    meta("name", "twitter:title", m.ogTitle ?? m.title),
+    meta("name", "twitter:description", m.ogDescription ?? m.description),
     meta("name", "twitter:image", m.image),
     meta("name", "twitter:image:alt", m.imageAlt),
     `<script type="application/ld+json">${scriptJson(m.jsonLd.length === 1 ? m.jsonLd[0] : m.jsonLd)}</script>`,
@@ -284,11 +358,11 @@ export function headTags(m: PageMeta): string {
 
 // ---- robots.txt ----
 /** The app's own screens and its API: not for search engines. The public data the pages load stays open. */
-export const ROBOTS_DISALLOW = ["/w/", "/gms/", "/signin", "/onboarding", "/auth/", "/oauth/", "/consent", "/workspaces", "/account", "/notifications", "/invitations/", "/awards/claim", "/apply/", "/review/", "/embed/", "/mcp"] as const;
+export const ROBOTS_DISALLOW = ["/w/", "/gms/", "/signin", "/onboarding", "/auth/", "/oauth/", "/consent", "/workspaces", "/account", "/notifications", "/invitations/", "/awards/claim", "/apply/", "/review/", "/embed/", "/mcp", "/gallery/"] as const;
 
 export function robotsTxt(origin: string): string {
   return [
-    `# ${SITE_NAME}: funder and opportunity pages are public; the app and its API are not.`,
+    `# ${SITE_NAME}: funder, opportunity, switch and template gallery pages are public; the app and its API are not.`,
     "User-agent: *",
     "Allow: /",
     // The public pages load their data from here; crawlers that render them need it.

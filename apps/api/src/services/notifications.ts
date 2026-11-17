@@ -15,13 +15,15 @@ const MAX_READ_IDS = 500;
 // `outside_deadline`: reminders of outside applications' deadlines (apply anywhere); no ledger event maps to it.
 // `document_expiring`, `outside_obligation_due` and `outside_next_cycle` (v1.6.0, v1.7.0): the vault's expiry warning,
 // an outside award's report and condition reminders and a declined application's next-cycle reminder; no ledger event maps to them.
-export const CATEGORIES = ["application", "decision", "award", "agreement", "payment", "requirement", "submission", "organization", "approval", "review", "agent", "outside_deadline", "document_expiring", "outside_obligation_due", "outside_next_cycle"] as const;
+// `report` (v1.8.0): a scheduled report sent to the person; its email and the bell entry (recipients only, from report_files).
+// The template gallery's decisions on an item reach the author's team under `decision`.
+export const CATEGORIES = ["application", "decision", "award", "agreement", "payment", "requirement", "submission", "organization", "approval", "review", "agent", "outside_deadline", "document_expiring", "outside_obligation_due", "outside_next_cycle", "report"] as const;
 export type Category = (typeof CATEGORIES)[number];
 const CATEGORY_OF: Record<string, Category> = {
   application: "application", decision: "decision", award: "award", agreement: "agreement", amendment: "award",
   tranche: "payment", payment: "payment", payee: "payment", requirement: "requirement", submission: "submission",
   org_change: "organization", organization: "organization", consent: "organization", approval: "approval",
-  review: "review", mcp_connection: "agent", api_client: "agent",
+  review: "review", mcp_connection: "agent", api_client: "agent", gallery: "decision",
 };
 const SUBJECT_PREFIX: Record<string, Parameters<typeof apiId>[0]> = { application: "application", award: "award" } as Record<string, Parameters<typeof apiId>[0]>;
 
@@ -84,6 +86,16 @@ async function derive(ctx: ServiceContext, ws: ServiceWorkspace): Promise<Omit<N
     // What the member did themselves is not news to them (an agent acting for them is).
     if (!category || e.actor === mine) continue;
     out.push({ id: e.id, type: e.eventType, category, title: sentence(e.eventType), subjectType: e.subjectType ?? null, subjectId: subjectRef(e.subjectType ?? null, e.subjectId ?? null), message: null, at: e.occurredAt });
+  }
+  if (ws.kind === "funder" && ctx.actor.userId) {
+    // Scheduled reports sent to this person (and only to them: the files are the recipients').
+    const me = ctx.actor.userId;
+    const files = (await ctx.repos.table("report_files").find({ workspace_id: ws.id }, { notNull: ["sent_at"], orderBy: "sent_at", ascending: false, limit: WINDOW })).filter((f) => f.recipient_user_ids.includes(me));
+    const views = files.length ? await ctx.repos.table("report_views").find({ id: [...new Set(files.map((f) => f.view_id))], workspace_id: ws.id }) : [];
+    for (const f of files) {
+      const name = views.find((v) => v.id === f.view_id)?.name;
+      out.push({ id: f.id, type: "report.ready", category: "report", title: `Scheduled report ready${name ? `: ${name}` : ""}`, subjectType: "report_file", subjectId: f.id, message: null, at: f.sent_at! });
+    }
   }
   if (ws.kind === "applicant") {
     let apps = await ctx.repos.table("applications").find({ applicant_workspace_id: ws.id }, { limit: WINDOW });

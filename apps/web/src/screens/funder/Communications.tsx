@@ -12,6 +12,7 @@ import { EmptyState, ErrorBanner, Field, Loading, PageHeader, problemsOf, SaveNo
 import { LetterAssistant } from "./LetterAssist.tsx";
 import { BulkSend } from "./BulkSend.tsx";
 import { actorLabel, dateTime, usePeople, timeAgo } from "./shared.tsx";
+import { ShareToGalleryButton } from "./ShareToGallery.tsx";
 
 /** Fields every install can fill. The built-in templates name the rest (award dates, requirement and payment details), so the list shown is theirs plus these. */
 const BASE_MERGE_FIELDS = ["recipient.name", "application.title", "opportunity.title", "funder.name", "links.application", "decision.message", "award.title", "award.amount"];
@@ -154,6 +155,7 @@ export default function Communications() {
                   </div>
                   <div className="row" style={{ gap: "8px" }}>
                     <SaveNote state={save.state} savedText="Version saved" />
+                    {current && !current.builtIn && !current.shared && current.kind === "email" && <ShareToGalleryButton small source={{ type: "template", id: current.id }} name={current.name} disabledReason={dirty ? "Save the template before you share it" : undefined} />}
                     {current && (
                       <button type="button" className="btn btn-sm btn-secondary" disabled={render.state === "saving" || dirty} title={dirty ? "Save the template to preview this text" : undefined} onClick={async () => setPreview((await render.run(current.id)) ?? null)}>
                         <Eye className="ic" aria-hidden="true" />

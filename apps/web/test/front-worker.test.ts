@@ -80,6 +80,10 @@ beforeAll(async () => {
   const helpers = await loadApi();
   h = await helpers.harness();
   await publishCalls(h, helpers.USER_ADMIN, helpers.WS_FUNDER);
+  // The template gallery: one approved item, and one withdrawn (no longer public).
+  const item = (slug: string, title: string, status: string) => h.repos.table("gallery_items").insert({ slug, kind: "rubric", title, summary: "Five criteria, each scored 1 to 5, with guidance for reviewers.", tags: {}, author_workspace_id: null, licence: "CC-BY-4.0", status, version: 1, snapshot: { forms: [], rubrics: [], emails: [] }, uses_count: 0, published_at: "2026-11-15T00:00:00Z", withdrawn_at: status === "withdrawn" ? "2026-11-16T00:00:00Z" : null });
+  await item("five-criterion-rubric", "Five-criterion rubric <b>", "approved");
+  await item("old-rubric", "Old rubric", "withdrawn");
 
   // A built app: index.html, the card's fonts and images, one asset, and the _headers file the build writes.
   work = mkdtempSync(join(tmpdir(), "front-worker-"));
@@ -102,11 +106,13 @@ beforeAll(async () => {
   mf = new Miniflare(convertV4MiniflareOptions({ workers: [{ name: "front", modules: true, script: bundle.outputFiles[0]!.text, compatibilityDate: "2026-10-01", serviceBindings: { API: api } }] }));
 }, 60_000);
 
+// Shutting the runtime down costs about what starting it does, so it gets the same allowance; the
+// default 10 s ran out on a loaded CI runner.
 afterAll(async () => {
   releaseSlow();
   await mf?.dispose();
   if (work) rmSync(work, { recursive: true, force: true });
-});
+}, 60_000);
 
 const get = (path: string, init?: RequestInit) => mf.dispatchFetch(`https://${HOST}${path}`, { redirect: "manual", ...init });
 const count = (html: string, needle: string) => html.split(needle).length - 1;
@@ -176,11 +182,44 @@ describe("front Worker: public pages", () => {
       expect(html, path).toContain('<div id="root"></div>');
       if (path === "/f/slow") expect(Date.now() - started).toBeLessThan(DATA_TIMEOUT_MS + 3000);
     }
+    // The front Worker has given up on the slow funder; let its request finish now rather than
+    // leave it open until the runtime shuts down.
+    releaseSlow();
     // Other app screens are served as built, without asking the API.
     const calls = apiCalls.length;
     expect(contentOf(await (await get("/w/abc/home")).text(), 'name="description"')).toBe(DEFAULT_DESCRIPTION);
     expect(apiCalls.length).toBe(calls);
   }, 20_000);
+
+  it("gives the switch pages their own title, description and Open Graph text, and an unknown system the defaults", async () => {
+    const hub = await (await get("/switch")).text();
+    expect(hub).toContain("<title>Switch to OpenGrants GMS: what moves over, and a free migration</title>");
+    expect(contentOf(hub, 'name="description"')).toMatch(/^What moves over to the free, open-source OpenGrants Grant Management System from Good Grants, .* Facts as of November 2026\.$/);
+    expect(contentOf(hub, 'property="og:title"')).toBe("Switching to the OpenGrants Grant Management System");
+    expect(contentOf(hub, 'name="twitter:title"')).toBe("Switching to the OpenGrants Grant Management System");
+    expect(hub).toContain('<link rel="canonical" href="https://gms.test/switch" />');
+    const one = await (await get("/switch/submittable")).text();
+    expect(one).toContain("<title>Moving from Submittable to OpenGrants GMS</title>");
+    expect(contentOf(one, 'property="og:title"')).toBe("Moving from Submittable to the OpenGrants Grant Management System");
+    expect(contentOf(one, 'property="og:url"')).toBe("https://gms.test/switch/submittable");
+    expect(ldOf(one)).toMatchObject({ "@type": "WebPage", url: "https://gms.test/switch/submittable" });
+    for (const tag of ['name="description"', 'property="og:title"', 'rel="canonical"']) expect(count(one, tag), tag).toBe(1);
+    expect(contentOf(await (await get("/switch/no-such-system")).text(), 'name="description"')).toBe(DEFAULT_DESCRIPTION);
+  });
+
+  it("gives the template gallery and an approved item their own meta, and a withdrawn or unknown item the defaults", async () => {
+    const gallery = await (await get("/templates")).text();
+    expect(gallery).toContain("<title>Template gallery \u2014 OpenGrants GMS</title>");
+    expect(contentOf(gallery, 'name="description"')).toBe("Free, ready-to-use grant application forms, rubrics, report forms and email templates. Copy one into your workspace and start in minutes.");
+    const item = await (await get("/templates/five-criterion-rubric")).text();
+    // The item's own words, escaped: a title cannot add markup to the page.
+    expect(item).toContain("<title>Five-criterion rubric &lt;b&gt; \u2014 Template gallery \u2014 OpenGrants GMS</title>");
+    expect(contentOf(item, 'name="description"')).toBe("Five criteria, each scored 1 to 5, with guidance for reviewers.");
+    expect(contentOf(item, 'property="og:type"')).toBe("website");
+    expect(contentOf(item, 'property="og:url"')).toBe("https://gms.test/templates/five-criterion-rubric");
+    expect(ldOf(item)).toMatchObject({ "@type": "CreativeWork", license: "https://creativecommons.org/licenses/by/4.0/" });
+    for (const path of ["/templates/old-rubric", "/templates/no-such-item"]) expect(contentOf(await (await get(path)).text(), 'name="description"'), path).toBe(DEFAULT_DESCRIPTION);
+  });
 
   it("answers HEAD for a page without a body", async () => {
     const res = await get("/f/riverbend", { method: "HEAD" });
@@ -217,9 +256,12 @@ describe("front Worker: robots, sitemap, headers and forwarding", () => {
     expect(robots.status).toBe(200);
     expect(robots.headers.get("Content-Type")).toContain("text/plain");
     const text = await robots.text();
-    for (const line of ["Disallow: /w/", "Disallow: /gms/", "Disallow: /signin", "Disallow: /onboarding", "Allow: /gms/public/", "Sitemap: https://gms.test/sitemap.xml"]) expect(text).toContain(line);
+    for (const line of ["Disallow: /w/", "Disallow: /gms/", "Disallow: /signin", "Disallow: /onboarding", "Disallow: /gallery/", "Allow: /gms/public/", "Sitemap: https://gms.test/sitemap.xml"]) expect(text).toContain(line);
+    expect(text).not.toMatch(/Disallow: \/(switch|templates)/);
     const xml = await (await get("/sitemap.xml")).text();
     for (const slug of ["open-call", "forecast-call", "closed-call"]) expect(xml).toContain(`/f/riverbend/o/${slug}</loc>`);
+    for (const path of ["/switch", "/switch/submittable", "/switch/spreadsheets", "/templates", "/templates/five-criterion-rubric"]) expect(xml).toContain(`${path}</loc>`);
+    expect(xml).not.toContain("old-rubric");
   });
 
   it("applies _headers rules to the requested path as Cloudflare does, removing with `!`", async () => {

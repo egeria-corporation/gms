@@ -80,6 +80,7 @@ function ports(env: Env): ServicePorts {
     // The drafting assistant exists only when it is switched on and has a key.
     ...(env.ASSISTANT_ENABLED === "true" && env.ANTHROPIC_API_KEY ? { llm: new AnthropicLlmClient({ apiKey: env.ANTHROPIC_API_KEY, model: env.ASSISTANT_MODEL ?? null }) } : {}),
     ...(env.EXPORTS ? { exports: { put: async (key: string, body: string, contentType: string) => void (await env.EXPORTS!.put(key, body, { httpMetadata: { contentType } })) } } : {}),
+    ...(env.EXPORTS ? { exportFiles: new R2FileStorage(env.EXPORTS) } : {}),
   };
 }
 

@@ -22,10 +22,16 @@ import { insightRoutes } from "./gms/insights.ts";
 import { inviteRoutes } from "./gms/invites.ts";
 import { moneyRoutes } from "./gms/money.ts";
 import { keepRoutes } from "./gms/keep.ts";
+import { openDataRoutes } from "./gms/open-data.ts";
 import { outsideRoutes } from "./gms/outside.ts";
+import { migrationRequestRoutes } from "./gms/migration-request.ts";
+import { reportRoutes } from "./gms/reports.ts";
+import { reviewParityRoutes } from "./gms/reviews.ts";
+import { galleryRoutes } from "./gallery.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
+import { ssoRoutes } from "./gms/sso.ts";
 import { publicPages } from "./public.ts";
 
 export const gms = new Hono<AppEnv>();
@@ -128,10 +134,21 @@ gms.route("/", outsideRoutes);
 gms.route("/", keepRoutes);
 gms.route("/", approvalRoutes);
 gms.route("/", grantRoutes);
+gms.route("/", reviewParityRoutes);
 gms.route("/", moneyRoutes);
 gms.route("/", importRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
+// The switch pages' free migration request: no token needed, never an API or agent token.
+gms.route("/", migrationRequestRoutes);
+// Open data exports, and the public 360Giving feed (`/open-data/{handle}/360giving.json`, no token).
+gms.route("/", openDataRoutes);
+// The report builder (docs/reports.md).
+gms.route("/", reportRoutes);
+// Single sign-on for funder workspaces (docs/sso.md).
+gms.route("/", ssoRoutes);
+// The template gallery: public reads, moderation, and a funder workspace's copy and share.
+gms.route("/", galleryRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

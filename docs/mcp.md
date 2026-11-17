@@ -109,6 +109,8 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `assign_reviewer` | `reviews:write` | — | Assign a reviewer to an application for a stage. Refused when a conflict of interest is on record. |
 | `get_scores` | `reviews:read` | — | Get submitted reviews and scores for an application. |
 | `rank_applications` | `reviews:read` | — | Rank a competition stage: mean, median, spread and reviewer count per application. |
+| `get_coi_policy` | `reviews:read` | — | Get the conflict-of-interest policy reviewers sign for a competition, and whether the person this token acts for has signed it. No tool signs it. |
+| `get_conflicts_register` | `reviews:read` | — | Get a competition's conflicts register: who signed and when, the conflicts declared, every recusal with its reason. Program staff only. |
 | `propose_decision` | `decisions:write` | — | Propose (not commit) decisions for applications. Proposals appear in the panel view. |
 | `commit_decisions` | `decisions:write` | Approval | Commit proposed decisions: creates awards in offered, queues letters. Refused when the program would be over-allocated. |
 | `list_awards` | `awards:read` | — | List awards by status, program or recipient. |
@@ -137,10 +139,15 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `cycle_metrics` | `analytics:read` | — | Cycle metrics for a competition: counts by stage, time in stage, approval rate. |
 | `export_990pf_grant_list` | `analytics:read` | — | Export the 990-PF Part XV grant list for a tax year. |
 | `get_import_preview` | `workspace:admin` | — | Read a grant history import check a person made: rows to create, skip or fix, amounts by year, and the names of columns left out as bank or identity data. No tool imports the rows; only a person does, in the GMS, and agent and API-client tokens are refused on the commit route. |
+| `open_data_summary` | `analytics:read` | — | Count the awards an open data export (360Giving, CommonGrants) would publish for a year or date range, and those left out with the reason for each. Reads only; publishing is done by a person (docs/open-data.md). |
+| `list_report_views` | `analytics:read` | — | List report views: the six starter views and the saved views this person may see (shared ones and their own), with data set, owner and schedule. |
+| `run_report_view` | `analytics:read` | — | Run a report view and return its first 200 rows (or groups) with the column labels. Also needs the read scope of the view's data set. |
 | `draft_letter` | `assist` | — | Draft a letter from a template. The draft is never sent by this tool. |
 | `summarize_application` | `assist` | — | Summarize an application. Applicant text is quoted and labeled applicant-supplied. |
 | `compare_to_rubric` | `assist` | — | Compare an application to a rubric, criterion by criterion. A draft for a human reviewer, never a score. |
 | `send_communication` | `communications:write` | Approval | Send a templated email to applicants or grantees through Resend. |
+| `search_gallery` | `forms:read` | — | Search the public template gallery (approved application forms, rubrics, report forms, email templates and program kits) by kind, tag and words. |
+| `get_gallery_item` | `forms:read` | — | One approved gallery item with its full content. Copying, sharing, withdrawing and moderating are a person's, in the GMS: no tool. See `docs/gallery.md`. |
 | `get_approval` | any | — | Get the status of an approval request created by a gated tool: pending, approved, rejected, executed (with the result) or failed. |
 
 #### Outside applications, writing faster and keeping awards (v1.5.0 and v1.6.0)
@@ -148,7 +155,8 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 Outside applications are the applicant's own records of applications to any funder. These tools
 call the same services as `/gms/outside-*`, `/gms/vault`, `/gms/funding-summary` and
 `/gms/my/awarded-funding`. Drafts save nothing: accepted text is saved with `put_outside_answer`.
-There is no consulting-request tool and no vault upload tool, and no tool moves money.
+There is no consulting-request tool and no vault upload tool, and no tool moves money. There is no
+migration-request tool either (the switch pages' "Request a free migration" is a person's).
 
 | Tool | Scope | Gate | What it does |
 |---|---|---|---|

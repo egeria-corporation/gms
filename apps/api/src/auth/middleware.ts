@@ -10,6 +10,7 @@ import { keyRing } from "../lib/keys.ts";
 import { roleRequiresMfa, scopesForRole } from "./scopes.ts";
 import { secondStepVerified } from "./second-step.ts";
 import { isSessionToken, verifySupabaseSession, type SessionConfig, type SessionUser } from "./session.ts";
+import { assertSsoSatisfied } from "../services/sso.ts";
 import { authError, checkScope, checkWorkspaceBinding, forbidden, verifyAccessToken } from "./verify.ts";
 
 export const WORKSPACE_HEADER = "X-GMS-Workspace";
@@ -83,6 +84,9 @@ async function principalFromSession(c: Context<AppEnv>, user: SessionUser): Prom
   // Same answer for "no such workspace" and "not a member", so workspace ids cannot be probed.
   if (!m) throw forbidden("workspace_mismatch", "You are not a member of this workspace");
   if (m.expiresAt && Date.parse(m.expiresAt) <= c.get("deps").now().getTime()) throw forbidden("membership_expired", "Your access to this workspace has expired");
+  // Single sign-on (docs/sso.md): a workspace that requires it for this person's email domain refuses any other sign-in.
+  await assertSsoSatisfied(c.get("deps").repos, workspaceId, user);
+  c.set("user", user);
   if (roleRequiresMfa(m.workspaceKind, m.role) && !(await secondStepVerified(c, user))) throw forbidden("mfa_required", "This role requires two-step verification. Verify with your authenticator app to continue");
   await touchLastActive(c, m);
   return { kind: "user", userId: user.userId, clientId: null, workspaceId, role: m.role, scopes: scopesForRole(m.workspaceKind, m.role), memberScope: m.scope, jti: null };

@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Sign in: email → one-time code → second step when a workspace requires it → first run.
+// Sign in: email → one-time code → second step when a workspace requires it → first run. Funder
+// staff whose organization uses single sign-on take the "Use single sign-on" step instead of the code.
 // One state at a time; the markup follows design board P4, which shows the states side by side.
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { CopyButton } from "../../components/CopyButton.tsx";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { ArrowRight, CircleX, ExternalLink, Info, Lock, TriangleExclamationPoint } from "lucide-react";
+import { ArrowRight, Building2, CircleX, ExternalLink, Info, Lock, TriangleExclamationPoint } from "lucide-react";
 import { useServices } from "../../app/services.tsx";
+import { rememberSsoNext, takeSsoNext } from "../../auth/sso.ts";
+import { ssoPortFor } from "../../auth/ssoHooks.ts";
 import type { TotpEnrollment } from "../../auth/types.ts";
 import { usePassportFlags } from "../../api/launchHooks.ts";
 import { PassportButton } from "../../components/PassportButton.tsx";
@@ -13,7 +16,7 @@ import { passportProblem, safeNext } from "../../lib/passportSignIn.ts";
 import { isReviewOnly } from "../../lib/roles.ts";
 import { MOCK_CODE } from "../../mocks/auth.ts";
 
-type Step = "email" | "code" | "mfa" | "first-run";
+type Step = "email" | "code" | "mfa" | "first-run" | "sso";
 type Choice = "funder" | "applicant" | "invite";
 
 
@@ -82,22 +85,31 @@ export function invitationToken(pasted: string): string | null {
 }
 
 export default function SignIn() {
-  const { auth, sessionState, meState, reloadMe, mock } = useServices();
+  const services = useServices();
+  const { auth, sessionState, meState, reloadMe, mock } = services;
   const passportFlags = usePassportFlags();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const next = safeNext(params.get("next"));
+  // After single sign-on the identity provider returns here without the query; the page to go back to was kept.
+  const [ssoReturn, setSsoReturn] = useState<string | null>(null);
+  const next = safeNext(params.get("next")) ?? ssoReturn;
   // The landing page's two start buttons carry who the person is, so they are not asked again.
   const asParam = params.get("as");
   const as: "funder" | "grantee" | null = asParam === "funder" || asParam === "grantee" ? asParam : null;
   // A page that was refused for want of the second step sends the person here with `step=mfa`. Honour
   // it even when the membership list has not caught up yet (a workspace created a moment ago).
   const wantsSecondStep = params.get("step") === "mfa";
+  // A workspace that requires single sign-on sent the person here (`step=sso`).
+  const wantsSso = params.get("step") === "sso";
   // Passport sent the person back without a session: say why, and what to do next.
   const passport = sessionState.status === "signedIn" ? null : passportProblem(params.get("passport_error"));
 
-  const [step, setStep] = useState<Step>("email");
+  const [step, setStep] = useState<Step>(wantsSso ? "sso" : "email");
   const [email, setEmail] = useState("");
+  const [ssoEmail, setSsoEmail] = useState(() => (sessionState.status === "signedIn" ? sessionState.session.email : ""));
+  // An SSO sign-in is its own account: it first joins the workspaces this address already belongs to.
+  const [ssoJoin, setSsoJoin] = useState<"idle" | "running" | "done">("idle");
+  const ssoStartedHere = useRef(false);
   const [code, setCode] = useState("");
   const [totp, setTotp] = useState("");
   const [enrollment, setEnrollment] = useState<TotpEnrollment | null>(null);
@@ -109,10 +121,35 @@ export default function SignIn() {
   const mfaStarted = useRef(false);
 
   const signedInEmail = sessionState.status === "signedIn" ? sessionState.session.email : email;
+  const ssoSession = sessionState.status === "signedIn" ? (sessionState.session.ssoProviderId ?? null) : null;
+  // Sent here for single sign-on while signed in some other way, or through another provider than the one
+  // that was just used: stay on this step instead of going back to the page that refused.
+  const holdForSso = wantsSso && sessionState.status === "signedIn" && (!ssoSession || !ssoStartedHere.current);
+
+  // Sent here for single sign-on while signed in: start from the address already in use.
+  const sessionEmail = sessionState.status === "signedIn" ? sessionState.session.email : "";
+  useEffect(() => {
+    if (sessionEmail) setSsoEmail((v) => v || sessionEmail);
+  }, [sessionEmail]);
+
+  // Back from the identity provider: join the workspaces this address belongs to, then load them again.
+  useEffect(() => {
+    if (!ssoSession || ssoJoin !== "idle" || holdForSso) return;
+    setSsoJoin("running");
+    setSsoReturn(safeNext(takeSsoNext()));
+    ssoPortFor(services)
+      .api.join()
+      .catch(() => null)
+      .finally(() => {
+        setSsoJoin("done");
+        reloadMe();
+      });
+  }, [ssoSession, ssoJoin, holdForSso, services, reloadMe]);
 
   // Once signed in, the memberships decide what comes next.
   useEffect(() => {
     if (sessionState.status !== "signedIn" || meState.status !== "ready") return;
+    if (holdForSso || (ssoSession && ssoJoin !== "done")) return;
     const { me } = meState;
     const target = next ? me.workspaces.find((w) => next === `/w/${w.handle}` || next.startsWith(`/w/${w.handle}/`)) : undefined;
     const needsMfa = !me.mfaVerified && (wantsSecondStep || (target ? target.requiresMfa : me.workspaces.some((w) => w.requiresMfa)));
@@ -126,7 +163,7 @@ export default function SignIn() {
     // Someone whose only job here is reviewing works in the reviewer portal, not the funder workspace.
     const first = me.workspaces[0]!;
     navigate(next ?? (isReviewOnly(first.role) && me.workspaces.every((w) => isReviewOnly(w.role)) ? "/review/assignments" : `/w/${first.handle}`), { replace: true });
-  }, [sessionState.status, meState, next, as, wantsSecondStep, navigate]);
+  }, [sessionState.status, meState, next, as, wantsSecondStep, navigate, holdForSso, ssoSession, ssoJoin]);
 
   // Entering the second step: challenge an enrolled authenticator, or start enrollment.
   useEffect(() => {
@@ -176,6 +213,20 @@ export default function SignIn() {
       }
     });
   };
+  const startSso = (e: FormEvent) => {
+    e.preventDefault();
+    return run(async () => {
+      rememberSsoNext(next);
+      ssoStartedHere.current = true;
+      try {
+        await auth.signInWithSSO(ssoEmail.trim());
+      } catch (err) {
+        ssoStartedHere.current = false;
+        rememberSsoNext(null);
+        throw err;
+      }
+    });
+  };
   const verifyTotp = (e: FormEvent) => {
     e.preventDefault();
     if (!factorId) return;
@@ -194,7 +245,7 @@ export default function SignIn() {
     }
   };
 
-  const waiting = sessionState.status === "signedIn" && meState.status === "loading";
+  const waiting = (sessionState.status === "signedIn" && meState.status === "loading") || ssoJoin === "running";
   const profileError = sessionState.status === "signedIn" && meState.status === "error";
 
   return (
@@ -301,6 +352,18 @@ export default function SignIn() {
                     <ArrowRight className="ic" aria-hidden="true" />
                   </button>
                 </form>
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    if (!ssoEmail) setSsoEmail(email);
+                    setStep("sso");
+                  }}
+                >
+                  <Building2 className="ic" aria-hidden="true" />
+                  Use single sign-on
+                </button>
                 {passportFlags.signIn && (
                   <>
                     <div style={{ display: "flex", alignItems: "center", gap: "12px", color: "#4A5C5A", fontSize: "13px" }}>
@@ -314,6 +377,68 @@ export default function SignIn() {
                   </>
                 )}
               </div>
+            )}
+
+            {step === "sso" && (
+              <form className="card" style={{ padding: "28px", display: "flex", flexDirection: "column", gap: "18px" }} onSubmit={startSso}>
+                <div>
+                  <h2 style={{ fontSize: "20px" }}>Use Single Sign-On</h2>
+                  <p style={{ fontSize: "14px", color: "#4A5C5A", marginTop: "4px" }}>
+                    Sign in through your organization's identity provider, such as Okta, Google Workspace or JumpCloud.
+                  </p>
+                </div>
+                {wantsSso && (
+                  <div className="bnr bnr-warn" role="alert">
+                    <Lock className="ic" aria-hidden="true" />
+                    <div>
+                      <div className="t">This workspace requires single sign-on</div>
+                      <div className="d">
+                        {ssoSession && !ssoStartedHere.current
+                          ? "You are signed in with single sign-on, but not through the identity provider this workspace uses. Continue with your work email to sign in again."
+                          : "Your organization signs its staff in through its own identity provider. Continue with your work email."}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="fld">
+                  <label className="lbl" htmlFor="sso-email">
+                    Work email
+                  </label>
+                  <input
+                    className="inp"
+                    id="sso-email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    autoFocus
+                    value={ssoEmail}
+                    onChange={(e) => setSsoEmail(e.target.value)}
+                    style={{ height: "44px", fontSize: "16px" }}
+                  />
+                  <span className="help">We send you to your organization's sign-in page and you come back here signed in.</span>
+                </div>
+                {error && <Problem>{error}</Problem>}
+                <button className="btn btn-primary btn-lg" type="submit" disabled={busy || !ssoEmail.trim()}>
+                  Continue with single sign-on
+                  <ArrowRight className="ic" aria-hidden="true" />
+                </button>
+                {wantsSso && sessionState.status === "signedIn" ? (
+                  <button className="btn btn-ghost" type="button" onClick={() => void auth.signOut().then(() => setStep("email"))}>
+                    Sign out
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-ghost"
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setStep("email");
+                    }}
+                  >
+                    Sign in with an email code instead
+                  </button>
+                )}
+              </form>
             )}
 
             {step === "code" && (

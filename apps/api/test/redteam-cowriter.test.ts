@@ -13,6 +13,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import { SESSION_SECRET, WS_APPLICANT, bearer, harness, type Harness } from "./helpers.ts";
 import { USER_APPLICANT, scenario, type Scenario } from "./scenario.ts";
+import { STARTER_ITEMS, STARTERS_PUBLISHED_AT } from "../src/services/gallery-starters.ts";
 
 const SPEC = fileURLToPath(new URL("../../../api/tsp-output/@typespec/openapi3/openapi.GMS.yaml", import.meta.url));
 const COWRITER = "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0";
@@ -98,7 +99,38 @@ const PERSONAL_ROUTES = new Set([
   // is in bodyFor and must be refused).
   "get /gms/passport/consent/callback",
   "post /gms/passport/consent/finish",
+  // Joining workspaces through single sign-on is the person's own sign-in (refused without one),
+  // and whether the person moderates the template gallery is about them, not the workspace.
+  "post /gms/sso/join",
+  "get /gms/gallery/moderation/me",
 ]);
+
+/**
+ * Routes anyone may call without signing in, so a cowriter may too: the template gallery's approved
+ * items, the switch pages' free migration request, and a funder's public open data feed (404 while
+ * the funder has not published it). They hold none of the workspace's records.
+ */
+const ANYONE_ROUTES = new Set([
+  "get /gms/gallery",
+  "get /gms/gallery/{slug}",
+  "get /gms/migration-requests/form",
+  "post /gms/migration-requests/preview",
+  "post /gms/migration-requests",
+  "get /gms/open-data/{handle}/360giving.json",
+]);
+
+/** The v1.8.0 areas a cowriter must never reach: reports, open data, SSO settings, gallery share and moderation, review, dockets. */
+const WAVE_B_AREAS: Record<string, RegExp> = {
+  reports: /^\w+ \/gms\/(reports|report-views|report-files)(\/|$)/,
+  "open data": /^\w+ \/gms\/open-data\//,
+  "single sign-on settings": /^\w+ \/gms\/sso\//,
+  "gallery share and moderation": /^\w+ \/gms\/(workspaces\/\{workspaceId\}\/gallery|gallery\/moderation)\//,
+  review: /^\w+ \/gms\/(competitions\/\{id\}\/(coi-policy|conflicts-register|review-settings)|review-assignments)/,
+  docket: /^\w+ \/gms\/competitions\/\{id\}\/dockets/,
+};
+
+/** A report definition the report builder accepts. */
+const REPORT = { dataSet: "awards", columns: ["title", "amount"], filters: [], groupBy: [], aggregates: [], sort: [] };
 
 /** Bodies the document's schema alone does not make valid (cross-field rules, ids that must exist). */
 function bodyFor(key: string, ids: Ids, own: boolean): unknown {
@@ -171,6 +203,12 @@ function bodyFor(key: string, ids: Ids, own: boolean): unknown {
     "post /gms/rubrics": { name: "Screen", criteria: [{ key: "fit", label: "Fit", weight: 1, scale: { type: "numeric", min: 1, max: 5 } }] },
     "post /gms/submissions/{id}/return": { note: "Please add the budget." },
     "put /gms/awards/{id}/schedule": { tranches: [{ percent: 100, condition: { type: "manual" } }] },
+    // v1.8.0 funder routes: valid bodies, so the refusal is the workspace's and not the body's.
+    "put /gms/competitions/{id}/coi-policy": { text: "Tell us about any organization you work for, advise or give to." },
+    "post /gms/reports/preview": REPORT,
+    "post /gms/reports/export": { definition: REPORT },
+    "post /gms/report-views": { name: "Awards", definition: REPORT },
+    "put /gms/report-views/{id}/schedule": { cadence: "weekly", weekday: 1, recipientUserIds: [COWRITER] },
   };
   return bodies[key];
 }
@@ -249,6 +287,10 @@ function paramsFor(path: string, ids: Ids): { own: boolean; values: Record<strin
     applicantWorkspaceId: WS_APPLICANT,
     granteeId: NOWHERE,
     deliveryId: NOWHERE,
+    docketId: NOWHERE,
+    slug: STARTER_ITEMS[0]!.slug,
+    handle: "riverbend",
+    workspaceId: WS_APPLICANT,
   };
   const idFor = (own: boolean) => {
     if (outside) return own ? ids.oa : path.startsWith("/gms/outside-awards/") ? ids.awardedOa : ids.otherOa;
@@ -320,6 +362,8 @@ const created = async <T>(r: Promise<{ status: number; body: unknown }>): Promis
 async function setUp() {
   h = await harness();
   s = await scenario(h);
+  // The starter library, as migration 0036 ships it, so the gallery's routes have an item to name.
+  for (const g of STARTER_ITEMS) await h.repos.table("gallery_items").insert({ id: g.id, slug: g.slug, kind: g.kind, title: g.title, summary: g.summary, tags: g.tags as never, author_workspace_id: null, licence: "CC-BY-4.0", status: "approved", version: 1, snapshot: g.snapshot as never, uses_count: 0, published_at: STARTERS_PUBLISHED_AT, withdrawn_at: null });
   doc = parse(readFileSync(SPEC, "utf8")) as Doc;
   const a = s.applicant;
   const oa = await created<{ id: string }>(s.call(a, "POST", "/gms/outside-applications", { title: "Rural clinics 2027", funderName: "Northwind Family Foundation", stage: "drafting" }));
@@ -435,8 +479,16 @@ describe.skipIf(!existsSync(SPEC))("a cowriter invited into one outside draft, o
   });
 
   it("answers 403 or 404 to everything else", () => {
-    const open = calls.filter((c) => !(c.own && DRAFT_ROUTES.has(c.key)) && !PERSONAL_ROUTES.has(c.key) && c.status !== 403 && c.status !== 404);
+    const open = calls.filter((c) => !(c.own && DRAFT_ROUTES.has(c.key)) && !PERSONAL_ROUTES.has(c.key) && !ANYONE_ROUTES.has(c.key) && c.status !== 403 && c.status !== 404);
     expect(open.map((c) => `${c.status} ${c.key}${c.own ? " (the invited draft)" : ""} ${c.text.slice(0, c.status === 400 ? 600 : 160)}`)).toEqual([]);
+  });
+
+  it("reaches none of reports, open data, SSO settings, gallery share, review or dockets", () => {
+    for (const [area, re] of Object.entries(WAVE_B_AREAS)) {
+      const mine = calls.filter((c) => re.test(c.key) && !PERSONAL_ROUTES.has(c.key) && !ANYONE_ROUTES.has(c.key));
+      expect(mine.length, `${area}: routes in the document`).toBeGreaterThan(0);
+      expect(mine.filter((c) => c.status !== 403 && c.status !== 404).map((c) => `${area}: ${c.status} ${c.key} ${c.text.slice(0, 160)}`)).toEqual([]);
+    }
   });
 
   it("never answers with anything of the records it may not see", () => {

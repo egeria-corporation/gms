@@ -142,3 +142,49 @@ export function screenColumns(header: readonly string[], rows: readonly (readonl
   });
   return { keep, dropped };
 }
+
+// ------------------------------------------------------------------------------------ free text
+
+/** What a removed number reads as in free text. */
+export const SENSITIVE_NUMBER_MASK = "[number removed]";
+
+/**
+ * Words that come before a number in a sentence and name bank or identity details: every header
+ * phrase above, plus the bare forms a sentence uses where a header would add "number" ("account
+ * 11111", "a/c", "born on"). "Passport" alone is not one: it is also the name of OpenGrants
+ * Passport, and the header phrase above already takes "passport no" and "passport number".
+ */
+const TEXT_PARTS = [...HEADER_PARTS, String.raw`\bacc(?:oun)?t\b`, String.raw`\ba\/c\b`, String.raw`\btin\b`, String.raw`\btaxpayer\b`, String.raw`\blicen[cs]e\b`, String.raw`\bborn\b`];
+/** A number of five or more digits (a year alone is kept), even with slashes or dots, up to 24 characters after one of those words. */
+const WORD_BEFORE_NUMBER = new RegExp(String.raw`(?:${TEXT_PARTS.join("|")})[^\d\n]{0,24}(\d(?:[ ./-]?\d){4,})`, "gi");
+/** {@link IDENTITY_FORMATTED} inside a sentence: three, two and four digits with the same separator. */
+const IDENTITY_IN_TEXT = /(?<!\d)\d{3}([ -])\d{2}\1\d{4}(?!\d)/g;
+/** Eight or more digits in a row, or grouped by single spaces or dashes: account, routing and card numbers (nine digits, which a cell never keeps outside an EIN column, included). */
+const LONG_IN_TEXT = /(?<!\d)\d(?:[ -]?\d){7,}(?!\d)/g;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Remove numbers that look like a bank account, routing or identity number from free text, and say
+ * how many were removed. The same words and shapes as the column screen above, applied inside a
+ * sentence; it errs on the side of removing (a long phone number written with dashes goes too). Used
+ * on the switch pages' migration request note before it is previewed or sent, by the API and by the
+ * web app's mock alike.
+ */
+export function stripSensitiveNumbers(text: string): { text: string; removed: number } {
+  let removed = 0;
+  const out = text
+    .replace(WORD_BEFORE_NUMBER, (match: string, digits: string) => {
+      removed++;
+      return match.slice(0, match.length - digits.length) + SENSITIVE_NUMBER_MASK;
+    })
+    .replace(IDENTITY_IN_TEXT, () => {
+      removed++;
+      return SENSITIVE_NUMBER_MASK;
+    })
+    .replace(LONG_IN_TEXT, (match: string) => {
+      if (ISO_DATE.test(match)) return match;
+      removed++;
+      return SENSITIVE_NUMBER_MASK;
+    });
+  return { text: out, removed };
+}

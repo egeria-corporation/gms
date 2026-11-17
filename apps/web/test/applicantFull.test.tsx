@@ -220,6 +220,24 @@ describe("funders and notifications", () => {
     expect(within(digest).getByLabelText("Email digest")).toBeInTheDocument();
     expect(await within(digest).findByRole("switch", { name: "An agent needs my approval" })).toBeInTheDocument();
   });
+
+  it("offers a funder workspace's scheduled report switches, and only there", async () => {
+    open("/notifications");
+    const digest = within(await screen.findByRole("complementary", { name: "Digest settings" }));
+    const select = digest.getByLabelText("Workspace") as HTMLSelectElement;
+    const funder = [...select.options].find((o) => /Riverbend/.test(o.text))!;
+    const applicant = [...select.options].find((o) => !/Riverbend|Cascade/.test(o.text))!;
+    await userEvent.selectOptions(select, applicant.value);
+    await waitFor(() => expect(digest.getByRole("switch", { name: "An agent needs my approval" })).toBeEnabled());
+    expect(digest.queryByRole("switch", { name: "A scheduled report is ready" })).toBeNull();
+    await userEvent.selectOptions(select, funder.value);
+    const email = await digest.findByRole("switch", { name: "Email me the scheduled reports I am sent" });
+    await waitFor(() => expect(email).toBeEnabled());
+    expect(digest.getByRole("switch", { name: "A scheduled report is ready" })).toHaveAttribute("aria-checked", "true");
+    expect(email).toHaveAttribute("aria-checked", "true");
+    await userEvent.click(email);
+    await waitFor(() => expect(digest.getByRole("switch", { name: "Email me the scheduled reports I am sent" })).toHaveAttribute("aria-checked", "false"));
+  });
 });
 
 describe("what a funder publishes", () => {

@@ -23,7 +23,11 @@ select tables_are(
     'workspace_creation_counts', 'award_invitations', 'award_invitation_sends',
     'funder_records', 'outside_applications', 'outside_questions', 'outside_answers', 'calendar_feeds', 'consulting_requests',
     'outside_obligation_series', 'outside_obligations', 'application_summaries',
-    'import_mappings', 'import_runs', 'import_rows'
+    'import_mappings', 'import_runs', 'import_rows',
+    'report_views', 'report_schedules', 'report_files',
+    'workspace_sso_domains',
+    'coi_policies', 'coi_signatures',
+    'gallery_items', 'gallery_submissions'
   ],
   'public schema has exactly the GMS tables'
 );

@@ -21,11 +21,13 @@ import * as competitions from "./competitions.ts";
 import { makeActor, type ServiceContext } from "./context.ts";
 import * as drafting from "./drafting.ts";
 import * as forms from "./forms.ts";
+import * as gallery from "./gallery.ts";
 import * as summary from "./funding-summary.ts";
 import * as grantees from "./grantees.ts";
 import * as imports from "./imports.ts";
 import * as inbox from "./inbox.ts";
 import * as obligations from "./obligations.ts";
+import * as openData from "./open-data.ts";
 import * as opportunities from "./opportunities.ts";
 import * as outside from "./outside.ts";
 import * as org from "./organization.ts";
@@ -33,6 +35,7 @@ import * as payments from "./payments.ts";
 import * as programs from "./programs.ts";
 import * as pub from "./public.ts";
 import * as quickSetup from "./quick-setup.ts";
+import * as reportBuilder from "./report-builder.ts";
 import * as requirements from "./requirements.ts";
 import * as reviews from "./reviews.ts";
 import * as team from "./team.ts";
@@ -126,6 +129,8 @@ const IMPLEMENTED: Impl = {
   assignReviewer: (ctx, i) => reviews.createAssignment(ctx, app(i.applicationId), { stage: i.stage, reviewerUserId: i.reviewerUserId, ...(i.dueAt ? { dueAt: i.dueAt } : {}) }),
   getScores: async (ctx, i) => ({ items: await reviews.listReviews(ctx, app(i.applicationId), i.stage) }),
   rankApplications: (ctx, i) => reviews.getRanking(ctx, cmp(i.competitionId), i.stage),
+  getCoiPolicy: (ctx, i) => reviews.getCoiPolicy(ctx, cmp(i.competitionId)),
+  getConflictsRegister: (ctx, i) => reviews.getConflictsRegister(ctx, cmp(i.competitionId)),
   proposeDecision: (ctx, i) => decisions.proposeDecisions(ctx, cmp(i.competitionId), i.decisions.map((d) => ({ applicationUuid: app(d.applicationId), outcome: d.outcome, ...(d.amountMinor !== undefined ? { amountMinor: d.amountMinor } : {}), conditions: d.conditions, ...(d.rationale ? { rationale: d.rationale } : {}) }))),
   // Gated: this runs only after a person approved the call, as that person.
   commitDecisions: (ctx, i) => decisions.commitDecisions(ctx, cmp(i.competitionId), { decisionIds: i.decisionIds }),
@@ -340,6 +345,14 @@ const IMPLEMENTED: Impl = {
     const out = await analytics.grantList990pf(ctx, i.taxYear);
     return i.format === "json" ? { year: out.year, items: out.items, totals: out.totals } : { year: out.year, csv: out.csv, totals: out.totals };
   },
+  // Open data: the export summary without the per-award list.
+  openDataSummary: async (ctx, i) => {
+    const { awards: _awards, awardsShown: _shown, ...counts } = await openData.openDataSummary(ctx, openData.rangeOf({ year: i.year, from: i.from, to: i.to }));
+    return counts;
+  },
+  // The report builder: read only, through the same service and authorization as the REST routes.
+  listReportViews: (ctx) => reportBuilder.listViews(ctx),
+  runReportView: (ctx, i) => reportBuilder.runView(ctx, i.viewId),
 
   // ---- applicant: reports ----
   listMyRequirements: async (ctx, i) => (await requirements.listMyRequirements(ctx)).filter((r) => (!i.awardId || r.awardId === `awd_${awd(i.awardId)}`) && (!i.status?.length || i.status.includes(r.status as never))),
@@ -351,6 +364,9 @@ const IMPLEMENTED: Impl = {
   },
   submitRequirement: async (ctx, i) => requirements.submitSubmission(ctx, sub((await requirements.startSubmission(ctx, req(i.requirementId))).id)),
   shareSubmissionWithFunder: (ctx, i) => requirements.shareSubmission(ctx, sub(i.submissionId), { funderWorkspaceId: i.funderWorkspaceId, ...(i.fields ? { fields: i.fields } : {}) }),
+  // ---- funder: the template gallery (reads only) ----
+  searchGallery: (ctx, i) => gallery.searchGalleryAsMember(ctx, { ...(i.kind ? { kind: i.kind } : {}), ...(i.tag ? { tag: i.tag } : {}), ...(i.q ? { q: i.q } : {}) }, paged(i)),
+  getGalleryItem: (ctx, i) => gallery.getGalleryItemAsMember(ctx, i.slug),
 };
 
 export const IMPLEMENTED_SERVICES: readonly string[] = Object.keys(IMPLEMENTED);

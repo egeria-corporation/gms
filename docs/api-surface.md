@@ -128,6 +128,11 @@ communications are **people only**: a client-credentials or delegated (agent) to
 | `PATCH /gms/review-assignments/{id}` | `reviews:write` | `action`: `declare_coi`, `save`, `submit`, `recuse`, `reschedule`. Scoring needs the COI declaration first |
 | `GET /gms/reviews?applicationId=` | `reviews:read` | Blind by default: a reviewer sees other reviews only once the stage's panel is open (`stages[].panelOpen`, `reviewMode`) |
 | `GET /gms/competitions/{id}/ranking?stage=` | `reviews:read` (staff, observer, auditor) | Mean, median, sample stdev, n, spread flag; recomputed on read |
+| `GET`, `PUT /gms/competitions/{id}/coi-policy` | `reviews:read` / `reviews:write` (staff) | The conflict-of-interest policy reviewers sign; a change is a new version (docs/reviews.md) |
+| `POST /gms/competitions/{id}/coi-policy/sign` | session only (the reviewer) | Typed name, the version read, declared organizations; 409 `policy_changed`; agents and API clients refused |
+| `GET /gms/competitions/{id}/conflicts-register`, `…/conflicts-register.csv` | `reviews:read` (staff, observer, auditor) | Signatures, declared conflicts with their matches, recusals with reasons |
+| `GET`, `PUT /gms/competitions/{id}/review-settings` | `reviews:read` / `reviews:write` (staff) | Per stage: `anonymized`, `reviewMode`, `panelOpen` |
+| `POST /gms/competitions/{id}/dockets`, `GET …/dockets/{docketId}` | `reviews:read` (admin, program officer) | The board docket PDF, kept in the EXPORTS bucket; 503 `exports_unavailable` without it |
 | `GET /gms/competitions/{id}/allocation` | `reviews:read` | Budget − committed awards − open proposals, in minor units |
 | `POST /gms/decisions/propose`, `GET /gms/decisions` | `decisions:write` / `reviews:read` | A new proposal replaces the application's open one |
 | `POST /gms/decisions/commit` | `decisions:write` (person) | 409 `over_allocation` unless an admin sends `override.reason`. Approve → award `offered`, agreement draft, schedule, requirements, letter |
@@ -436,3 +441,74 @@ Tests: `apps/web/test/front-worker.test.ts`, `apps/api/test/share-pages.test.ts`
 | `GET/POST/DELETE /gms/connectors/{provider}` | Implemented | Adds `google_sheets` and `airtable` (read-only Composio connections), workspace admin of either kind. `GET /gms/config` adds `available.googleSheets` and `available.airtable` |
 | `POST /gms/outside-applications/import`, `POST /gms/imports/csv` | Implemented | The older direct imports screen columns by header and by value as the wizard does; a field mapped to a dropped column counts as unmapped |
 | MCP `get_import_preview` | Implemented | Funder (`workspace:admin`) and applicant (`applications:write`) sides. A run's reconciliation, progress and dropped column names. No tool commits an import |
+
+## Reports, open data, single sign-on, switching and review (v1.8.0)
+
+Tests: `apps/api/test/report-builder.test.ts`, `contract-reports.test.ts`, `reports-mcp.test.ts`,
+`open-data.test.ts`, `sso.test.ts`, `redteam-sso.test.ts`, `migration-request.test.ts`,
+`review-parity.test.ts`, `gallery.test.ts`, `redteam-cowriter.test.ts`; database: migrations
+`0033_review_parity.sql` to `0036_template_gallery.sql`.
+
+### Report builder (`docs/reports.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/reports/data-sets` | Implemented | The five data sets and their whitelisted columns. Funder roles with `analytics:read`, plus each data set's own read scope |
+| `POST /gms/reports/preview`, `POST /gms/reports/export` | Implemented | The first 200 rows (or groups) of a definition; up to 50,000 rows as CSV, streamed, with `X-Report-Rows`, `X-Report-Total`, `X-Report-Truncated` and `Content-Disposition`, all readable by the web app (CORS expose list) |
+| `GET/POST /gms/report-views`, `GET/PATCH/DELETE /gms/report-views/{id}`, `POST …/run`, `GET …/export`, `GET …/recipients` | Implemented | Starter views and saved views; saving, changing and removing a view is a signed-in person's (`403 person_required`) and only the owner's (`not_owner`); an admin may remove a shared one |
+| `PUT/DELETE /gms/report-views/{id}/schedule` | Implemented | Weekly or monthly, the owner in person; recipients are members who may read the view (`422 recipient_not_allowed`). A recipient who switched off the `report` notification category's email still finds the file in the app |
+| `GET /gms/report-files`, `GET /gms/report-files/{id}/download` | Implemented | Files sent to the caller, kept 30 days (`410 file_expired`) |
+| MCP `list_report_views`, `run_report_view` | Implemented | Read only (`analytics:read`); no tool saves, shares or schedules |
+
+### Open data (`docs/open-data.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/open-data/summary` | Implemented | Funder `admin`, `program_officer`, `finance`, `auditor` (`analytics:read`). What an export of the period would hold and what it leaves out, with reasons |
+| `GET /gms/open-data/360giving.json`, `…/360giving.csv`, `…/commongrants.json` | Implemented | 360Giving 1.4.3 and CommonGrants v0.5.0 (the award projection is `projectAwardRow` in services/awards.ts, the same as `GET /common-grants/awards`). `X-Open-Data-Draft: true` without a registered prefix |
+| `PUT /gms/open-data/settings`, `PUT /gms/open-data/awards/{id}/confidential` | Implemented | A signed-in person only (`403 human_only`); the prefix and the feed switch are the admin's |
+| `GET /gms/open-data/{handle}/360giving.json` | Implemented | No token, any origin (in the central open CORS list, the feed path only). `404` until published |
+| MCP `open_data_summary` | Implemented | Counts only |
+
+### Single sign-on (`docs/sso.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/sso/settings` | Implemented | Funder admins; API clients with `workspace:admin` may read |
+| `POST /gms/sso/domains`, `DELETE /gms/sso/domains/{id}`, `POST /gms/sso/domains/{id}/check` | Implemented | A signed-in admin only (`403 human_only` for agents and API clients); no MCP tool |
+| `PUT /gms/sso/requirement` | Implemented | Turning it on needs an active domain and an admin signed in through that domain's own identity provider now (`409 sso_session_required`); turning it off is always allowed |
+| `POST /gms/sso/join` | Implemented | After an SSO sign-in, joins each workspace whose active domain matches the address and whose provider the session came through |
+| Any workspace route | Implemented | A session for an address on a required domain that did not come through that domain's provider gets `403 sso_required` on every workspace route (`redteam-sso.test.ts`, every GET of the document); connecting an agent needs the same. API clients and existing agent tokens are unaffected |
+
+### Switching (`docs/switching.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/migration-requests/form`, `POST /gms/migration-requests/preview`, `POST /gms/migration-requests` | Implemented | No token needed; a person's session is accepted; any other token `403 person_only`. The preview is exactly what is sent; numbers that look like bank or identity numbers are removed from the note (`stripSensitiveNumbers`, packages/importers). No MCP tool |
+| `/switch`, `/switch/{system}` | Served by the front Worker | Each page's title, description and Open Graph text from `seoFor()`; listed in the sitemap |
+
+### Review parity changes from the integration
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET/PUT /gms/competitions/{id}/coi-policy` | Implemented | `required` says whether reviewers sign before anything opens: on for new competitions, off for competitions that existed before migration 0033 until the funder turns it on. `PUT { required }` is a signed-in person's (`403 human_only`) |
+| `POST /gms/imports/csv`, `POST /gms/outside-applications/import` | Changed | A signed-in person only, like the import wizard's commit: agent and API-client tokens get `403 human_only` with the same message |
+
+## Template gallery
+
+Approved items are public; the rest is a funder workspace's or a moderator's. Details, the stripping
+rules and the starter library: `docs/gallery.md`.
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/gallery?kind=&tag=&q=` | Implemented | No token. Approved items, most used first, and the tag vocabularies (`tags`). `kind` one of `application_form`, `report_form`, `rubric`, `email_template`, `program_kit` (`400` otherwise) |
+| `GET /gms/gallery/{slug}` | Implemented | No token. One approved item with its `snapshot` (`forms`, `rubrics`, `emails`); `404` once withdrawn |
+| `POST /gms/workspaces/{workspaceId}/gallery/items/{slug}/copy` | Implemented | Funder workspace; each part needs its own scope (`forms:write`, `reviews:write`, `communications:write` with an admin or program officer role), all checked first. `201 { item, created[] }`: new draft forms, a new rubric, new email templates. Ledger `gallery.copied` |
+| `POST /gms/workspaces/{workspaceId}/gallery/preview` | Implemented | Funder admin, signed in. `{ source: { type: form \| rubric \| template, id, version? }, extraNames? }` → the cleaned snapshot, what was stripped, the names replaced. Saves nothing. `409 form_not_published`, `422 not_shareable` |
+| `GET /gms/workspaces/{workspaceId}/gallery/submissions` | Implemented | The workspace's submissions with status, decision and reason (`forms:read`) |
+| `POST /gms/workspaces/{workspaceId}/gallery/submissions` | Implemented | Funder admin, signed in (`403 human_only` for an agent, `person_required` for an API client). Adds `title`, `summary`, `tags`, `licence: "CC-BY-4.0"`. `409 already_submitted`. Ledger `gallery.submitted` |
+| `POST /gms/workspaces/{workspaceId}/gallery/submissions/{id}/withdraw` | Implemented | Funder admin, signed in. Pending or approved; an approved item leaves the gallery. Ledger `gallery.item_withdrawn` |
+| `GET /gms/gallery/moderation/me` | Implemented | Signed in. `{ moderator }` |
+| `GET /gms/gallery/moderation/queue` | Implemented | Moderators (`GALLERY_MODERATORS`). Pending submissions, oldest first. `403 not_a_moderator` |
+| `POST /gms/gallery/moderation/submissions/{id}/approve` | Implemented | Moderators. `{ slug? }` → the published item. Ledger `gallery.item_approved` in the author's workspace |
+| `POST /gms/gallery/moderation/submissions/{id}/reject` | Implemented | Moderators. `{ reason }` (3 to 2,000 characters), shown to the author. Ledger `gallery.item_declined` |

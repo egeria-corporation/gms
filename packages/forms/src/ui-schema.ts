@@ -2,7 +2,7 @@
 // JSON Forms-style UI schema: validation at save time and rule evaluation at render/validate time.
 import { getPath, isPlainObject, scopeToPointer } from "./pointer.ts";
 import { resolveRef } from "./schema-subset.ts";
-import { WIDGETS, type ControlOptions, type DefinitionError, type FormSchema, type UiControl, type UiElement, type UiRule } from "./types.ts";
+import { WIDGETS, type ControlOptions, type DefinitionError, type FieldMeta, type FormSchema, type UiControl, type UiElement, type UiRule, type WidgetName } from "./types.ts";
 import { validateAgainstSchema } from "./validate.ts";
 
 const LAYOUTS = new Set(["VerticalLayout", "HorizontalLayout", "Group", "Categorization", "Category"]);
@@ -49,7 +49,7 @@ export function validateUiSchema(ui: unknown, jsonSchema: FormSchema): Definitio
         else {
           const o = el.options;
           if (o.widget !== undefined && !(WIDGETS as readonly unknown[]).includes(o.widget)) err(`${path}/options/widget`, `unknown widget ${JSON.stringify(o.widget)}`);
-          for (const k of ["reviewerVisible", "pii", "outcome"]) if (o[k] !== undefined && typeof o[k] !== "boolean") err(`${path}/options/${k}`, "must be true or false");
+          for (const k of ["reviewerVisible", "pii", "identifying", "outcome"]) if (o[k] !== undefined && typeof o[k] !== "boolean") err(`${path}/options/${k}`, "must be true or false");
         }
       }
       return;
@@ -125,4 +125,24 @@ export function evaluateUi(ui: UiElement, response: unknown): UiState {
     hidden: controls.filter((c) => !c.visible).map((c) => c.path),
     disabled: controls.filter((c) => !c.enabled).map((c) => c.path),
   };
+}
+
+/** Widgets whose answer always says who applied: Passport fields, addresses, phone numbers and signatures. */
+export const IDENTIFYING_WIDGETS: readonly WidgetName[] = ["passportField", "address", "phone", "signature"];
+
+/**
+ * The fields of a form that say who applied (JSON pointers, sorted): controls marked `identifying`
+ * in their options or in `fieldMeta`, controls whose widget always carries identity
+ * (`IDENTIFYING_WIDGETS`), and email fields. `identifying: false` in `fieldMeta` does not unmark a
+ * widget that carries identity. Used to hide them from reviewers in a stage with anonymized review.
+ */
+export function identifyingFields(form: { jsonSchema?: FormSchema; uiSchema: UiElement; fieldMeta?: Record<string, FieldMeta> }): string[] {
+  const out = new Set<string>();
+  for (const c of collectControls(form.uiSchema)) {
+    const node = form.jsonSchema ? schemaAtScope(form.jsonSchema, c.scope) : undefined;
+    const widget = c.options?.widget ?? node?.["x-widget"];
+    if (c.options?.identifying === true || (widget && IDENTIFYING_WIDGETS.includes(widget)) || node?.format === "email") out.add(c.path);
+  }
+  for (const [path, meta] of Object.entries(form.fieldMeta ?? {})) if (meta.identifying === true) out.add(path);
+  return [...out].sort();
 }

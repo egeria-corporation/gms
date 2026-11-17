@@ -88,6 +88,8 @@ export interface ControlOptions {
   reviewerVisible?: boolean;
   /** Default false. True masks the value for external reviewers. */
   pii?: boolean;
+  /** Default false. True hides the field from reviewers in a stage with anonymized review (it says who applied). */
+  identifying?: boolean;
   /** True on a numeric report field whose values add up across accepted reports (program outcome totals). */
   outcome?: boolean;
   /** What an outcome counts, e.g. "people served". */
@@ -127,6 +129,8 @@ export type MappingSchema = { [key: string]: MappingFunction | MappingSchema };
 export interface FieldMeta {
   reviewerVisible?: boolean;
   pii?: boolean;
+  /** True when the answer says who applied: hidden from reviewers in a stage with anonymized review. */
+  identifying?: boolean;
   /** True on a numeric report field whose values add up across accepted reports (program outcome totals). */
   outcome?: boolean;
   /** What an outcome counts, e.g. "people served". */
@@ -143,7 +147,7 @@ export interface FormDefinition {
   uiSchema: UiElement;
   mappingFromCommonGrants?: MappingSchema;
   mappingToCommonGrants?: MappingSchema;
-  /** JSON pointer → reviewer visibility / PII flags. Merged with the UI schema control options. */
+  /** JSON pointer → reviewer visibility / PII / identifying flags. Merged with the UI schema control options. */
   fieldMeta?: Record<string, FieldMeta>;
   publishedAt?: string | null;
   supersedesFormVersion?: number | null;

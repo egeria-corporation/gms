@@ -28,7 +28,7 @@ const A = "/w/alder-creek";
 const HEALTH = `app_${APPLICANT_IDS.appHealth}`;
 const CLINIC = `app_${APPLICANT_IDS.appClinic}`;
 
-const PUBLIC = ["/", "/agents", "/signin", "/f/riverbend", "/f/riverbend/o/community-health-2027", "/embed/f/riverbend/o/community-health-2027", "/embed/f/riverbend/o/housing-stability-2027", "/workspaces", "/notifications", "/account/agents", "/onboarding/applicant"];
+const PUBLIC = ["/", "/agents", "/signin", "/signin?step=sso", "/f/riverbend", "/f/riverbend/o/community-health-2027", "/embed/f/riverbend/o/community-health-2027", "/embed/f/riverbend/o/housing-stability-2027", "/workspaces", "/notifications", "/account/agents", "/onboarding/applicant"];
 const APPLICANT = [
   A,
   `${A}/organization`,
@@ -96,6 +96,7 @@ const FUNDER = [
   `${F}/settings/passport`,
   `${F}/settings/mcp`,
   `${F}/settings/public-page`,
+  `${F}/settings/security`,
   `${F}/approvals`,
   "/review/assignments",
   `/review/score/${MOCK_IDS.danaScoring}`,

@@ -108,6 +108,8 @@ export interface ServicePorts {
   mcpDirectory?: McpDirectory;
   /** Where export bundles and ledger archives are written. */
   exports?: { put(key: string, body: string, contentType: string): Promise<void> };
+  /** Binary files in the same EXPORTS bucket, read back by their routes (board dockets). Never public. */
+  exportFiles?: FileStorage;
   storage?: FileStorage;
   openGrants?: OpenGrantsClient;
   /** Names and emails for member lists. */
@@ -297,3 +299,13 @@ export const required = <T>(value: T | null | undefined, what: string): T => {
   if (value === null || value === undefined) throw notFound(what);
   return value;
 };
+
+/**
+ * Writing imported rows is a signed-in person's act, on every import route: the import wizard's
+ * commit and the two older direct CSV imports (`POST /gms/imports/csv`,
+ * `POST /gms/outside-applications/import`). Agents and API clients get the same 403 `human_only`,
+ * whatever their scopes.
+ */
+export function importsArePeoples(ctx: Pick<ServiceContext, "actor">): void {
+  if (ctx.actor.kind !== "user") throw forbidden("human_only", "A person imports these rows, in the GMS. An agent or API client can read the check but not import it");
+}

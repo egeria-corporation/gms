@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { evaluateRequirements, sendDocumentExpiryWarnings, sendNextCycleReminders, sendObligationReminders, sendOutsideReminders } from "../src/jobs.ts";
 import { AGENT_REDIRECT, CLIENT_AGENT, SESSION_SECRET, USER_ADMIN, USER_OFFICER, VERIFIER, WS_APPLICANT, WS_FUNDER, authorizeAs, bearer, form, harness, type Harness } from "./helpers.ts";
 import { USER_APPLICANT, scenario, type Scenario } from "./scenario.ts";
+import { signCoiPolicy } from "./coi.ts";
 
 const COWRITER = "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0";
 const COWRITER_EMAIL = "lena@fischergrants.example";
@@ -337,6 +338,10 @@ describe("the AI summary on the review screen", () => {
     expect((await s.call(reviewer, "GET", `/gms/assist/summary?applicationId=${appId}`)).status).toBe(404);
     const rubric = (await h.repos.table("rubrics").find({ workspace_id: WS_FUNDER }))[0]!;
     await h.repos.table("review_assignments").insert({ workspace_id: WS_FUNDER, application_id: uuid, stage: "loi", reviewer_user_id: REVIEWER, rubric_id: rubric.id, rubric_version: rubric.version, status: "assigned" });
+    // Not before they sign the competition's conflict-of-interest policy (v1.8.0).
+    expect((await s.call(reviewer, "GET", `/gms/assist/summary?applicationId=${appId}`)).status).toBe(404);
+    expect((await s.call(reviewer, "POST", "/gms/assist/summary", { applicationId: appId })).status).toBe(404);
+    await signCoiPolicy(h, WS_FUNDER, s.uuid.comp, [REVIEWER]);
     const theirs = await s.call<View>(reviewer, "GET", `/gms/assist/summary?applicationId=${appId}`);
     expect(theirs.status).toBe(200);
     expect(theirs.body.data.responseVersion).not.toBe(staff.body.data.responseVersion);

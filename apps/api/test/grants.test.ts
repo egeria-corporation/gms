@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
 import { CLIENT_AGENT, USER_ADMIN, USER_AUDITOR, USER_OFFICER, WS_APPLICANT, WS_FUNDER, WS_OTHER, bearer, harness, type Harness } from "./helpers.ts";
 import { USER_APPLICANT, scenario, type Scenario } from "./scenario.ts";
+import { signCoiPolicy } from "./coi.ts";
 
 const R1 = "10000000-0000-4000-8000-000000000001";
 const R2 = "10000000-0000-4000-8000-000000000002";
@@ -56,6 +57,8 @@ beforeEach(async () => {
   for (const [user, role, scope] of [[R1, "reviewer", {}], [R2, "reviewer", {}], [SAME_DOMAIN, "reviewer", { email: "pat@aldercreekfs.example" }]] as const) await h.repos.table("workspace_members").insert({ workspace_id: WS_FUNDER, user_id: user, role, scope });
   r1 = await headers(R1, WS_FUNDER);
   r2 = await headers(R2, WS_FUNDER);
+  // Every reviewer here has signed the competition's conflict-of-interest policy (tested in review-parity.test.ts).
+  await signCoiPolicy(h, WS_FUNDER, s.uuid.comp, [R1, R2, EXT, SAME_DOMAIN, USER_ADMIN, USER_OFFICER]);
 
   // A program with a budget, so the allocator has something to guard.
   programId = (await data<{ id: string }>(s.funder, "POST", "/gms/programs", { name: "Community Health 2027", budgetAmountMinor: 20_000_000, currency: "USD" })).id;

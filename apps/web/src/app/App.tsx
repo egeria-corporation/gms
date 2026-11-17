@@ -15,6 +15,9 @@ import { NotFound } from "../components/NotFound.tsx";
 
 const Landing = lazy(() => import("../screens/public/Landing.tsx"));
 const Agents = lazy(() => import("../screens/public/Agents.tsx"));
+// The switch pages and their free migration request.
+const Switch = lazy(() => import("../screens/public/Switch.tsx"));
+const SwitchSystem = lazy(() => import("../screens/public/SwitchSystem.tsx"));
 const FunderPage = lazy(() => import("../screens/public/FunderPage.tsx"));
 const OpportunityPage = lazy(() => import("../screens/public/OpportunityPage.tsx"));
 const EmbedWidget = lazy(() => import("../screens/public/EmbedWidget.tsx"));
@@ -29,6 +32,10 @@ const ApplicantOnboarding = lazy(() => import("../screens/public/ApplicantOnboar
 const ApplyEntry = lazy(() => import("../screens/public/ApplyEntry.tsx"));
 const Notifications = lazy(() => import("../screens/public/Notifications.tsx"));
 const AccountSettings = lazy(() => import("../screens/public/AccountSettings.tsx"));
+// The template gallery: public pages, and the moderators' queue.
+const Gallery = lazy(() => import("../screens/public/Gallery.tsx"));
+const GalleryItem = lazy(() => import("../screens/public/GalleryItem.tsx"));
+const GalleryModeration = lazy(() => import("../screens/public/GalleryModeration.tsx"));
 const FDashboard = lazy(() => import("../screens/funder/Dashboard.tsx"));
 const FPrograms = lazy(() => import("../screens/funder/Programs.tsx"));
 const FOpportunityBuilder = lazy(() => import("../screens/funder/OpportunityBuilder.tsx"));
@@ -54,10 +61,12 @@ const FPaymentsLedger = lazy(() => import("../screens/funder/PaymentsLedger.tsx"
 const FReporting = lazy(() => import("../screens/funder/Reporting.tsx"));
 const FGrantees = lazy(() => import("../screens/funder/Grantees.tsx"));
 const FAnalytics = lazy(() => import("../screens/funder/Analytics.tsx"));
+const FReportBuilder = lazy(() => import("../screens/funder/ReportBuilder.tsx"));
 const FCommunications = lazy(() => import("../screens/funder/Communications.tsx"));
 const ConnectorReturn = lazy(() => import("../screens/funder/GoogleWorkspace.tsx").then((m) => ({ default: m.ConnectorReturn })));
 const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
 const FSettingsPublicPage = lazy(() => import("../screens/funder/SettingsPublicPage.tsx"));
+const FSettingsSecurity = lazy(() => import("../screens/funder/SettingsSecurity.tsx"));
 const FApprovals = lazy(() => import("../screens/funder/Approvals.tsx"));
 const ADashboard = lazy(() => import("../screens/applicant/Dashboard.tsx"));
 const AOrganization = lazy(() => import("../screens/applicant/Organization.tsx"));
@@ -193,11 +202,16 @@ function AppRoutes() {
         <Route path="/signin" element={<SignIn />} />
         <Route path="/auth/passport" element={<PassportReturn />} />
         <Route path="/agents" element={<Agents />} />
+        <Route path="/switch" element={<Switch />} />
+        <Route path="/switch/:system" element={<SwitchSystem />} />
         <Route path="/workspaces" element={<WorkspaceSwitcher />} />
         {/* The agent consent page. Not under /oauth/: the site hands every /oauth/ path to the API. */}
         <Route path="/consent" element={<OAuthConsent />} />
         {/* An award invitation. Outside the guard so the token is lifted out of the address before any sign-in `next` is built. */}
         <Route path="/awards/claim" element={<ClaimAward />} />
+        {/* The template gallery: anyone browses and previews; copying asks for a sign-in. */}
+        <Route path="/templates" element={<Gallery />} />
+        <Route path="/templates/:slug" element={<GalleryItem />} />
 
         {/* Everything below needs a signed-in person. */}
         <Route element={<RequireAuth />}>
@@ -211,6 +225,7 @@ function AppRoutes() {
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/account" element={<Navigate to="/account/agents" replace />} />
           <Route path="/account/agents" element={<AccountSettings />} />
+          <Route path="/gallery/moderation" element={<GalleryModeration />} />
 
           {/* Reviewer portal: external reviewers have no workspace rail. */}
           <Route path="/review/assignments" element={<FReviewerAssignments />} />
@@ -259,11 +274,13 @@ function AppRoutes() {
             <Route path="grantees" element={f(<FGrantees />)} />
             <Route path="grantees/:granteeId" element={f(<FGrantees />)} />
             <Route path="analytics" element={f(<FAnalytics />)} />
+            <Route path="report-builder" element={f(<FReportBuilder />)} />
             <Route path="communications" element={f(<FCommunications />)} />
             <Route path="settings" element={<ByKind funder={<Navigate to="passport" replace />} applicant={<ASettings />} />} />
             <Route path="settings/passport" element={f(<FSettingsPassport />)} />
             <Route path="settings/mcp" element={f(<FSettingsMcp />)} />
             <Route path="settings/public-page" element={f(<FSettingsPublicPage />)} />
+            <Route path="settings/security" element={f(<FSettingsSecurity />)} />
             {/* Where the API sends a person back to after a provider's sign-in (Google Workspace). */}
             <Route path="settings/connectors" element={<ConnectorReturn />} />
             {/* Import from a spreadsheet: grant history in a funder workspace, applications in an applicant one. */}

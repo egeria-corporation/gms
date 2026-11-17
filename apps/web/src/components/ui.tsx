@@ -213,10 +213,23 @@ export function ReadinessChecklist({ checklist, title }: { checklist: Checklist;
   );
 }
 
-/** Field-level problems from a 422, keyed by the path the API names. */
+/** A detail that only names a record (an id, bare or prefixed), not a problem a person can read. */
+const ID_ONLY = /^(?:[a-z]+_)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Field-level problems from a 400 or 422, keyed by the path the API names. The API gives each as
+ * `{ code, field, detail }`; the mocks and older answers as `{ field | path, message }`. Both read the
+ * same here. A detail that is only a record's id is a reference, not a problem, and is left out.
+ */
 export function problemsOf(error: unknown): FieldProblem[] {
   if (!(error instanceof ApiError)) return [];
-  return error.errors.filter((e): e is FieldProblem => typeof e === "object" && e !== null && typeof (e as FieldProblem).message === "string");
+  return error.errors.flatMap((e): FieldProblem[] => {
+    if (typeof e !== "object" || e === null) return [];
+    const o = e as { path?: unknown; field?: unknown; message?: unknown; detail?: unknown };
+    const message = typeof o.message === "string" ? o.message : typeof o.detail === "string" && !ID_ONLY.test(o.detail.trim()) ? o.detail : null;
+    if (message === null) return [];
+    return [{ ...(typeof o.path === "string" ? { path: o.path } : {}), ...(typeof o.field === "string" ? { field: o.field } : {}), message }];
+  });
 }
 
 export const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : "Something went wrong. Try again.");

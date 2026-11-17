@@ -13,6 +13,7 @@ import { FunderShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader } from "../../components/ui.tsx";
 import { usePeople, type Person } from "./shared.tsx";
 import { VerificationBadge } from "../../components/status.tsx";
+import { ReviewSettingsCard } from "./ReviewParity.tsx";
 
 const REVIEWER_ROLES = ["reviewer", "external_reviewer", "program_officer", "admin", "finance"];
 const STATUS_TEXT: Record<Assignment["status"], string> = { assigned: "Assigned", coi_declared: "No conflict declared", in_progress: "Scoring", submitted: "Submitted", recused: "Recused" };
@@ -195,6 +196,7 @@ export default function ReviewAssignment() {
           )}
           {hint && <Notice tone="warn" title="Check this assignment for a conflict">{hint}</Notice>}
           {toggle.error !== null && <ErrorBanner error={toggle.error} title="That assignment was not changed" />}
+          {competition && stage && <ReviewSettingsCard key={`${competition.id}:${stage.key}`} competitionId={competition.id} stageKey={stage.key} />}
           {loading && <Loading label="Loading assignments" />}
           {assignments.status === "error" && <ErrorBanner error={assignments.error} onRetry={assignments.reload} />}
           {!loading && !competition && (

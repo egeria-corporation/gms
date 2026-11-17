@@ -56,6 +56,12 @@ node scripts/bootstrap-supabase.ts --db-url "postgresql://postgres:<password>@db
 6. Authentication → SMTP: point Supabase's own mail (sign-in codes) at Resend's SMTP, or any SMTP
    you run. The built-in sender is rate-limited and not for production.
 7. Realtime is used for presence in the application editor; leave it enabled.
+8. Single sign-on (optional, v1.8.0): the project must be on the Pro plan or above, with
+   Authentication → Providers → SAML 2.0 switched on, and `https://gms.example.org/signin` on the
+   redirect URLs. Register each workspace's identity provider with `scripts/sso/register-provider.mjs`
+   (it reads `SUPABASE_ACCESS_TOKEN` from your own shell; it is never a Worker secret), then run the
+   `gms.activate_sso_domain` line it prints. Without this no workspace can require single sign-on.
+   See `docs/sso.md`.
 
 Row Level Security is on for every table. The Workers use the service-role key and filter by
 workspace in code; the `authenticated` role has read-only policies and no user ever needs the
@@ -149,6 +155,7 @@ Set each secret with `wrangler secret put <NAME> --env production`, in `apps/api
 | `OPENGRANTS_API_KEY` | api | Optional |
 | `COMPOSIO_API_KEY` | api | Optional. Connected apps through Composio (`docs/connectors.md`); for imports it must be allowed to execute tools as well as manage connected accounts |
 | `COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID`, `COMPOSIO_AIRTABLE_AUTH_CONFIG_ID` | api | Optional (v1.7.0). Read-only Composio auth configs for importing from Google Sheets and Airtable (`docs/connectors.md`). Without them imports offer CSV and Excel files only |
+| `GALLERY_MODERATORS` | api | Optional (v1.8.0). Who moderates the template gallery: comma-separated user ids or email addresses. A secret, never a `[vars]` entry, so the addresses are not published in `wrangler.toml`. Unset, nobody moderates and nothing new is published (the nine starters still show) |
 | `VITE_USERBACK_TOKEN` | web build | Optional, build-time (not a Worker secret). Userback's public access token for the feedback button. Leave it unset to load nothing and keep the Content-Security-Policy unchanged |
 
 Non-secret variables live in `[env.production.vars]`: `GMS_BASE_URL`, `WEB_BASE_URL`,

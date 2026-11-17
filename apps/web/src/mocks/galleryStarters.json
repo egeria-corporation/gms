@@ -1,0 +1,1894 @@
+{
+  "publishedAt": "2026-11-15T00:00:00Z",
+  "items": [
+    {
+      "id": "36000000-0000-7000-8000-000000000001",
+      "slug": "common-application",
+      "kind": "application_form",
+      "title": "Common application",
+      "summary": "A complete project application most funders can use as it is: the project, the need, the plan, the budget and who leads the work. About 30 minutes for an applicant who knows the project.",
+      "tags": {
+        "fieldOfWork": [
+          "Any field"
+        ],
+        "grantSize": [
+          "$10,000 to $50,000",
+          "$50,000 to $250,000"
+        ],
+        "audience": [
+          "Nonprofits",
+          "Community groups"
+        ]
+      },
+      "snapshot": {
+        "forms": [
+          {
+            "title": "Common application",
+            "description": "A complete project application most funders can use as it is: the project, the need behind it, the plan, the budget and who will lead the work.",
+            "instructions": "Thank you for applying. Answer in plain language, as you would explain your work to a neighbor. Short answers are fine: the word limits are a ceiling, not a target. You can save and come back at any time before you submit.",
+            "purpose": "application",
+            "jsonSchema": {
+              "type": "object",
+              "required": [
+                "projectTitle",
+                "summary",
+                "need",
+                "plan",
+                "whoBenefits",
+                "outcomes",
+                "startDate",
+                "endDate",
+                "requestedAmount",
+                "projectBudgetTotal",
+                "budget",
+                "mission",
+                "leadership",
+                "contactName",
+                "contactEmail"
+              ],
+              "properties": {
+                "projectTitle": {
+                  "type": "string",
+                  "title": "Project title",
+                  "maxLength": 200
+                },
+                "summary": {
+                  "type": "string",
+                  "title": "Project summary",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                },
+                "need": {
+                  "type": "string",
+                  "title": "The need",
+                  "x-wordCount": {
+                    "max": 300
+                  }
+                },
+                "plan": {
+                  "type": "string",
+                  "title": "What you will do",
+                  "x-wordCount": {
+                    "max": 300
+                  }
+                },
+                "whoBenefits": {
+                  "type": "string",
+                  "title": "Who will benefit",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "outcomes": {
+                  "type": "string",
+                  "title": "What will change, and how you will know",
+                  "x-wordCount": {
+                    "max": 300
+                  }
+                },
+                "startDate": {
+                  "type": "string",
+                  "format": "date",
+                  "title": "Project start date"
+                },
+                "endDate": {
+                  "type": "string",
+                  "format": "date",
+                  "title": "Project end date"
+                },
+                "requestedAmount": {
+                  "type": "object",
+                  "title": "Amount requested"
+                },
+                "projectBudgetTotal": {
+                  "type": "object",
+                  "title": "Total project cost"
+                },
+                "otherFunding": {
+                  "type": "string",
+                  "title": "Other funding for this project",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                },
+                "budget": {
+                  "type": "object",
+                  "title": "Project budget"
+                },
+                "mission": {
+                  "type": "string",
+                  "title": "Your mission",
+                  "x-wordCount": {
+                    "max": 100
+                  }
+                },
+                "leadership": {
+                  "type": "string",
+                  "title": "Who will lead this work",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "communityVoice": {
+                  "type": "string",
+                  "title": "How the people you serve shape this work",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "contactName": {
+                  "type": "string",
+                  "title": "Contact name",
+                  "maxLength": 200
+                },
+                "contactEmail": {
+                  "type": "string",
+                  "format": "email",
+                  "title": "Contact email"
+                },
+                "contactPhone": {
+                  "type": "string",
+                  "title": "Contact phone"
+                }
+              }
+            },
+            "uiSchema": {
+              "type": "VerticalLayout",
+              "elements": [
+                {
+                  "type": "Group",
+                  "label": "Your project",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/projectTitle",
+                      "options": {
+                        "help": "A short name we can use when we talk about your project."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/summary",
+                      "options": {
+                        "help": "In a few sentences: what you will do, for whom, and what will change."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/need",
+                      "options": {
+                        "help": "What problem or opportunity does this project respond to? Local facts or stories help more than national figures."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/plan",
+                      "options": {
+                        "help": "The main activities, in the order they will happen."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/whoBenefits",
+                      "options": {
+                        "help": "Who the project is for, roughly how many people, and where they live."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/outcomes",
+                      "options": {
+                        "help": "Two or three results you expect, and how you will track them. Simple measures are welcome."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/startDate"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/endDate"
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Funding",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/requestedAmount",
+                      "options": {
+                        "widget": "money",
+                        "widgetOptions": {
+                          "currency": "USD"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/projectBudgetTotal",
+                      "options": {
+                        "help": "Include every source, not only this request.",
+                        "widget": "money",
+                        "widgetOptions": {
+                          "currency": "USD"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/otherFunding",
+                      "options": {
+                        "help": "Other grants, earned income or in-kind support, secured or pending."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/budget",
+                      "options": {
+                        "help": "Upload a one-page budget as a PDF or spreadsheet. Any clear format works.",
+                        "widget": "fileRef"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Your organization",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/mission"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/leadership",
+                      "options": {
+                        "help": "The people responsible for the project and the experience they bring."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/communityVoice"
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Contact for this application",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactName",
+                      "options": {
+                        "help": "The person we should talk to about this request."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactEmail",
+                      "options": {
+                        "pii": true
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactPhone",
+                      "options": {
+                        "widget": "phone",
+                        "pii": true
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "mappingFromCommonGrants": {},
+            "mappingToCommonGrants": {
+              "title": {
+                "field": "projectTitle"
+              },
+              "requestedAmount": {
+                "field": "requestedAmount"
+              }
+            },
+            "fieldMeta": {}
+          }
+        ],
+        "rubrics": [],
+        "emails": []
+      }
+    },
+    {
+      "id": "36000000-0000-7000-8000-000000000002",
+      "slug": "general-operating-support",
+      "kind": "application_form",
+      "title": "General operating support application",
+      "summary": "Unrestricted support for an organization's whole mission. Asks about the work, last year's results and the year ahead, and uses documents organizations already have.",
+      "tags": {
+        "fieldOfWork": [
+          "Any field"
+        ],
+        "grantSize": [
+          "Any size"
+        ],
+        "audience": [
+          "Nonprofits"
+        ]
+      },
+      "snapshot": {
+        "forms": [
+          {
+            "title": "General operating support application",
+            "description": "Unrestricted support for an organization's whole mission, not one project. Asks about the work, last year's results and the year ahead.",
+            "instructions": "General operating support funds your organization as a whole: salaries, rent, technology and the work itself. Tell us about the organization, not a single project. Use the documents you already have; we do not need anything written just for us.",
+            "purpose": "application",
+            "jsonSchema": {
+              "type": "object",
+              "required": [
+                "projectTitle",
+                "mission",
+                "whoYouServe",
+                "lastYear",
+                "yearAhead",
+                "requestedAmount",
+                "operatingBudget",
+                "useOfSupport",
+                "financials",
+                "budget",
+                "contactName",
+                "contactEmail"
+              ],
+              "properties": {
+                "projectTitle": {
+                  "type": "string",
+                  "title": "What should we call this request?",
+                  "maxLength": 200
+                },
+                "mission": {
+                  "type": "string",
+                  "title": "Your mission and what you do",
+                  "x-wordCount": {
+                    "max": 250
+                  }
+                },
+                "whoYouServe": {
+                  "type": "string",
+                  "title": "Who you serve, and where",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "lastYear": {
+                  "type": "string",
+                  "title": "What you accomplished last year",
+                  "x-wordCount": {
+                    "max": 250
+                  }
+                },
+                "yearAhead": {
+                  "type": "string",
+                  "title": "Your plans for the coming year",
+                  "x-wordCount": {
+                    "max": 250
+                  }
+                },
+                "challenges": {
+                  "type": "string",
+                  "title": "What is hard right now",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                },
+                "requestedAmount": {
+                  "type": "object",
+                  "title": "Amount requested"
+                },
+                "operatingBudget": {
+                  "type": "object",
+                  "title": "This year's operating budget"
+                },
+                "useOfSupport": {
+                  "type": "string",
+                  "title": "How flexible support would help",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "financials": {
+                  "type": "object",
+                  "title": "Most recent financial statements"
+                },
+                "budget": {
+                  "type": "object",
+                  "title": "Current year budget"
+                },
+                "contactName": {
+                  "type": "string",
+                  "title": "Contact name",
+                  "maxLength": 200
+                },
+                "contactEmail": {
+                  "type": "string",
+                  "format": "email",
+                  "title": "Contact email"
+                },
+                "contactPhone": {
+                  "type": "string",
+                  "title": "Contact phone"
+                }
+              }
+            },
+            "uiSchema": {
+              "type": "VerticalLayout",
+              "elements": [
+                {
+                  "type": "Group",
+                  "label": "Your organization",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/projectTitle",
+                      "options": {
+                        "help": "For example, \"2027 operating support\"."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/mission"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/whoYouServe"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/lastYear",
+                      "options": {
+                        "help": "A few results you are proud of. Numbers, stories or both."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/yearAhead"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/challenges",
+                      "options": {
+                        "help": "Optional. Knowing your challenges helps us be a better partner; it never counts against you."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Funding",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/requestedAmount",
+                      "options": {
+                        "widget": "money",
+                        "widgetOptions": {
+                          "currency": "USD"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/operatingBudget",
+                      "options": {
+                        "widget": "money",
+                        "widgetOptions": {
+                          "currency": "USD"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/useOfSupport"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/financials",
+                      "options": {
+                        "help": "An audit, a review or your board-approved statements, whichever you have.",
+                        "widget": "fileRef"
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/budget",
+                      "options": {
+                        "widget": "fileRef"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Contact for this application",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactName",
+                      "options": {
+                        "help": "The person we should talk to about this request."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactEmail",
+                      "options": {
+                        "pii": true
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactPhone",
+                      "options": {
+                        "widget": "phone",
+                        "pii": true
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "mappingFromCommonGrants": {},
+            "mappingToCommonGrants": {
+              "title": {
+                "field": "projectTitle"
+              },
+              "requestedAmount": {
+                "field": "requestedAmount"
+              }
+            },
+            "fieldMeta": {}
+          }
+        ],
+        "rubrics": [],
+        "emails": []
+      }
+    },
+    {
+      "id": "36000000-0000-7000-8000-000000000003",
+      "slug": "small-capacity-building",
+      "kind": "application_form",
+      "title": "Small capacity-building grant application",
+      "summary": "A short application for small grants that strengthen how an organization works: fundraising, technology, training, board development or planning.",
+      "tags": {
+        "fieldOfWork": [
+          "Any field"
+        ],
+        "grantSize": [
+          "Under $10,000"
+        ],
+        "audience": [
+          "Small organizations",
+          "Nonprofits",
+          "Community groups"
+        ]
+      },
+      "snapshot": {
+        "forms": [
+          {
+            "title": "Small capacity-building grant application",
+            "description": "A short application for a small grant that strengthens how an organization works: fundraising, technology, training, planning and the like.",
+            "instructions": "Capacity-building grants help your organization work better: new systems, skills or plans that will last after the grant ends. This application is short on purpose. Tell us what you want to strengthen and how.",
+            "purpose": "application",
+            "jsonSchema": {
+              "type": "object",
+              "required": [
+                "projectTitle",
+                "area",
+                "need",
+                "plan",
+                "success",
+                "requestedAmount",
+                "spending",
+                "contactName",
+                "contactEmail"
+              ],
+              "properties": {
+                "projectTitle": {
+                  "type": "string",
+                  "title": "Name of the effort",
+                  "maxLength": 200
+                },
+                "area": {
+                  "type": "string",
+                  "title": "Main area",
+                  "enum": [
+                    "Fundraising",
+                    "Technology",
+                    "Staff training",
+                    "Board development",
+                    "Finance and accounting",
+                    "Communications",
+                    "Strategic planning",
+                    "Evaluation",
+                    "Other"
+                  ]
+                },
+                "need": {
+                  "type": "string",
+                  "title": "Why now",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "plan": {
+                  "type": "string",
+                  "title": "What you will do",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "helpers": {
+                  "type": "string",
+                  "title": "Who will help",
+                  "x-wordCount": {
+                    "max": 100
+                  }
+                },
+                "success": {
+                  "type": "string",
+                  "title": "How you will know it worked",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                },
+                "requestedAmount": {
+                  "type": "object",
+                  "title": "Amount requested"
+                },
+                "spending": {
+                  "type": "string",
+                  "title": "How you will spend it",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                },
+                "quote": {
+                  "type": "object",
+                  "title": "A quote or estimate"
+                },
+                "contactName": {
+                  "type": "string",
+                  "title": "Contact name",
+                  "maxLength": 200
+                },
+                "contactEmail": {
+                  "type": "string",
+                  "format": "email",
+                  "title": "Contact email"
+                },
+                "contactPhone": {
+                  "type": "string",
+                  "title": "Contact phone"
+                }
+              }
+            },
+            "uiSchema": {
+              "type": "VerticalLayout",
+              "elements": [
+                {
+                  "type": "Group",
+                  "label": "What you want to strengthen",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/projectTitle",
+                      "options": {
+                        "help": "For example, \"New donor database\" or \"Board training\"."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/area"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/need",
+                      "options": {
+                        "help": "What gets in the way today, and what it costs your organization."
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Your plan",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/plan"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/helpers",
+                      "options": {
+                        "help": "A consultant, a trainer or a vendor, if you plan to work with one."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/success"
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Funding",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/requestedAmount",
+                      "options": {
+                        "widget": "money",
+                        "widgetOptions": {
+                          "currency": "USD"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/spending",
+                      "options": {
+                        "help": "A simple list is fine: what you will buy or pay for, and roughly what each costs."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/quote",
+                      "options": {
+                        "widget": "fileRef"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Contact for this application",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactName",
+                      "options": {
+                        "help": "The person we should talk to about this request."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactEmail",
+                      "options": {
+                        "pii": true
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactPhone",
+                      "options": {
+                        "widget": "phone",
+                        "pii": true
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "mappingFromCommonGrants": {},
+            "mappingToCommonGrants": {
+              "title": {
+                "field": "projectTitle"
+              },
+              "requestedAmount": {
+                "field": "requestedAmount"
+              }
+            },
+            "fieldMeta": {}
+          }
+        ],
+        "rubrics": [],
+        "emails": []
+      }
+    },
+    {
+      "id": "36000000-0000-7000-8000-000000000004",
+      "slug": "five-criterion-rubric",
+      "kind": "rubric",
+      "title": "Five-criterion rubric",
+      "summary": "Need and fit, approach, capacity, budget and community impact, each scored 1 to 5 with guidance for every score, so reviewers score the same way.",
+      "tags": {
+        "fieldOfWork": [
+          "Any field"
+        ],
+        "grantSize": [
+          "Any size"
+        ],
+        "audience": [
+          "Nonprofits",
+          "Community groups",
+          "Schools"
+        ]
+      },
+      "snapshot": {
+        "forms": [],
+        "rubrics": [
+          {
+            "name": "Five-criterion rubric",
+            "criteria": [
+              {
+                "key": "need",
+                "label": "Need and fit",
+                "weight": 1,
+                "scale": {
+                  "type": "numeric",
+                  "min": 1,
+                  "max": 5
+                },
+                "description": "Is the need clear, and does the project fit this opportunity?",
+                "guidance": "5: a clear, local need and a close fit. 3: the need is plausible and the fit is partial. 1: the need is unclear or outside what this opportunity funds."
+              },
+              {
+                "key": "approach",
+                "label": "Approach",
+                "weight": 1,
+                "scale": {
+                  "type": "numeric",
+                  "min": 1,
+                  "max": 5
+                },
+                "description": "Is the plan realistic and likely to work?",
+                "guidance": "5: concrete steps, a sensible timeline, built on what has worked. 3: a reasonable plan with gaps. 1: the activities do not lead to the results described."
+              },
+              {
+                "key": "capacity",
+                "label": "Capacity",
+                "weight": 1,
+                "scale": {
+                  "type": "numeric",
+                  "min": 1,
+                  "max": 5
+                },
+                "description": "Can the organization do what it proposes?",
+                "guidance": "5: experienced people and the systems to deliver. 3: some experience, some risk. 1: no clear way to deliver. Small organizations are not scored down for being small."
+              },
+              {
+                "key": "budget",
+                "label": "Budget",
+                "weight": 1,
+                "scale": {
+                  "type": "numeric",
+                  "min": 1,
+                  "max": 5
+                },
+                "description": "Is the budget reasonable and tied to the plan?",
+                "guidance": "5: every cost follows from the plan and the amounts are realistic. 3: mostly reasonable, some questions. 1: the budget does not match the plan."
+              },
+              {
+                "key": "impact",
+                "label": "Community impact",
+                "weight": 1,
+                "scale": {
+                  "type": "numeric",
+                  "min": 1,
+                  "max": 5
+                },
+                "description": "Will the project make a real difference for the people it serves?",
+                "guidance": "5: meaningful change for people who need it most, shaped with them. 3: some benefit. 1: little lasting difference."
+              }
+            ],
+            "overall": {
+              "recommendations": [
+                "Fund",
+                "Fund with conditions",
+                "Do not fund"
+              ]
+            }
+          }
+        ],
+        "emails": []
+      }
+    },
+    {
+      "id": "36000000-0000-7000-8000-000000000005",
+      "slug": "interim-report",
+      "kind": "report_form",
+      "title": "Interim report",
+      "summary": "A short mid-grant check-in: progress so far, people served to date, any change of plan and spending to date. Written so grantees can say plans changed.",
+      "tags": {
+        "fieldOfWork": [
+          "Any field"
+        ],
+        "grantSize": [
+          "Any size"
+        ],
+        "audience": [
+          "Nonprofits",
+          "Community groups",
+          "Schools"
+        ]
+      },
+      "snapshot": {
+        "forms": [
+          {
+            "title": "Interim report",
+            "description": "A mid-grant check-in: progress so far, numbers to date, any change of plan and spending to date.",
+            "instructions": "This check-in helps us understand how the work is going and whether we can help. It is not a test. If plans have changed, say so: changes are normal, and we would rather hear early.",
+            "purpose": "report",
+            "jsonSchema": {
+              "type": "object",
+              "required": [
+                "progress",
+                "plansChanged",
+                "spentToDate"
+              ],
+              "properties": {
+                "progress": {
+                  "type": "string",
+                  "title": "Progress so far",
+                  "x-wordCount": {
+                    "max": 300
+                  }
+                },
+                "peopleServed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "title": "People served so far"
+                },
+                "plansChanged": {
+                  "type": "boolean",
+                  "title": "Have your plans changed?"
+                },
+                "changes": {
+                  "type": "string",
+                  "title": "What changed, and why",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "challenges": {
+                  "type": "string",
+                  "title": "Challenges",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "spentToDate": {
+                  "type": "object",
+                  "title": "Grant funds spent so far"
+                },
+                "budgetChanges": {
+                  "type": "string",
+                  "title": "Changes to the budget",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                },
+                "supportNeeded": {
+                  "type": "string",
+                  "title": "Is there anything we can do to help?",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                },
+                "attachments": {
+                  "type": "object",
+                  "title": "Photos or documents"
+                }
+              }
+            },
+            "uiSchema": {
+              "type": "VerticalLayout",
+              "elements": [
+                {
+                  "type": "Group",
+                  "label": "Progress",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/progress",
+                      "options": {
+                        "help": "What you have done since the grant started."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/peopleServed",
+                      "options": {
+                        "help": "Leave it blank if counting people does not fit your work.",
+                        "outcome": true,
+                        "unit": "people served"
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/plansChanged"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/changes"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/challenges"
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Money",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/spentToDate",
+                      "options": {
+                        "widget": "money",
+                        "widgetOptions": {
+                          "currency": "USD"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/budgetChanges"
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Anything else",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/supportNeeded"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/attachments",
+                      "options": {
+                        "help": "Optional: anything that shows the work.",
+                        "widget": "fileRef"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "mappingFromCommonGrants": {},
+            "mappingToCommonGrants": {},
+            "fieldMeta": {}
+          }
+        ],
+        "rubrics": [],
+        "emails": []
+      }
+    },
+    {
+      "id": "36000000-0000-7000-8000-000000000006",
+      "slug": "final-report",
+      "kind": "report_form",
+      "title": "Final report",
+      "summary": "The end-of-grant report: results against the goals, people served, what was learned, how the money was spent and a question about how you could be a better funder.",
+      "tags": {
+        "fieldOfWork": [
+          "Any field"
+        ],
+        "grantSize": [
+          "Any size"
+        ],
+        "audience": [
+          "Nonprofits",
+          "Community groups",
+          "Schools"
+        ]
+      },
+      "snapshot": {
+        "forms": [
+          {
+            "title": "Final report",
+            "description": "The end-of-grant report: what was accomplished, results against the goals, what was learned and how the money was spent.",
+            "instructions": "Thank you for the work this grant supported. Tell us what happened, including what did not go to plan: what you learned is as useful to us as what you achieved. Your answers from the application and any interim report are a good starting point.",
+            "purpose": "report",
+            "jsonSchema": {
+              "type": "object",
+              "required": [
+                "accomplished",
+                "goals",
+                "learned",
+                "totalSpent",
+                "budgetVsActual",
+                "next"
+              ],
+              "properties": {
+                "accomplished": {
+                  "type": "string",
+                  "title": "What you accomplished",
+                  "x-wordCount": {
+                    "max": 300
+                  }
+                },
+                "goals": {
+                  "type": "string",
+                  "title": "How the results compare with your goals",
+                  "x-wordCount": {
+                    "max": 300
+                  }
+                },
+                "peopleServed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "title": "People served in all"
+                },
+                "story": {
+                  "type": "string",
+                  "title": "A story of change",
+                  "x-wordCount": {
+                    "max": 250
+                  }
+                },
+                "learned": {
+                  "type": "string",
+                  "title": "What you learned",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "totalSpent": {
+                  "type": "object",
+                  "title": "Grant funds spent in all"
+                },
+                "budgetVsActual": {
+                  "type": "object",
+                  "title": "Budget compared with actual spending"
+                },
+                "next": {
+                  "type": "string",
+                  "title": "What happens next",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                },
+                "feedback": {
+                  "type": "string",
+                  "title": "How could we have been a better funder?",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                }
+              }
+            },
+            "uiSchema": {
+              "type": "VerticalLayout",
+              "elements": [
+                {
+                  "type": "Group",
+                  "label": "Results",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/accomplished"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/goals"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/peopleServed",
+                      "options": {
+                        "help": "Leave it blank if counting people does not fit your work.",
+                        "outcome": true,
+                        "unit": "people served"
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/story",
+                      "options": {
+                        "help": "Optional: one person, family or place this work made a difference for. Share only what they agreed to share."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/learned"
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Money",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/totalSpent",
+                      "options": {
+                        "widget": "money",
+                        "widgetOptions": {
+                          "currency": "USD"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/budgetVsActual",
+                      "options": {
+                        "help": "Your project budget with a column for what you actually spent.",
+                        "widget": "fileRef"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Looking ahead",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/next"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/feedback"
+                    }
+                  ]
+                }
+              ]
+            },
+            "mappingFromCommonGrants": {},
+            "mappingToCommonGrants": {},
+            "fieldMeta": {}
+          }
+        ],
+        "rubrics": [],
+        "emails": []
+      }
+    },
+    {
+      "id": "36000000-0000-7000-8000-000000000007",
+      "slug": "award-letter-email",
+      "kind": "email_template",
+      "title": "Award letter email",
+      "summary": "A warm award email with the amount, what happens next and a link to review and sign. Uses the merge fields the GMS fills in for every award.",
+      "tags": {
+        "fieldOfWork": [
+          "Any field"
+        ],
+        "grantSize": [
+          "Any size"
+        ],
+        "audience": [
+          "Nonprofits",
+          "Community groups",
+          "Schools"
+        ]
+      },
+      "snapshot": {
+        "forms": [],
+        "rubrics": [],
+        "emails": [
+          {
+            "name": "Award letter",
+            "subject": "Good news: {{funder.name}} is awarding {{award.amount}} for {{award.title}}",
+            "body": "Hello {{recipient.name}},\n\nWe are delighted to tell you that {{funder.name}} is awarding **{{award.amount}}** for **{{award.title}}**.\n\nThank you for the care you put into your application. Our reviewers were moved by your work and by what you hope to achieve.\n\nWhat happens next:\n\n1. Review the award and its conditions.\n2. Sign the grant agreement.\n3. Once both sides have signed, we will schedule the first payment.\n\n[Review the award and sign]({{links.award}})\n\nIf anything in the award is unclear, or the timing does not work for you, reply to this email. We would much rather sort it out now.\n\nCongratulations, and thank you for the work you do.\n\n{{funder.name}}"
+          }
+        ]
+      }
+    },
+    {
+      "id": "36000000-0000-7000-8000-000000000008",
+      "slug": "decline-email",
+      "kind": "email_template",
+      "title": "Decline email",
+      "summary": "A kind, clear decline: thanks the applicant, says the decision is not a judgment of their work, keeps their application available and offers feedback.",
+      "tags": {
+        "fieldOfWork": [
+          "Any field"
+        ],
+        "grantSize": [
+          "Any size"
+        ],
+        "audience": [
+          "Nonprofits",
+          "Community groups",
+          "Schools"
+        ]
+      },
+      "snapshot": {
+        "forms": [],
+        "rubrics": [],
+        "emails": [
+          {
+            "name": "Decline",
+            "subject": "Your application to {{funder.name}}",
+            "body": "Hello {{recipient.name}},\n\nThank you for applying to {{opportunity.title}} and for the time you gave to **{{application.title}}**.\n\nWe are sorry to tell you that {{funder.name}} is not able to fund it this time. We received many more strong applications than we could support, and this decision is not a judgment of the value of your work.\n\nYour application stays in your records, so you can reuse what you wrote: [View your application]({{links.status}})\n\nWe hope you will apply again. If you would like feedback on your application, reply to this email and we will do our best to help.\n\nWith thanks and best wishes,\n\n{{funder.name}}"
+          }
+        ]
+      }
+    },
+    {
+      "id": "36000000-0000-7000-8000-000000000009",
+      "slug": "small-grants-program-kit",
+      "kind": "program_kit",
+      "title": "Small grants program kit",
+      "summary": "Everything to run a first grant round: the common application, the five-criterion rubric, the final report, and the award and decline emails. Copy it and adjust what you need.",
+      "tags": {
+        "fieldOfWork": [
+          "Any field"
+        ],
+        "grantSize": [
+          "Under $10,000",
+          "$10,000 to $50,000"
+        ],
+        "audience": [
+          "Nonprofits",
+          "Community groups",
+          "Small organizations"
+        ]
+      },
+      "snapshot": {
+        "forms": [
+          {
+            "title": "Common application",
+            "description": "A complete project application most funders can use as it is: the project, the need behind it, the plan, the budget and who will lead the work.",
+            "instructions": "Thank you for applying. Answer in plain language, as you would explain your work to a neighbor. Short answers are fine: the word limits are a ceiling, not a target. You can save and come back at any time before you submit.",
+            "purpose": "application",
+            "jsonSchema": {
+              "type": "object",
+              "required": [
+                "projectTitle",
+                "summary",
+                "need",
+                "plan",
+                "whoBenefits",
+                "outcomes",
+                "startDate",
+                "endDate",
+                "requestedAmount",
+                "projectBudgetTotal",
+                "budget",
+                "mission",
+                "leadership",
+                "contactName",
+                "contactEmail"
+              ],
+              "properties": {
+                "projectTitle": {
+                  "type": "string",
+                  "title": "Project title",
+                  "maxLength": 200
+                },
+                "summary": {
+                  "type": "string",
+                  "title": "Project summary",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                },
+                "need": {
+                  "type": "string",
+                  "title": "The need",
+                  "x-wordCount": {
+                    "max": 300
+                  }
+                },
+                "plan": {
+                  "type": "string",
+                  "title": "What you will do",
+                  "x-wordCount": {
+                    "max": 300
+                  }
+                },
+                "whoBenefits": {
+                  "type": "string",
+                  "title": "Who will benefit",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "outcomes": {
+                  "type": "string",
+                  "title": "What will change, and how you will know",
+                  "x-wordCount": {
+                    "max": 300
+                  }
+                },
+                "startDate": {
+                  "type": "string",
+                  "format": "date",
+                  "title": "Project start date"
+                },
+                "endDate": {
+                  "type": "string",
+                  "format": "date",
+                  "title": "Project end date"
+                },
+                "requestedAmount": {
+                  "type": "object",
+                  "title": "Amount requested"
+                },
+                "projectBudgetTotal": {
+                  "type": "object",
+                  "title": "Total project cost"
+                },
+                "otherFunding": {
+                  "type": "string",
+                  "title": "Other funding for this project",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                },
+                "budget": {
+                  "type": "object",
+                  "title": "Project budget"
+                },
+                "mission": {
+                  "type": "string",
+                  "title": "Your mission",
+                  "x-wordCount": {
+                    "max": 100
+                  }
+                },
+                "leadership": {
+                  "type": "string",
+                  "title": "Who will lead this work",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "communityVoice": {
+                  "type": "string",
+                  "title": "How the people you serve shape this work",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "contactName": {
+                  "type": "string",
+                  "title": "Contact name",
+                  "maxLength": 200
+                },
+                "contactEmail": {
+                  "type": "string",
+                  "format": "email",
+                  "title": "Contact email"
+                },
+                "contactPhone": {
+                  "type": "string",
+                  "title": "Contact phone"
+                }
+              }
+            },
+            "uiSchema": {
+              "type": "VerticalLayout",
+              "elements": [
+                {
+                  "type": "Group",
+                  "label": "Your project",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/projectTitle",
+                      "options": {
+                        "help": "A short name we can use when we talk about your project."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/summary",
+                      "options": {
+                        "help": "In a few sentences: what you will do, for whom, and what will change."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/need",
+                      "options": {
+                        "help": "What problem or opportunity does this project respond to? Local facts or stories help more than national figures."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/plan",
+                      "options": {
+                        "help": "The main activities, in the order they will happen."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/whoBenefits",
+                      "options": {
+                        "help": "Who the project is for, roughly how many people, and where they live."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/outcomes",
+                      "options": {
+                        "help": "Two or three results you expect, and how you will track them. Simple measures are welcome."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/startDate"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/endDate"
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Funding",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/requestedAmount",
+                      "options": {
+                        "widget": "money",
+                        "widgetOptions": {
+                          "currency": "USD"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/projectBudgetTotal",
+                      "options": {
+                        "help": "Include every source, not only this request.",
+                        "widget": "money",
+                        "widgetOptions": {
+                          "currency": "USD"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/otherFunding",
+                      "options": {
+                        "help": "Other grants, earned income or in-kind support, secured or pending."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/budget",
+                      "options": {
+                        "help": "Upload a one-page budget as a PDF or spreadsheet. Any clear format works.",
+                        "widget": "fileRef"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Your organization",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/mission"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/leadership",
+                      "options": {
+                        "help": "The people responsible for the project and the experience they bring."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/communityVoice"
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Contact for this application",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactName",
+                      "options": {
+                        "help": "The person we should talk to about this request."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactEmail",
+                      "options": {
+                        "pii": true
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/contactPhone",
+                      "options": {
+                        "widget": "phone",
+                        "pii": true
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "mappingFromCommonGrants": {},
+            "mappingToCommonGrants": {
+              "title": {
+                "field": "projectTitle"
+              },
+              "requestedAmount": {
+                "field": "requestedAmount"
+              }
+            },
+            "fieldMeta": {}
+          },
+          {
+            "title": "Final report",
+            "description": "The end-of-grant report: what was accomplished, results against the goals, what was learned and how the money was spent.",
+            "instructions": "Thank you for the work this grant supported. Tell us what happened, including what did not go to plan: what you learned is as useful to us as what you achieved. Your answers from the application and any interim report are a good starting point.",
+            "purpose": "report",
+            "jsonSchema": {
+              "type": "object",
+              "required": [
+                "accomplished",
+                "goals",
+                "learned",
+                "totalSpent",
+                "budgetVsActual",
+                "next"
+              ],
+              "properties": {
+                "accomplished": {
+                  "type": "string",
+                  "title": "What you accomplished",
+                  "x-wordCount": {
+                    "max": 300
+                  }
+                },
+                "goals": {
+                  "type": "string",
+                  "title": "How the results compare with your goals",
+                  "x-wordCount": {
+                    "max": 300
+                  }
+                },
+                "peopleServed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "title": "People served in all"
+                },
+                "story": {
+                  "type": "string",
+                  "title": "A story of change",
+                  "x-wordCount": {
+                    "max": 250
+                  }
+                },
+                "learned": {
+                  "type": "string",
+                  "title": "What you learned",
+                  "x-wordCount": {
+                    "max": 200
+                  }
+                },
+                "totalSpent": {
+                  "type": "object",
+                  "title": "Grant funds spent in all"
+                },
+                "budgetVsActual": {
+                  "type": "object",
+                  "title": "Budget compared with actual spending"
+                },
+                "next": {
+                  "type": "string",
+                  "title": "What happens next",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                },
+                "feedback": {
+                  "type": "string",
+                  "title": "How could we have been a better funder?",
+                  "x-wordCount": {
+                    "max": 150
+                  }
+                }
+              }
+            },
+            "uiSchema": {
+              "type": "VerticalLayout",
+              "elements": [
+                {
+                  "type": "Group",
+                  "label": "Results",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/accomplished"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/goals"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/peopleServed",
+                      "options": {
+                        "help": "Leave it blank if counting people does not fit your work.",
+                        "outcome": true,
+                        "unit": "people served"
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/story",
+                      "options": {
+                        "help": "Optional: one person, family or place this work made a difference for. Share only what they agreed to share."
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/learned"
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Money",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/totalSpent",
+                      "options": {
+                        "widget": "money",
+                        "widgetOptions": {
+                          "currency": "USD"
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/budgetVsActual",
+                      "options": {
+                        "help": "Your project budget with a column for what you actually spent.",
+                        "widget": "fileRef"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "Group",
+                  "label": "Looking ahead",
+                  "elements": [
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/next"
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/feedback"
+                    }
+                  ]
+                }
+              ]
+            },
+            "mappingFromCommonGrants": {},
+            "mappingToCommonGrants": {},
+            "fieldMeta": {}
+          }
+        ],
+        "rubrics": [
+          {
+            "name": "Five-criterion rubric",
+            "criteria": [
+              {
+                "key": "need",
+                "label": "Need and fit",
+                "weight": 1,
+                "scale": {
+                  "type": "numeric",
+                  "min": 1,
+                  "max": 5
+                },
+                "description": "Is the need clear, and does the project fit this opportunity?",
+                "guidance": "5: a clear, local need and a close fit. 3: the need is plausible and the fit is partial. 1: the need is unclear or outside what this opportunity funds."
+              },
+              {
+                "key": "approach",
+                "label": "Approach",
+                "weight": 1,
+                "scale": {
+                  "type": "numeric",
+                  "min": 1,
+                  "max": 5
+                },
+                "description": "Is the plan realistic and likely to work?",
+                "guidance": "5: concrete steps, a sensible timeline, built on what has worked. 3: a reasonable plan with gaps. 1: the activities do not lead to the results described."
+              },
+              {
+                "key": "capacity",
+                "label": "Capacity",
+                "weight": 1,
+                "scale": {
+                  "type": "numeric",
+                  "min": 1,
+                  "max": 5
+                },
+                "description": "Can the organization do what it proposes?",
+                "guidance": "5: experienced people and the systems to deliver. 3: some experience, some risk. 1: no clear way to deliver. Small organizations are not scored down for being small."
+              },
+              {
+                "key": "budget",
+                "label": "Budget",
+                "weight": 1,
+                "scale": {
+                  "type": "numeric",
+                  "min": 1,
+                  "max": 5
+                },
+                "description": "Is the budget reasonable and tied to the plan?",
+                "guidance": "5: every cost follows from the plan and the amounts are realistic. 3: mostly reasonable, some questions. 1: the budget does not match the plan."
+              },
+              {
+                "key": "impact",
+                "label": "Community impact",
+                "weight": 1,
+                "scale": {
+                  "type": "numeric",
+                  "min": 1,
+                  "max": 5
+                },
+                "description": "Will the project make a real difference for the people it serves?",
+                "guidance": "5: meaningful change for people who need it most, shaped with them. 3: some benefit. 1: little lasting difference."
+              }
+            ],
+            "overall": {
+              "recommendations": [
+                "Fund",
+                "Fund with conditions",
+                "Do not fund"
+              ]
+            }
+          }
+        ],
+        "emails": [
+          {
+            "name": "Award letter",
+            "subject": "Good news: {{funder.name}} is awarding {{award.amount}} for {{award.title}}",
+            "body": "Hello {{recipient.name}},\n\nWe are delighted to tell you that {{funder.name}} is awarding **{{award.amount}}** for **{{award.title}}**.\n\nThank you for the care you put into your application. Our reviewers were moved by your work and by what you hope to achieve.\n\nWhat happens next:\n\n1. Review the award and its conditions.\n2. Sign the grant agreement.\n3. Once both sides have signed, we will schedule the first payment.\n\n[Review the award and sign]({{links.award}})\n\nIf anything in the award is unclear, or the timing does not work for you, reply to this email. We would much rather sort it out now.\n\nCongratulations, and thank you for the work you do.\n\n{{funder.name}}"
+          },
+          {
+            "name": "Decline",
+            "subject": "Your application to {{funder.name}}",
+            "body": "Hello {{recipient.name}},\n\nThank you for applying to {{opportunity.title}} and for the time you gave to **{{application.title}}**.\n\nWe are sorry to tell you that {{funder.name}} is not able to fund it this time. We received many more strong applications than we could support, and this decision is not a judgment of the value of your work.\n\nYour application stays in your records, so you can reuse what you wrote: [View your application]({{links.status}})\n\nWe hope you will apply again. If you would like feedback on your application, reply to this email and we will do our best to help.\n\nWith thanks and best wishes,\n\n{{funder.name}}"
+          }
+        ]
+      }
+    }
+  ]
+}

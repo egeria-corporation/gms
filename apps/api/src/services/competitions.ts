@@ -28,8 +28,13 @@ const stageInput = z
     entryFrom: z.array(z.string()).default([]),
     requiresSubmission: z.boolean().default(true),
     decisionRequired: z.boolean().default(true),
+    // Review settings (reviews.ts putReviewSettings); a stage saved without them keeps what it had.
+    anonymized: z.boolean().optional(),
+    reviewMode: z.enum(["blind", "see_after_submit", "open"]).optional(),
+    panelOpen: z.boolean().optional(),
   })
   .strict();
+const REVIEW_SETTINGS = ["anonymized", "reviewMode", "panelOpen"] as const;
 
 export const stagesInput = z.object({ stages: z.array(stageInput).min(1).max(12) }).strict();
 export const formsInput = z.object({ forms: z.record(z.string(), z.number().int().min(1)), migrate: z.boolean().optional() }).strict();
@@ -142,7 +147,9 @@ export async function putStages(ctx: ServiceContext, id: string, input: z.output
     for (const from of s.entryFrom) if (!seen.has(from)) problems.push({ path: `stages.${i}.entryFrom`, message: `"${from}" is not an earlier stage` });
     if (s.opens && s.closes && Date.parse(s.opens) >= Date.parse(s.closes)) problems.push({ path: `stages.${i}.closes`, message: "A stage must close after it opens" });
     seen.add(s.key);
-    return { ...s, forms: formKeys(s.forms), opens: s.opens ?? null, closes: s.closes ?? null, rubricId: s.rubricId ?? null, reviewers: s.reviewers ?? null };
+    const before = stagesOf(current).find((x) => x.key === s.key) as Record<string, unknown> | undefined;
+    const kept = Object.fromEntries(REVIEW_SETTINGS.filter((k) => s[k] === undefined && before?.[k] !== undefined).map((k) => [k, before![k]]));
+    return { ...kept, ...s, forms: formKeys(s.forms), opens: s.opens ?? null, closes: s.closes ?? null, rubricId: s.rubricId ?? null, reviewers: s.reviewers ?? null };
   });
   const pinned = unionStageForms(stages);
   for (const p of (await pinnedForms(ctx, ws.id, pinned)).problems) {

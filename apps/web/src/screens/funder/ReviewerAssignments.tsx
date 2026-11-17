@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Reviewer portal: the assignments of the signed-in reviewer. An application opens for scoring
-// only after the reviewer has declared whether they have a conflict of interest; declaring one
-// recuses them and the application never opens.
+// Reviewer portal: the assignments of the signed-in reviewer. Nothing in a competition opens before
+// the reviewer has signed its conflict-of-interest policy; then an application opens for scoring
+// only after the reviewer has declared whether they have a conflict of interest on it; declaring
+// one recuses them and the application never opens. In a stage with anonymized review the
+// application shows as a code ("Applicant A-1042"), never by who applied.
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { Ban, Bell, ChartColumn, ChevronDown, ClipboardCheck, EyeOff, Star } from "lucide-react";
+import { Ban, Bell, ChartColumn, ChevronDown, ClipboardCheck, EyeOff, Signature, Star } from "lucide-react";
 import { initialsOf, type MeWorkspace, type Workspace } from "../../api/client.ts";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { ReviewAssignment } from "../../api/funder.ts";
@@ -12,6 +14,10 @@ import { useServices } from "../../app/services.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { EmptyState, ErrorBanner, Loading } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { SignPolicyDialog } from "./ReviewParity.tsx";
+
+/** How an assignment names its application: the code under anonymized review, else the title. */
+export const assignmentName = (a: Pick<ReviewAssignment, "applicationTitle" | "applicantCode" | "anonymized">) => (a.anonymized && a.applicantCode ? `Applicant ${a.applicantCode}` : (a.applicationTitle ?? "Application"));
 
 const COI_STATEMENTS = [
   "I am not an employee, board member, or contractor of this organization, and have not been in the last three years.",
@@ -116,7 +122,7 @@ function CoiDialog({ assignment, onClose, onDeclared }: { assignment: ReviewAssi
           <h3 id="coi-title" style={{ fontSize: "16px" }}>
             Conflict of interest declaration
           </h3>
-          <p className="small muted">{assignment.applicationTitle}</p>
+          <p className="small muted">{assignmentName(assignment)}</p>
         </div>
       </div>
       <div className="bd">
@@ -168,10 +174,14 @@ function AssignmentList() {
   const navigate = useNavigate();
   const list = useApiQuery((api) => api.listAssignments({ reviewerUserId: userId }), [userId]);
   const [declaring, setDeclaring] = useState<ReviewAssignment | null>(null);
+  const [signing, setSigning] = useState<string | null>(null);
   if (list.status === "loading") return <Loading label="Loading your assignments" />;
   if (list.status === "error") return <ErrorBanner error={list.error} onRetry={list.reload} />;
   const rows = list.data;
   const count = (s: ReviewAssignment["status"]) => rows.filter((r) => r.status === s).length;
+  // Competitions whose conflict-of-interest policy waits for this reviewer's signature.
+  const unsigned = [...new Set(rows.filter((r) => r.policyRequired && r.competitionId).map((r) => r.competitionId!))];
+  const anonymized = rows.some((r) => r.anonymized);
   return (
     <>
       <div className="ph">
@@ -194,11 +204,29 @@ function AssignmentList() {
           </span>
         </div>
       </div>
+      {unsigned.map((competitionId) => (
+        <div key={competitionId} className="bnr bnr-warn" role="status">
+          <Signature className="ic" aria-hidden="true" />
+          <div>
+            <div className="t">Sign the conflict-of-interest policy first</div>
+            <div className="d">
+              {rows.filter((r) => r.competitionId === competitionId && r.policyRequired).length} {rows.filter((r) => r.competitionId === competitionId && r.policyRequired).length === 1 ? "application waits" : "applications wait"} for your signature. Applications in this competition open once you have signed its policy.
+            </div>
+          </div>
+          <button type="button" className="btn btn-primary btn-sm act" aria-haspopup="dialog" onClick={() => setSigning(competitionId)}>
+            Read and sign…
+          </button>
+        </div>
+      ))}
       <div className="bnr bnr-neu">
         <EyeOff className="ic" aria-hidden="true" />
         <div>
           <div className="t">What you can see</div>
-          <div className="d">Applicant contact details and fields flagged as personal are hidden from external reviewers. You see the organization name and the responses marked visible to reviewers.</div>
+          <div className="d">
+            {anonymized
+              ? "Some of your applications are under anonymized review: you do not see who applied. They show as a code such as Applicant A-1042, and the organization's name in an answer shows as [applicant]."
+              : "Applicant contact details and fields flagged as personal are hidden from external reviewers. You see the organization name and the responses marked visible to reviewers."}
+          </div>
         </div>
       </div>
       {rows.length === 0 && (
@@ -213,18 +241,29 @@ function AssignmentList() {
           return (
             <article key={a.id} className="card" style={{ padding: "18px 20px", display: "flex", flexDirection: "column", gap: "10px" }}>
               <div className="row" style={{ justifyContent: "space-between", gap: "8px" }}>
-                <h2 style={{ fontSize: "16px" }}>{a.applicationTitle ?? "Application"}</h2>
+                <h2 style={{ fontSize: "16px" }}>{a.policyRequired ? "Waiting for your signature" : assignmentName(a)}</h2>
                 <span className={`bdg bdg-${look.tone}`}>
                   <ClipboardCheck className="ic" aria-hidden="true" />
                   {look.label}
                 </span>
               </div>
+              {a.anonymized && (
+                <div className="row small" style={{ gap: "6px" }}>
+                  <span className="bdg bdg-info">
+                    <EyeOff className="ic" aria-hidden="true" />
+                    Anonymized review
+                  </span>
+                  {a.applicationTitle && <span className="muted">{a.applicationTitle}</span>}
+                </div>
+              )}
               <div className="small muted">
                 Stage: {a.stage}
                 {a.dueAt ? ` · due ${formatDate(a.dueAt)}` : ""}
                 {a.review?.overall !== null && a.review?.overall !== undefined ? ` · your score ${a.review.overall.toFixed(1)}` : ""}
               </div>
-              {a.status === "recused" ? (
+              {a.policyRequired ? (
+                <span className="small muted">Opens once you have signed the competition&rsquo;s conflict-of-interest policy.</span>
+              ) : a.status === "recused" ? (
                 <span className="small muted">You are recused from this application.</span>
               ) : (
                 <button type="button" className="btn btn-secondary" style={{ alignSelf: "flex-start" }} aria-haspopup={a.status === "assigned" ? "dialog" : undefined} onClick={open}>
@@ -235,6 +274,16 @@ function AssignmentList() {
           );
         })}
       </div>
+      {signing && (
+        <SignPolicyDialog
+          competitionId={signing}
+          onClose={() => setSigning(null)}
+          onSigned={() => {
+            setSigning(null);
+            list.reload();
+          }}
+        />
+      )}
       {declaring && (
         <CoiDialog
           assignment={declaring}

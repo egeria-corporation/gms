@@ -8,7 +8,7 @@ import { ApiError, notFound } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { project as projectApplication } from "./apply.ts";
 import { currencyOf, fundingOf, keyDatesOf, listCgAwards, minorOf, type Award } from "./awards.ts";
-import { audit, authorize, type ServiceContext } from "./context.ts";
+import { audit, authorize, importsArePeoples, type ServiceContext } from "./context.ts";
 import { toDefinition } from "./forms.ts";
 import { connectedApplicants } from "./grantees.ts";
 import { projectOrThrow } from "./opportunities.ts";
@@ -377,6 +377,7 @@ export function importedAwardRow(funderWorkspaceId: string, a: ImportedAward, c:
  * records with no payment schedule: nothing imported can be paid from here.
  */
 export async function importAwardsCsv(ctx: ServiceContext, input: z.output<typeof importInput>) {
+  importsArePeoples(ctx);
   const ws = await authorize(ctx, { scope: "workspace:admin", kind: "funder", roles: ["admin"], person: true });
   const rows = parseCsv(input.csv);
   const header = rows[0];

@@ -15,6 +15,7 @@ import { NotFound } from "../../components/NotFound.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, Field, Loading, PageHeader, problemsOf, SaveNote } from "../../components/ui.tsx";
+import { ShareToGalleryButton } from "./ShareToGallery.tsx";
 import { FormView } from "../../forms/FormView.tsx";
 import { formatDate } from "../../lib/format.ts";
 import {
@@ -152,6 +153,7 @@ function Properties({ model, field, readOnly, onChange }: { model: FormModel; fi
       {field.kind === "budgetTable" && <ListEditor id="p-categories" label="Budget categories" values={field.categories} onChange={(categories) => onChange({ categories })} />}
       <Toggle id="p-rev" label="Reviewers can see this field" checked={field.reviewerVisible} onChange={(reviewerVisible) => onChange({ reviewerVisible })} />
       <Toggle id="p-pii" label="Contains PII" help="Masked for external reviewers and in exports" checked={field.pii} onChange={(pii) => onChange({ pii })} />
+      <Toggle id="p-identifying" label="Says who applied" help="Hidden from reviewers in a stage with anonymized review" checked={field.identifying} onChange={(identifying) => onChange({ identifying })} />
 
       <div className="fld">
         <label className="lbl" htmlFor="p-when-field">
@@ -245,6 +247,7 @@ function FieldCard({ model, field, selected, problem, readOnly, onSelect, onMove
           {field.wordMax && <span className="tag">{field.wordMax} words</span>}
           {!field.reviewerVisible && <span className="tag">Hidden from reviewers</span>}
           {field.pii && <span className="tag">PII</span>}
+          {field.identifying && <span className="tag">Says who applied</span>}
         </div>
         {field.help && (
           <div className="small muted" style={{ marginTop: "2px" }}>
@@ -421,6 +424,7 @@ function Builder({ initial, onSaved }: { initial: FormRecord; onSaved: (f: FormR
               <Clock className="ic" aria-hidden="true" />
               Version history
             </button>
+            {!form.shared && <ShareToGalleryButton source={{ type: "form", id: form.id }} name={title || form.title} disabledReason={readOnly || form.version > 1 ? undefined : "Publish the form first: the gallery shares a published version"} />}
             {readOnly ? (
               // A shared library form is copied from the Forms list, never versioned in place.
               !form.shared && (
