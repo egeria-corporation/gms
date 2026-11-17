@@ -19,7 +19,7 @@
 --   * adds three tables, each with RLS on, `updated_at` kept by gms.touch_updated_at() and the
 --     workspace-immutable trigger:
 --       alert_subscriptions  one Slack channel per workspace: channel id and name, the events
---                            alerted, on or off, and the moment alerts start from;
+--                            alerted, on or off, the language, and the moment alerts start from;
 --       alert_deliveries     one row per alerted event and subscription (unique), so the jobs
 --                            Worker posts each event once; tied to its subscription's workspace
 --                            by a composite foreign key;
@@ -99,6 +99,8 @@ create table public.alert_subscriptions (
   channel_name  text not null check (pg_catalog.length(channel_name) between 1 and 80),
   events        text[] not null default '{}' check (gms.alert_events_ok(events)),
   enabled       boolean not null default true,
+  -- The language the messages are written in: the admin's when they set the channel.
+  locale        text not null default 'en' check (locale in ('en', 'es')),
   -- Nothing that happened before this moment is alerted (set each time alerts are turned on).
   alerts_from   timestamptz not null default now(),
   created_by    uuid,

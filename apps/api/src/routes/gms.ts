@@ -38,6 +38,7 @@ import { galleryRoutes } from "./gallery.ts";
 import { socialRoutes } from "./gms/social.ts";
 import { sendPackageRoutes } from "./gms/send-package.ts";
 import { guestReviewRoutes } from "./gms/guest-review.ts";
+import { connectedAppRoutes } from "./gms/connected-apps.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
@@ -71,6 +72,11 @@ const features = (c: Parameters<typeof config>[0]) => {
       customMcp: !!ports.mcpDirectory && !!cfg.credentialsKey,
       // Social posting through Zernio: ZERNIO_API_KEY and ZERNIO_WEBHOOK_SECRET.
       social: !!cfg.zernio,
+      // Connected apps through Composio (v1.12.0), each only with its own auth config.
+      slack: !!ports.slack,
+      googleCalendar: !!ports.calendar,
+      googleDrive: !!ports.drive,
+      salesforce: !!ports.salesforce,
     },
   };
 };
@@ -181,6 +187,8 @@ gms.route("/", fundRoutes);
 // Send to the funder, and the guest reviewer loop (C4).
 gms.route("/", sendPackageRoutes);
 gms.route("/", guestReviewRoutes);
+// Connected apps (v1.12.0): Slack alerts, Google Calendar, Google Drive.
+gms.route("/", connectedAppRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

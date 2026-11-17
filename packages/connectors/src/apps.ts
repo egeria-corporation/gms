@@ -20,7 +20,7 @@
 // funder's Drive export does (./composio.ts), so the exact Google request is in this repository.
 // Slugs and argument names were checked with Composio's tool search and schemas on 2026-11-17;
 // docs/connectors.md lists what is still unverified. Nothing here has run against Composio.
-import { ComposioError, ConnectorScopeError, ConnectorScopeUnverifiedError, driveMultipart, GOOGLE_API, GOOGLE_DRIVE_FILE, normalizeScopes, type ComposioClient, type ConnectedAccount, type FetchLike } from "./composio.ts";
+import { ComposioClient, ComposioError, ConnectorScopeError, ConnectorScopeUnverifiedError, driveMultipart, GOOGLE_API, GOOGLE_DRIVE_FILE, normalizeScopes, type ConnectedAccount, type FetchLike } from "./composio.ts";
 import { ConnectorAuthError, ConnectorUnavailableError, isRegistrableMcpUrl } from "./index.ts";
 import { dig, SourceReadError } from "./tabular.ts";
 
@@ -761,4 +761,32 @@ export class FixtureSalesforceSource implements SalesforceSource {
     if (!rows) throw new SourceReadError("Salesforce did not run that query. Check the object and field names, and that the Salesforce user you connected can read them");
     return rows.slice(0, maxRows + 1);
   }
+}
+
+// ------------------------------------------------------------------------------------- wiring
+
+/** The Worker settings the connected apps read (names only; values are Wrangler secrets). */
+export interface ConnectedAppEnv {
+  COMPOSIO_API_KEY?: string;
+  COMPOSIO_SLACK_AUTH_CONFIG_ID?: string;
+  COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID?: string;
+  COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID?: string;
+  COMPOSIO_SALESFORCE_AUTH_CONFIG_ID?: string;
+}
+
+/**
+ * The connected apps a Worker can use: each only when the Composio key and its own auth config are
+ * set, so an app that is not configured is simply absent (and hidden in the web app).
+ * `callback` builds the web page Composio returns the browser to after sign-in.
+ */
+export function connectedAppPorts(env: ConnectedAppEnv, callback: (returnTo: string | undefined, provider: AppProvider) => string): { slack?: SlackAlerts; calendar?: CalendarSync; drive?: DriveFiles; salesforce?: SalesforceSource } {
+  if (!env.COMPOSIO_API_KEY) return {};
+  const client = new ComposioClient({ apiKey: env.COMPOSIO_API_KEY });
+  const cfg = (authConfigId: string, provider: AppProvider): AppConfig => ({ client, authConfigId, callbackUrl: (_entityId, returnTo) => callback(returnTo, provider) });
+  return {
+    ...(env.COMPOSIO_SLACK_AUTH_CONFIG_ID ? { slack: new ComposioSlackAlerts(cfg(env.COMPOSIO_SLACK_AUTH_CONFIG_ID, "slack")) } : {}),
+    ...(env.COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID ? { calendar: new ComposioCalendarSync(cfg(env.COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID, "google_calendar")) } : {}),
+    ...(env.COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID ? { drive: new ComposioDriveFiles(cfg(env.COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID, "google_drive")) } : {}),
+    ...(env.COMPOSIO_SALESFORCE_AUTH_CONFIG_ID ? { salesforce: new ComposioSalesforceSource(cfg(env.COMPOSIO_SALESFORCE_AUTH_CONFIG_ID, "salesforce")) } : {}),
+  };
 }

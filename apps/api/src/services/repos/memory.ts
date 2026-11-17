@@ -161,7 +161,7 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   digest_subscriptions: () => ({ new_matches: false, deadlines: false, funder_activity: false, prompt_dismissed_at: null }),
   digest_sends: () => ({ item_keys: [], message_id: null }),
   // 0044: connected apps (Slack alerts, calendar links).
-  alert_subscriptions: (at) => ({ provider: "slack", events: [], enabled: true, alerts_from: at, created_by: null }),
+  alert_subscriptions: (at) => ({ provider: "slack", events: [], enabled: true, locale: "en", alerts_from: at, created_by: null }),
   alert_deliveries: () => ({ status: "sending", attempts: 1, slack_ts: null }),
   calendar_links: () => ({ status: "pending", calendar_id: null, calendar_name: null, event_map: {}, last_sync_at: null }),
 };

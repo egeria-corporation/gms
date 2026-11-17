@@ -103,6 +103,7 @@ export type Database = {
           enabled: boolean;
           events: string[];
           id: string;
+          locale: string;
           provider: string;
           updated_at: string;
           workspace_id: string;
@@ -116,6 +117,7 @@ export type Database = {
           enabled?: boolean;
           events?: string[];
           id?: string;
+          locale?: string;
           provider?: string;
           updated_at?: string;
           workspace_id: string;
@@ -129,6 +131,7 @@ export type Database = {
           enabled?: boolean;
           events?: string[];
           id?: string;
+          locale?: string;
           provider?: string;
           updated_at?: string;
           workspace_id?: string;

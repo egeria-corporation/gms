@@ -21,6 +21,8 @@ WEB_BASE_URL = "http://localhost:5173"
 #   every 5 min  outbound webhook deliveries
 #   :00 :15 :30 :45  tranche due evaluator, requirement due/overdue evaluator and reminders
 #   hourly  Passport sync: award mirror retry, disbursed amounts, payee level and status
+#   every 15 min  Slack alerts (connected apps), after the due evaluators
+#   hourly at :30  Google Calendar events (connected apps)
 #   every 6 h  Mercury poll (read-only)
 #   02:30 UTC  organization-change poll and the ledger archive
 #   15:00 UTC daily, 15:05 UTC Mondays  notification digests (daily, weekly)
