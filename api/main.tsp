@@ -27,6 +27,8 @@ import "./history.tsp";
 import "./loops.tsp";
 import "./award-kit.tsp";
 import "./translations.tsp";
+// F3: the operators' growth measures and Search Console.
+import "./measures.tsp";
 
 using TypeSpec.Http;
 

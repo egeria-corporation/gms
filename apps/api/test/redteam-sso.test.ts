@@ -33,7 +33,9 @@ interface Doc {
 }
 
 /** The person's own routes: no workspace is named, so no workspace's rule applies. */
-const PERSONAL = new Set(["/gms/me", "/gms/workspaces", "/gms/me/sessions", "/gms/config", "/gms/mcp-connections", "/gms/gallery/moderation/me", "/gms/gallery/moderation/queue", "/gms/passport/consent/callback", "/gms/partners/moderation/me", "/gms/partners/moderation/queue"]);
+const PERSONAL = new Set(["/gms/me", "/gms/workspaces", "/gms/me/sessions", "/gms/config", "/gms/mcp-connections", "/gms/gallery/moderation/me", "/gms/gallery/moderation/queue", "/gms/passport/consent/callback", "/gms/partners/moderation/me", "/gms/partners/moderation/queue",
+  // F3: the operators' measures name no workspace (operators only, refused to everyone else).
+  "/gms/operator/me", "/gms/operator/measures", "/gms/operator/search-console", "/gms/operator/search-console/report"]);
 /** Routes anyone may read without signing in (a calendar feed is read by its secret address), and the sign-in flow. */
 const ANYONE = (path: string) => path.startsWith("/gms/public/") || path.startsWith("/gms/passport/signin/") || path.startsWith("/gms/cal/") || path === "/gms/gallery" || path === "/gms/gallery/{slug}" || path === "/gms/migration-requests/form" || path === "/gms/open-data/{handle}/360giving.json" || path === "/gms/digests/unsubscribe";
 

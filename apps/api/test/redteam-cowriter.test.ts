@@ -111,6 +111,8 @@ const PERSONAL_ROUTES = new Set([
   // One-click unsubscribe from a digest: public, the signed link is the proof (a sample token is refused with 400).
   "post /gms/digests/unsubscribe",
   "get /gms/digests/unsubscribe",
+  // F3: whether the person is one of OpenGrants' operators is about them, not the workspace.
+  "get /gms/operator/me",
 ]);
 
 /**

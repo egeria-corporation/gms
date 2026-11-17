@@ -4608,6 +4608,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/operator/lost-deals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Record a deal lost, by its stated reason. Nothing else is kept: no name, no note. 422 `invalid_date`. */
+        post: operations["Measures_recordLostDeal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/operator/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Whether the signed-in person is one of OpenGrants' operators. */
+        get: operations["Measures_operatorStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/operator/measures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The nine growth measures over the last 30 days, each with its 90-day target. Counts only. Operators only (403 `not_an_operator`); 503 `measures_unavailable` without the database's measures. */
+        get: operations["Measures_operatorMeasures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/operator/search-console": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Whether Search Console is set up and connected, the chosen property, and the properties that cover the GMS's host. */
+        get: operations["Measures_searchConsoleState"];
+        put?: never;
+        post?: never;
+        /** @description Remove the connection at Composio and forget the property. */
+        delete: operations["Measures_disconnectSearchConsole"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/operator/search-console/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Start connecting Google Search Console (read only) through Composio. 404 `search_console_unavailable` when it is not set up. */
+        post: operations["Measures_connectSearchConsole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/operator/search-console/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Clicks and impressions for the GMS's public pages over the last 30 days Search Console has, by kind of page. 409 `search_console_site_required`, `search_console_reconnect`; 503 `search_console_unreachable`. */
+        get: operations["Measures_searchConsoleReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/operator/search-console/site": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Choose the property: one the connected account can read that covers the GMS's host. 422 `site_not_gms`, `site_not_found`. */
+        put: operations["Measures_chooseSearchConsoleSite"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/opportunities": {
         parameters: {
             query?: never;
@@ -14621,6 +14741,14 @@ export interface components {
         };
         /** @enum {string} */
         "Models.ContentDigestKey": "new_matches" | "deadlines" | "funder_activity";
+        /** @description A count over the window, its 90-day target and whether it is met. */
+        "Models.CountMeasure": {
+            /** Format: int32 */
+            value: number;
+            /** Format: int32 */
+            target: number;
+            met: boolean;
+        };
         /** @enum {string} */
         "Models.CreditWording": "funded_by" | "supported_by";
         "Models.CsvImportInput": {
@@ -14730,6 +14858,12 @@ export interface components {
             awardedMinor: number;
             /** Format: double */
             medianDaysToDecision: number | null;
+        };
+        /** @description Measure 9: deals lost in the window, by stated reason (every reason, zeros included). */
+        "Models.DealsLostMeasure": {
+            /** Format: int32 */
+            total: number;
+            byReason: components["schemas"]["Models.LostDealCount"][];
         };
         "Models.Decision": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -17833,6 +17967,31 @@ export interface components {
             /** @description False when Passport holds no hash for the file (a Drive reference), so it cannot be pinned to an application. */
             attachable: boolean;
         };
+        "Models.LostDealCount": {
+            reason: components["schemas"]["Models.LostDealReason"];
+            /** Format: int32 */
+            count: number;
+        };
+        "Models.LostDealInput": {
+            reason: components["schemas"]["Models.LostDealReason"];
+            /**
+             * Format: date
+             * @description The day it was lost; today when left out. Not in the future, not over a year ago.
+             */
+            lostOn?: string;
+        };
+        /**
+         * @description Why a deal was lost: the growth plan's parity gaps, then common reasons. Never free text.
+         * @enum {string}
+         */
+        "Models.LostDealReason": "forms" | "reviews" | "reporting" | "payments" | "procurement" | "languages" | "integrations" | "data_migration" | "support" | "went_elsewhere" | "timing" | "no_decision" | "other";
+        "Models.LostDealRecorded": {
+            /** @enum {boolean} */
+            recorded: true;
+            reason: components["schemas"]["Models.LostDealReason"];
+            /** Format: date */
+            lostOn: string;
+        };
         "Models.MatchRequest": {
             trancheId: components["schemas"]["Models.GmsId"];
         };
@@ -17931,6 +18090,14 @@ export interface components {
             /** @description Whether this session has passed a second step: this app's authenticator, or Passport's (claimed after a Passport sign-in). */
             mfaVerified: boolean;
             workspaces: components["schemas"]["Models.MyWorkspace"][];
+        };
+        "Models.MeasureWindow": {
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            /** Format: int32 */
+            days: number;
         };
         /**
          * @description A member of a workspace. `email` and `name` come from the person's account; an invited member
@@ -18775,6 +18942,22 @@ export interface components {
             /** @description Served from the 15-minute cache for this organization and query. */
             cached: boolean;
         };
+        "Models.OperatorMeasures": {
+            window: components["schemas"]["Models.MeasureWindow"];
+            fundersWithOpenCall: components["schemas"]["Models.CountMeasure"];
+            activeApplicantWorkspaces: components["schemas"]["Models.CountMeasure"];
+            newApplicantWorkspacesPerCall: components["schemas"]["Models.PerCallMeasure"];
+            fundersJoinedFromApplicantLinks: components["schemas"]["Models.CountMeasure"];
+            switchedFundersWithCall: components["schemas"]["Models.SwitchMeasure"];
+            shareKit: components["schemas"]["Models.ShareKitMeasure"];
+            organicVisits: components["schemas"]["Models.OrganicVisitsMeasure"];
+            invitedTeammatesJoined: components["schemas"]["Models.ShareMeasure"];
+            dealsLost: components["schemas"]["Models.DealsLostMeasure"];
+        };
+        "Models.OperatorStatus": {
+            /** @description Whether the signed-in person is one of OpenGrants' operators. */
+            operator: boolean;
+        };
         /** @description The fund an opportunity belongs to, as its page names it ("{Fund} · A fund of {Funder}"). */
         "Models.OpportunityFund": {
             name: string;
@@ -18900,6 +19083,42 @@ export interface components {
             grantee?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** @description The plan's first week; `clicks` is null until Search Console's figures for it are final. */
+        "Models.OrganicBaselineWeek": {
+            /** Format: date */
+            start: string;
+            /** Format: date */
+            end: string;
+            /** Format: int32 */
+            clicks: number | null;
+        };
+        /**
+         * @description Where measure 7 comes from, or why it is missing.
+         * @enum {string}
+         */
+        "Models.OrganicSource": "search_console" | "not_configured" | "not_connected" | "no_site" | "unavailable";
+        /** @description Measure 7: clicks from Google Search to funder pages and their calls, funds and awards (Search Console). */
+        "Models.OrganicVisitsMeasure": {
+            source: components["schemas"]["Models.OrganicSource"];
+            /** Format: int32 */
+            value: number | null;
+            /** Format: int32 */
+            impressions: number | null;
+            /** Format: double */
+            weeklyAverage: number | null;
+            range: components["schemas"]["Models.SearchConsoleRange"] | null;
+            baselineWeek: components["schemas"]["Models.OrganicBaselineWeek"] | null;
+            target: {
+                /** Format: int32 */
+                multiple: number;
+                /**
+                 * Format: double
+                 * @description Visits a week to reach: the first week's times `multiple`.
+                 */
+                value: number | null;
+            };
+            met: boolean | null;
         };
         "Models.OutcomeTotal": {
             /** @description The report field's own name */
@@ -19528,6 +19747,18 @@ export interface components {
             /** @description The footer line on this workspace's packages (the workspace's `poweredBy` setting). */
             poweredBy: boolean;
         };
+        /**
+         * @description Kinds of public page. Pages are grouped by kind because an address names a funder.
+         * @enum {string}
+         */
+        "Models.PageKind": "home" | "funder" | "opportunity" | "fund" | "awards" | "award" | "switch" | "templates" | "for_funders" | "partners" | "other";
+        "Models.PageKindTotal": {
+            kind: components["schemas"]["Models.PageKind"];
+            /** Format: int32 */
+            clicks: number;
+            /** Format: int32 */
+            impressions: number;
+        };
         /** @description `created` names the funder workspace the person just made with funder setup (`POST /gms/workspaces`). */
         "Models.PanelOfferEventInput": {
             /** @enum {string} */
@@ -19912,6 +20143,18 @@ export interface components {
             expiresAt: string;
             /** Format: date-time */
             createdAt: string;
+        };
+        /** @description Measure 3: new applicant workspaces per call published, both counted over the window. Null when no call was published. */
+        "Models.PerCallMeasure": {
+            /** Format: double */
+            value: number | null;
+            /** Format: int32 */
+            target: number;
+            met: boolean;
+            /** Format: int32 */
+            newApplicantWorkspaces: number;
+            /** Format: int32 */
+            callsPublished: number;
         };
         "Models.PipelineCalendar": {
             /** @description YYYY-MM. */
@@ -21333,6 +21576,67 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        "Models.SearchConsoleConnect": {
+            connected: boolean;
+            /**
+             * Format: uri
+             * @description A Composio-hosted Google sign-in that returns to the measures page; null once connected.
+             */
+            connectUrl: string | null;
+        };
+        "Models.SearchConsoleDisconnected": {
+            /** @enum {boolean} */
+            connected: false;
+            site: unknown;
+        };
+        "Models.SearchConsoleProperty": {
+            /** @description `sc-domain:<domain>` or `https://<host>/`. */
+            siteUrl: string;
+            permissionLevel: string;
+        };
+        "Models.SearchConsoleRange": {
+            /** Format: date */
+            start: string;
+            /** Format: date */
+            end: string;
+        };
+        "Models.SearchConsoleReport": {
+            site: string;
+            /** @description The 30 days Search Console has final figures for (they run about three days behind). */
+            range: components["schemas"]["Models.SearchConsoleRange"];
+            totals: components["schemas"]["Models.SearchTotals"];
+            /** @description By kind of page, most clicked first. */
+            pages: components["schemas"]["Models.PageKindTotal"][];
+            /** @description Funder pages and their calls, funds and awards: measure 7. */
+            organic: components["schemas"]["Models.SearchTotals"];
+            baselineWeek: components["schemas"]["Models.OrganicBaselineWeek"];
+        };
+        "Models.SearchConsoleSiteChosen": {
+            site: string;
+        };
+        "Models.SearchConsoleSiteInput": {
+            siteUrl: string;
+        };
+        "Models.SearchConsoleState": {
+            /** @description False until COMPOSIO_SEARCH_CONSOLE_AUTH_CONFIG_ID is set on the server. */
+            available: boolean;
+            connected: boolean;
+            /**
+             * @description Why a connection is not usable: connect again, it held more than read-only access (removed), or Composio did not answer.
+             * @enum {string|null}
+             */
+            problem: "reconnect" | "too_broad" | "unreachable" | null;
+            /** @description The chosen property, or null. */
+            site: string | null;
+            /** @description The properties the connected account can read that cover the GMS's own host; never its other sites. */
+            sites: components["schemas"]["Models.SearchConsoleProperty"][];
+        };
+        "Models.SearchTotals": {
+            /** Format: int32 */
+            clicks: number;
+            /** Format: int32 */
+            impressions: number;
+        };
         "Models.SectionAssignment": {
             formId: components["schemas"]["Models.GmsId"];
             /** @description Section key → user id; null clears the assignment */
@@ -21498,6 +21802,26 @@ export interface components {
         };
         /** @description A SHA-256 digest, lower-case hex. */
         "Models.Sha256": string;
+        /** @description Measure 6: the share of awards made in the window with a share-kit post, and the clicks award posts reported. */
+        "Models.ShareKitMeasure": {
+            /** Format: double */
+            value: number | null;
+            /** Format: double */
+            target: number;
+            met: boolean;
+            /** Format: int32 */
+            awardsShared: number;
+            /** Format: int32 */
+            awardsEligible: number;
+            /** Format: int32 */
+            posts: number;
+            /** Format: int32 */
+            clicks: number;
+            /** Format: int32 */
+            postsWithClicks: number;
+            /** Format: double */
+            clicksPerPost: number | null;
+        };
         /** @description A workspace's share-kit settings (`share_kit_profiles`). */
         "Models.ShareKitProfile": {
             /** Format: uri */
@@ -21522,6 +21846,18 @@ export interface components {
             creditWording?: components["schemas"]["Models.CreditWording"];
             /** @description A funder only. */
             standardDescription?: string | null;
+        };
+        /** @description Measure 8: the share of teammate invitations made in the window that were accepted. */
+        "Models.ShareMeasure": {
+            /** Format: double */
+            value: number | null;
+            /** Format: double */
+            target: number;
+            met: boolean;
+            /** Format: int32 */
+            sent: number;
+            /** Format: int32 */
+            accepted: number;
         };
         "Models.ShareSubmissionInput": {
             funderWorkspaceId?: components["schemas"]["CommonGrants.Types.uuid"];
@@ -22212,6 +22548,16 @@ export interface components {
         };
         "Models.SummarizeRequest": {
             applicationId: components["schemas"]["Models.GmsId"];
+        };
+        /** @description Measure 5: funders that published a call within `withinDays` after importing their history. */
+        "Models.SwitchMeasure": {
+            /** Format: int32 */
+            value: number;
+            /** Format: int32 */
+            target: number;
+            met: boolean;
+            /** Format: int32 */
+            withinDays: number;
         };
         /** @description The "Share this call" panel. */
         "Models.Syndication": {
@@ -40909,6 +41255,441 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Measures_recordLostDeal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.LostDealInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.LostDealRecorded"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Measures_operatorStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.OperatorStatus"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Measures_operatorMeasures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.OperatorMeasures"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Measures_searchConsoleState: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SearchConsoleState"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Measures_disconnectSearchConsole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SearchConsoleDisconnected"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Measures_connectSearchConsole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SearchConsoleConnect"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Measures_searchConsoleReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SearchConsoleReport"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Measures_chooseSearchConsoleSite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.SearchConsoleSiteInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SearchConsoleSiteChosen"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
