@@ -88,6 +88,7 @@ Some actions need a person. When an agent calls a gated tool, nothing happens ye
 | `create_opportunity` | `opportunities:write` | — | Create a draft opportunity in a program. |
 | `update_opportunity` | `opportunities:write` | — | Update fields of an opportunity. Published opportunities re-validate their CommonGrants projection. |
 | `publish_opportunity` | `opportunities:write` | — | Publish an opportunity: validates the projection, renders the public page and adds the sitemap entry. |
+| `get_opportunity_syndication` | `opportunities:read` | — | Where a published call goes besides its page: the open-call feeds and their addresses, the OpenGrants index feed, its Philanthropy News Digest submission (the last day PND takes it, whether it was sent, why it cannot go now), and applications started from feed and PND links. No tool sends a call to PND; only a person does, in the GMS (docs/syndication.md). |
 | `list_competitions` | `competitions:read` | — | List competitions, optionally for one opportunity. |
 | `get_competition` | `competitions:read` | — | Get one competition with its stages, pinned forms and launch-check result. |
 | `create_competition` | `competitions:write` | — | Create a draft competition under an opportunity. One stage is the common case. |

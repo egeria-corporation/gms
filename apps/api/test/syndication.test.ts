@@ -21,9 +21,19 @@ const sdk = async () => {
   const req = createRequire(new URL("../../../packages/protocol/package.json", import.meta.url));
   return (await import(pathToFileURL(req.resolve("@common-grants/sdk/schemas")).href)) as { OpportunityBaseSchema: ZodType };
 };
+/** The few DOM members the RSS test reads (this package's types carry no DOM). */
+interface XmlNode {
+  nodeName: string;
+  textContent: string | null;
+  getAttribute(name: string): string | null;
+  querySelector(selector: string): XmlNode | null;
+  querySelectorAll(selector: string): Iterable<XmlNode>;
+  getElementsByTagNameNS(ns: string, name: string): ArrayLike<XmlNode>;
+}
+/** A strict XML parse (jsdom's, through saxes): malformed XML throws. */
 const parseXml = async (text: string) => {
   const req = createRequire(new URL("../../web/package.json", import.meta.url));
-  const { JSDOM } = (await import(pathToFileURL(req.resolve("jsdom")).href)) as { JSDOM: new (s: string, o: { contentType: string }) => { window: { document: Document } } };
+  const { JSDOM } = (await import(pathToFileURL(req.resolve("jsdom")).href)) as { JSDOM: new (s: string, o: { contentType: string }) => { window: { document: XmlNode & { documentElement: XmlNode } } } };
   return new JSDOM(text, { contentType: "application/xml" }).window.document;
 };
 
@@ -106,7 +116,7 @@ describe("open-call feeds", () => {
 
   it("gives each call exactly what its public page shows, and nothing else", async () => {
     const f = await feed();
-    const ctx = { repos: h.repos, now: () => h.clock.now, config: { baseUrl: BASE, webBaseUrl: WEB } } as Parameters<typeof opportunityPage>[0];
+    const ctx = { repos: h.repos, now: () => h.clock.now, config: { baseUrl: BASE, webBaseUrl: WEB } } as unknown as Parameters<typeof opportunityPage>[0];
     for (const item of f.items) {
       const o = (await h.repos.table("opportunities").one({ id: item.id }))!;
       const w = (await h.repos.table("workspaces").one({ id: o.workspace_id }))!;
@@ -316,6 +326,24 @@ describe("Philanthropy News Digest", () => {
     const d = (await preview(await person(USER_OFFICER))).body.data as { replyTo: string; fields: { key: string; value: string }[] };
     expect(d.replyTo).toBe("dana.ortiz@riverbendcf.example");
     expect(d.fields.find((f) => f.key === "contact")!.value).toBe("dana.ortiz@riverbendcf.example");
+  });
+});
+
+describe("agents", () => {
+  const rpc = async (token: string, method: string, params?: unknown) => {
+    const res = await h.request("/mcp", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++seq, method, ...(params ? { params } : {}) }) });
+    return ((await res.json()) as { result: Record<string, unknown> }).result;
+  };
+  const token = () => h.forge({ sub: USER_OFFICER, client_id: CLIENT_AGENT, scope: "opportunities:read opportunities:write", [WORKSPACE_CLAIM]: WS_FUNDER, jti: `tok-syn-${++seq}` });
+
+  it("read the panel over MCP, the same as REST; no tool sends to PND or changes the feeds", async () => {
+    const out = (await rpc(await token(), "tools/call", { name: "get_opportunity_syndication", arguments: { opportunityId: `opp_${OPP_OPEN}` } })).structuredContent as { feeds: { listed: boolean }; pnd: { canSend: boolean; blocked: string; sendBy: string } };
+    expect(out.feeds.listed).toBe(true);
+    expect(out.pnd).toMatchObject({ canSend: false, blocked: "person_only", sendBy: "2027-05-03" });
+    const tools = (await rpc(await token(), "tools/list")).tools as { name: string; _meta: Record<string, unknown> }[];
+    expect(tools.filter((t) => /pnd|syndicat|philanthropy|feed/.test(t.name)).map((t) => t.name)).toEqual(["get_opportunity_syndication"]);
+    expect(tools.find((t) => t.name === "get_opportunity_syndication")!._meta["gms/gated"]).toBe(false);
+    expect(h.mailer.sent).toHaveLength(0);
   });
 });
 
