@@ -25,6 +25,7 @@ import "./syndication.tsp";
 import "./history.tsp";
 // E4: funder loops.
 import "./loops.tsp";
+import "./award-kit.tsp";
 
 using TypeSpec.Http;
 

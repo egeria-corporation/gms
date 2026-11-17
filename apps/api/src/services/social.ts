@@ -14,6 +14,12 @@
 //              previewed, and goes out once per Idempotency-Key;
 //   reach      per post the platform links and statuses and Zernio's counts; per opportunity the
 //              applications started from a shared link (utm_source=social).
+//   program    (v1.12.0) "Meet our grantees": one post about several of a program's awards, only
+//              those award sharing says may be public, tagging a grantee's page only with its consent;
+//   reminder   (v1.12.0) "Two weeks left": fourteen days before an open call's deadline the jobs
+//              Worker records one prompt per call; the call's funder admins see "Post a reminder?"
+//              in their notifications (and digest), which opens the composer prefilled. Nothing
+//              posts by itself; an admin may dismiss the prompt.
 //
 // Human gates: posting, scheduling, connecting and disconnecting refuse agents and API clients
 // (`human_only`); there is no MCP tool for any of them. Reads (settings, compose, reach) use the
@@ -50,6 +56,8 @@ import { forbidden } from "../auth/verify.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
 import * as awardSharing from "./social-award-share.ts";
 import { audit, authorize, changeStatus, guardWrite, systemContext, type BaseContext, type ServiceContext, type ServiceWorkspace } from "./context.ts";
+import { DEFAULT_LOCALE, formatDateIn } from "@gms/i18n";
+import { serverTranslator } from "@gms/i18n/server";
 import { RepoError, type Row } from "./repos/types.ts";
 
 // ------------------------------------------------------------------------------------ settings
@@ -277,18 +285,36 @@ async function markDisconnected(ctx: ServiceContext, row: Account, via: "setting
 
 // ------------------------------------------------------------------------------------ compose
 
-export const subjectInput = z.object({ type: z.enum(["opportunity", "award"]), id: z.uuid() }).strict();
+/** What a post is about: an open call, an award, or (v1.12.0, "Meet our grantees") a funder's program. */
+export const SUBJECT_TYPES = ["opportunity", "award", "program"] as const;
+export const subjectInput = z.object({ type: z.enum(SUBJECT_TYPES), id: z.uuid() }).strict();
 type Subject = z.output<typeof subjectInput>;
+
+/** One of a program's awards in a "Meet our grantees" post: its line, ready to keep or drop. */
+export interface DraftGrantee {
+  awardId: string;
+  name: string;
+  /** The grantee's page handle, only when it gave the link and agreed to be tagged. */
+  tag: string | null;
+  line: string;
+}
 
 export interface Draft {
   subject: { type: Subject["type"]; id: string; title: string };
   /** False when this subject may not be posted about; `reason` says why. */
   shareable: boolean;
   reason: string | null;
-  /** Ready-to-edit texts; the first is put in the composer. */
-  suggestions: { label: string; text: string }[];
+  /** Ready-to-edit texts; the first is put in the composer. `kind` names a reminder's. */
+  suggestions: { label: string; text: string; kind?: "reminder" | "meet" }[];
   link: string | null;
   imageUrl: string | null;
+  /** A call's "Two weeks left" prompt, while it is waiting (not dismissed, deadline not passed). */
+  reminder?: { id: string; deadline: string } | null;
+  /** An award's program, for the funder's "Meet our grantees" (funder side only). */
+  program?: { id: string; name: string } | null;
+  /** "Meet our grantees": the program's awards that may be public, with the intro and closing lines. */
+  grantees?: DraftGrantee[];
+  parts?: { intro: string; outro: string } | null;
 }
 
 const dateText = (iso: string | undefined) => (iso && !Number.isNaN(Date.parse(iso)) ? new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }) : null);
@@ -318,7 +344,15 @@ async function opportunityDraft(ctx: ServiceContext, ws: ServiceWorkspace, id: s
   const funder = home.display_name;
   const long = o.status === "open" ? `Applications are open: ${o.title}, from ${funder}.${close ? ` Apply by ${close}.` : ""}\n\n${link}` : `Coming soon: ${o.title}, from ${funder}.${opens ? ` Applications open ${opens}.` : ""}\n\n${link}`;
   const short = o.status === "open" ? `Now open: ${o.title}${close ? ` (apply by ${close})` : ""} ${link}` : `Coming soon: ${o.title} ${link}`;
-  return { ...base, shareable: true, suggestions: [{ label: "Announcement", text: long }, { label: "Short", text: short }], link, imageUrl: `${ctx.config.webBaseUrl}/og/f/${home.handle}/o/${o.slug}.png` };
+  const suggestions: Draft["suggestions"] = [{ label: "Announcement", text: long }, { label: "Short", text: short }];
+  // "Two weeks left": while the call's prompt waits, the composer starts from the reminder.
+  const prompt = o.status === "open" ? await waitingPrompt(ctx, o.id) : null;
+  if (prompt) {
+    const locale = ctx.locale ?? DEFAULT_LOCALE;
+    const t = serverTranslator(locale, "email");
+    suggestions.unshift({ kind: "reminder", label: t("kit.reminder.label"), text: t("kit.reminder.text", { title: o.title, funder, date: formatDateIn(locale, prompt.deadline, "medium") ?? prompt.deadline, link }) });
+  }
+  return { ...base, shareable: true, suggestions, link, imageUrl: `${ctx.config.webBaseUrl}/og/f/${home.handle}/o/${o.slug}.png`, reminder: prompt ? { id: prompt.id, deadline: prompt.deadline } : null };
 }
 
 async function awardDraft(ctx: ServiceContext, ws: ServiceWorkspace, id: string): Promise<Draft> {
@@ -332,10 +366,32 @@ async function awardDraft(ctx: ServiceContext, ws: ServiceWorkspace, id: string)
   if (!kit) return { ...base, reason: "This award has no share kit yet" };
   const link = withUtm(kit.link);
   const swap = (text: string) => text.split(kit.link).join(link);
-  return { ...base, shareable: true, suggestions: kit.posts.map((p) => ({ label: p.label, text: swap(p.text) })), link, imageUrl: kit.imageUrl };
+  // The funder may also post about the award's program ("Meet our grantees").
+  const program = ws.kind === "funder" && a.program_id ? await ctx.repos.table("programs").one({ id: a.program_id, workspace_id: ws.id }) : null;
+  return { ...base, shareable: true, suggestions: kit.posts.map((p) => ({ label: p.label, text: swap(p.text) })), link, imageUrl: kit.imageUrl, program: program ? { id: program.id, name: program.name } : null };
 }
 
-const draftFor = (ctx: ServiceContext, ws: ServiceWorkspace, s: Subject) => (s.type === "opportunity" ? opportunityDraft(ctx, ws, s.id) : awardDraft(ctx, ws, s.id));
+/**
+ * "Meet our grantees": one post about a funder's program, listing its awards that award sharing
+ * says may be public (never a confidential award, one the funder does not list, or one whose
+ * grantee chose "Don't list us publicly"), tagging a grantee's page only with its consent.
+ */
+async function programDraft(ctx: ServiceContext, ws: ServiceWorkspace, id: string): Promise<Draft> {
+  if (ws.kind !== "funder") throw notFound("Program");
+  const { program, grantees, awardsPage } = await awardSharing.meetOurGrantees(ctx, id);
+  const base: Draft = { subject: { type: "program", id: program.id, title: program.name }, shareable: false, reason: null, suggestions: [], link: null, imageUrl: null, grantees: [], parts: null };
+  if (!grantees.length) return { ...base, reason: "No award in this program is listed publicly yet, so there is no one to introduce" };
+  const t = serverTranslator(ctx.locale ?? DEFAULT_LOCALE, "email");
+  const link = withUtm(awardsPage);
+  const lines: DraftGrantee[] = grantees.map((g) => ({ awardId: g.awardId, name: g.recipient, tag: g.tag?.handle ?? null, line: g.tag ? t("kit.meet.lineTagged", { recipient: g.recipient, tag: g.tag.handle, purpose: g.purpose }) : t("kit.meet.line", { recipient: g.recipient, purpose: g.purpose }) }));
+  const parts = { intro: t("kit.meet.intro", { program: program.name }), outro: t("kit.meet.outro", { link }) };
+  const text = [parts.intro, "", ...lines.map((l) => l.line), "", parts.outro].join("\n");
+  // The funder's grants-awarded card: a post about several awards has no one award's card.
+  const home = await ctx.repos.table("workspaces").one({ id: ws.id });
+  return { ...base, shareable: true, suggestions: [{ kind: "meet", label: t("kit.meet.label"), text }], link, imageUrl: home ? `${ctx.config.webBaseUrl}/og/f/${home.handle}/awards.png` : null, grantees: lines, parts };
+}
+
+const draftFor = (ctx: ServiceContext, ws: ServiceWorkspace, s: Subject) => (s.type === "opportunity" ? opportunityDraft(ctx, ws, s.id) : s.type === "program" ? programDraft(ctx, ws, s.id) : awardDraft(ctx, ws, s.id));
 
 /** The composer's starting point. A read: an agent may fetch it to draft text, never to send. */
 export async function composerDraft(ctx: ServiceContext, subject: Subject) {
@@ -585,7 +641,7 @@ async function refreshOne(ctx: ServiceContext, port: SocialPort, row: Post, acco
   return out;
 }
 
-export const reachQuery = z.object({ subjectType: z.enum(["opportunity", "award"]).optional(), subjectId: z.uuid().optional() }).strict();
+export const reachQuery = z.object({ subjectType: z.enum(SUBJECT_TYPES).optional(), subjectId: z.uuid().optional() }).strict();
 
 /**
  * The reach report: this workspace's posts (about one subject, or all), each with its links,
@@ -718,4 +774,101 @@ export async function receiveZernioEvent(base: BaseContext, headers: { get(name:
   await settle(ctx, row, named === "scheduled" || named === "published" || named === "partial" || named === "failed" ? named : overall(targets, post.status), { targets: targets as unknown as Post["targets"] }, { via: "webhook" });
   await done();
   return { status: 200, outcome: "processed" };
+}
+
+// ------------------------------------------------------------------------------------ "Two weeks left"
+
+/** Days before a call's deadline that its funder is asked "Post a reminder?". */
+export const REMINDER_LEAD_DAYS = 14;
+/**
+ * The prompt is made while the deadline is at most `REMINDER_LEAD_DAYS` and more than
+ * `REMINDER_LEAD_DAYS - REMINDER_WINDOW_DAYS` days away, so a daily run that was missed is caught
+ * the next day, and a call published with less time left is not asked about "two weeks".
+ */
+export const REMINDER_WINDOW_DAYS = 2;
+/** Who sees the prompt and may dismiss it: the funder's admins. */
+export const REMINDER_ROLES: readonly string[] = ["admin"];
+
+type Prompt = Row<"social_reminder_prompts">;
+const DAY_MS = 86_400_000;
+const dayOf = (iso: string | undefined | null) => (typeof iso === "string" && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0, 10) : null);
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS);
+const closeDayOf = (o: Pick<Row<"opportunities">, "key_dates">) => dayOf(((o.key_dates ?? {}) as { closeDate?: { date?: string } }).closeDate?.date);
+
+/** A call's prompt while it waits: made, not dismissed, its deadline not passed. */
+async function waitingPrompt(ctx: Pick<ServiceContext, "repos" | "now">, opportunityId: string): Promise<Prompt | null> {
+  const p = await ctx.repos.table("social_reminder_prompts").one({ opportunity_id: opportunityId });
+  const today = ctx.now().toISOString().slice(0, 10);
+  return p && !p.dismissed_at && p.deadline >= today ? p : null;
+}
+
+/**
+ * The jobs Worker's daily run (14:40 UTC, before the daily digest): one prompt per open, published
+ * call whose deadline is fourteen days away, in a workspace with a connected social account. It
+ * writes a record and a ledger line, and nothing else: it never calls Zernio and never posts.
+ */
+export async function promptSocialReminders(base: BaseContext): Promise<{ checked: number; prompted: number; failed: number }> {
+  const out = { checked: 0, prompted: 0, failed: 0 };
+  const today = base.now().toISOString().slice(0, 10);
+  const calls = await base.repos.table("opportunities").find({ status: "open" }, { notNull: ["published_at"], limit: 5000 });
+  for (const o of calls) {
+    const close = closeDayOf(o);
+    if (!close || (o.publish as { publicPage?: boolean } | null)?.publicPage === false) continue;
+    const left = daysBetween(today, close);
+    if (left > REMINDER_LEAD_DAYS || left <= REMINDER_LEAD_DAYS - REMINDER_WINDOW_DAYS) continue;
+    out.checked++;
+    try {
+      // Once per call, ever: a deadline that moves later does not ask again.
+      if (await base.repos.table("social_reminder_prompts").one({ opportunity_id: o.id })) continue;
+      const accounts = await base.repos.table("social_accounts").find({ workspace_id: o.workspace_id, status: "active" }, { limit: 1 });
+      if (!accounts.length) continue;
+      const row = await base.repos.table("social_reminder_prompts").insert({ workspace_id: o.workspace_id, opportunity_id: o.id, deadline: close, prompted_at: base.now().toISOString() });
+      const ctx = systemContext(base, { job: "social-reminders" }, { id: o.workspace_id, kind: "funder" });
+      await audit(ctx, "social.reminder_prompted", "opportunity", o.id, { promptId: row.id, deadline: close });
+      out.prompted++;
+    } catch (e) {
+      // Two runs at once: the other one made it.
+      if (!(e instanceof RepoError && e.kind === "conflict")) out.failed++;
+    }
+  }
+  return out;
+}
+
+export interface ReminderNotice {
+  id: string;
+  opportunityId: string;
+  title: string;
+  promptedAt: string;
+}
+
+/**
+ * The prompts a member sees in their notifications (and digest): a funder admin's, while each waits
+ * and its call is still open. Hidden on a server where social posting is switched off (the API's
+ * config says so; the jobs Worker, which does not hold the Zernio keys, relies on the prompt having
+ * been made only for a workspace with a connected account).
+ */
+export async function reminderNotices(ctx: Pick<ServiceContext, "repos" | "now" | "config">, ws: Pick<ServiceWorkspace, "id" | "kind" | "role">): Promise<ReminderNotice[]> {
+  if (ws.kind !== "funder" || !ws.role || !REMINDER_ROLES.includes(ws.role) || ctx.config.zernio === null) return [];
+  const today = ctx.now().toISOString().slice(0, 10);
+  const prompts = (await ctx.repos.table("social_reminder_prompts").find({ workspace_id: ws.id }, { orderBy: "prompted_at", ascending: false, limit: 50 })).filter((p) => !p.dismissed_at && p.deadline >= today);
+  if (!prompts.length) return [];
+  const calls = await ctx.repos.table("opportunities").find({ id: prompts.map((p) => p.opportunity_id), workspace_id: ws.id });
+  return prompts.flatMap((p) => {
+    const o = calls.find((c) => c.id === p.opportunity_id);
+    return o && o.status === "open" ? [{ id: p.id, opportunityId: o.id, title: o.title, promptedAt: p.prompted_at }] : [];
+  });
+}
+
+/** A funder admin dismisses a call's prompt, in person. It is gone for the workspace; it never comes back for that call. */
+export async function dismissReminder(ctx: ServiceContext, promptId: string) {
+  if (!socialConfigured(ctx)) throw hidden();
+  const ws = await authorize(ctx, { scope: POST_SCOPE.funder, kind: "funder", roles: REMINDER_ROLES, person: true });
+  personOnly(ctx, "Dismissing a reminder");
+  const p = await ctx.repos.table("social_reminder_prompts").one({ id: promptId, workspace_id: ws.id });
+  if (!p) throw notFound("Reminder");
+  if (!p.dismissed_at) {
+    await ctx.repos.table("social_reminder_prompts").update({ id: p.id }, { dismissed_at: ctx.now().toISOString(), dismissed_by: ctx.actor.userId });
+    await audit(ctx, "social.reminder_dismissed", "opportunity", p.opportunity_id, { promptId: p.id });
+  }
+  return { id: p.id, opportunityId: p.opportunity_id, dismissed: true };
 }

@@ -25,6 +25,7 @@ WEB_BASE_URL = "http://localhost:5173"
 #   hourly at :30  Google Calendar events (connected apps)
 #   every 6 h  Mercury poll (read-only)
 #   02:30 UTC  organization-change poll and the ledger archive
+#   14:40 UTC daily  "Two weeks left" reminder prompts for open calls (a record and a notification; never posts)
 #   15:00 UTC daily, 15:05 UTC Mondays  notification digests (daily, weekly)
 #   15:10 UTC Mondays  opt-in content digests (new matches, deadlines, funder activity);
 #     new matches ask OpenGrants when the OPENGRANTS_API_KEY secret is set on this Worker too

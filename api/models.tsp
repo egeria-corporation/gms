@@ -1029,7 +1029,7 @@ model MemberNotification {
   read: boolean;
 }
 
-alias NotificationCategory = "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent" | "report";
+alias NotificationCategory = "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent" | "report" | "social_reminder";
 
 model NotificationList {
   unread: int32;

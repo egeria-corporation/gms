@@ -33,6 +33,8 @@ export { processInbound } from "./services/inbound.ts";
 export { OUTSIDE_REMINDABLE } from "./services/outside.ts";
 export { sendDigests } from "./services/member-mail.ts";
 export { CONTENT_DIGEST_SCHEDULE, sendContentDigests } from "./services/content-digests.ts";
+// "Two weeks left" (v1.12.0): the daily reminder prompts for open calls (apps/jobs `social-reminders`).
+export { promptSocialReminders } from "./services/social.ts";
 export { SupabaseUserDirectory } from "./services/ports.ts";
 // A person's language for the emails jobs send (docs/i18n.md): wire `preferences` into the jobs' ports.
 export { MemoryPreferences, SupabasePreferences, recipientLocale, recipientLocales, type PreferencesPort } from "./services/preferences.ts";

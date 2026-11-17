@@ -3,7 +3,7 @@
 // each handler builds the same stores the API Worker uses and calls a function exported by
 // `@gms/api/jobs`, so scheduled work goes through the same services, state machines and ledger.
 import { connectedAppPorts, MercuryBankFeed } from "@gms/connectors";
-import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, reconcileStuckReleases, sendConnectorAlerts, sendDigests, sendKeepReminders, sendOutsideReminders, syncCalendars, syncPassport, SupabasePreferences, SupabaseRepos, SupabaseUserDirectory, type BaseContext, type QueueMessage } from "@gms/api/jobs";
+import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, promptSocialReminders, reconcileStuckReleases, sendConnectorAlerts, sendDigests, sendKeepReminders, sendOutsideReminders, syncCalendars, syncPassport, SupabasePreferences, SupabaseRepos, SupabaseUserDirectory, type BaseContext, type QueueMessage } from "@gms/api/jobs";
 import type { DbClient } from "@gms/db";
 import { SupabaseLedgerStore } from "@gms/ledger";
 import { ResendMailer } from "@gms/notify";
@@ -81,7 +81,7 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
 /** The one Cron Trigger. Cloudflare's free plan allows 5 per account, so every schedule is derived from this tick. */
 export const CRON = "*/5 * * * *";
 
-export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requirements" | "passport" | "mercury" | "org-changes" | "ledger-archive" | "digest-daily" | "digest-weekly" | "outside-deadlines" | "keep-reminders" | "connector-alerts" | "calendar-sync" | typeof CONTENT_DIGESTS_JOB;
+export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requirements" | "passport" | "mercury" | "org-changes" | "ledger-archive" | "digest-daily" | "digest-weekly" | "outside-deadlines" | "keep-reminders" | "connector-alerts" | "calendar-sync" | "social-reminders" | typeof CONTENT_DIGESTS_JOB;
 
 /**
  * The jobs that are due at a tick, by its scheduled time in UTC. Each job appears at most once, so a
@@ -94,6 +94,7 @@ export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requireme
  *   02:30 daily            org-changes, ledger-archive
  *   14:30 daily            outside-deadlines (reminders for outside applications, before the daily digest)
  *   14:35 daily            keep-reminders (vault expiry, obligations of outside awards, next cycles)
+ *   14:40 daily            social-reminders ("Two weeks left" prompts for open calls; never posts)
  *   15:00 daily            digest-daily (8 AM Pacific in winter, 7 AM in summer)
  *   15:05 Mondays          digest-weekly
  *   15:10 Mondays          content-digests (opt-in new matches, deadlines, funder activity)
@@ -109,6 +110,7 @@ export function jobsDue(at: Date): JobName[] {
   if (h === 2 && m === 30) due.push("org-changes", "ledger-archive");
   if (h === 14 && m === 30) due.push("outside-deadlines");
   if (h === 14 && m === 35) due.push("keep-reminders");
+  if (h === 14 && m === 40) due.push("social-reminders");
   if (h === 15 && m === 0) due.push("digest-daily");
   if (h === 15 && m === 5 && at.getUTCDay() === 1) due.push("digest-weekly");
   if (contentDigestsDue(at)) due.push(CONTENT_DIGESTS_JOB);
@@ -143,6 +145,8 @@ export async function runJob(name: JobName, base: BaseContext, env: Pick<Env, "L
       return sendConnectorAlerts(base);
     case "calendar-sync":
       return syncCalendars(base);
+    case "social-reminders":
+      return promptSocialReminders(base);
     case CONTENT_DIGESTS_JOB:
       return runContentDigests(base);
     case "ledger-archive": {

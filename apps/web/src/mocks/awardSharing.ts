@@ -5,7 +5,7 @@
 // Riverbend award to Alder Creek Family Services, under its id in the funder's screens and in the
 // grantee's; nothing here is ever posted anywhere.
 import { ApiError } from "../api/client.ts";
-import type { AwardListingSettings, AwardNotListedReason, AwardPublicPage, AwardShareKit, AwardSharing, AwardSharingApi, FunderAwardsPage, PublicAward, ShareSide } from "../api/awardSharing.ts";
+import type { AwardFederalFunding, AwardListingSettings, AwardNotListedReason, AwardPublicPage, AwardShareKit, AwardSharing, AwardSharingApi, FunderAwardsPage, PublicAward, ShareKitProfile, ShareSide, SocialTag } from "../api/awardSharing.ts";
 import type { FunderPageData } from "../api/types.ts";
 import { MOCK_IDS } from "./funder.ts";
 import { IDS } from "./store.ts";
@@ -27,18 +27,31 @@ export interface MockShareAward {
   confidential: boolean;
   recipientUnlisted: boolean;
   token: string;
+  /** The grantee's workspace handle, for its share-kit settings. */
+  recipientHandle: string;
+  /** The federal share, as the funder entered it (v1.12.0). */
+  federal: { funded: boolean; amount: string | null; percent: number | null; source: string | null };
+}
+/** A workspace's share-kit settings (v1.12.0), by workspace handle. */
+export interface MockShareProfile {
+  pageUrl: string | null;
+  tagConsent: boolean;
+  consentedAt: string | null;
+  creditWording: "funded_by" | "supported_by";
+  standardDescription: string | null;
 }
 export interface AwardSharingStore {
   awards: MockShareAward[];
   settings: Record<string, { listAwards: boolean; showAmounts: boolean }>;
   programs: Record<string, { id: string; name: string; awardsConfidential: boolean }[]>;
+  profiles: Record<string, MockShareProfile>;
 }
 
 export function seedAwardSharingStore(): AwardSharingStore {
   return {
     awards: [
-      { ids: [MOCK_IDS.award, "awd_a0000000-0000-7000-8000-000000000001"], funder: "riverbend", recipient: "Alder Creek Family Services", individual: false, purpose: "Mobile Health Navigation for Rural Families", program: "Community Health 2027", awardDate: "2027-05-18", amount: { amount: "150000.00", currency: "USD" }, status: "accepted", confidential: false, recipientUnlisted: false, token: "7k2m9x4qp1ad" },
-      { ids: ["awd_a0000000-0000-7000-8000-000000000002"], funder: "cascade-county", recipient: "Alder Creek Family Services", individual: false, purpose: "Clinic Navigation Pilot", program: null, awardDate: "2026-07-01", amount: { amount: "40000.00", currency: "USD" }, status: "active", confidential: false, recipientUnlisted: false, token: "3d8f2c6b9e1a" },
+      { ids: [MOCK_IDS.award, "awd_a0000000-0000-7000-8000-000000000001"], funder: "riverbend", recipient: "Alder Creek Family Services", individual: false, purpose: "Mobile Health Navigation for Rural Families", program: "Community Health 2027", awardDate: "2027-05-18", amount: { amount: "150000.00", currency: "USD" }, status: "accepted", confidential: false, recipientUnlisted: false, token: "7k2m9x4qp1ad", recipientHandle: "alder-creek", federal: { funded: false, amount: null, percent: null, source: null } },
+      { ids: ["awd_a0000000-0000-7000-8000-000000000002"], funder: "cascade-county", recipient: "Alder Creek Family Services", individual: false, purpose: "Clinic Navigation Pilot", program: null, awardDate: "2026-07-01", amount: { amount: "40000.00", currency: "USD" }, status: "active", confidential: false, recipientUnlisted: false, token: "3d8f2c6b9e1a", recipientHandle: "alder-creek", federal: { funded: false, amount: null, percent: null, source: null } },
     ],
     settings: { riverbend: { listAwards: false, showAmounts: true }, "cascade-county": { listAwards: false, showAmounts: true } },
     programs: {
@@ -47,6 +60,7 @@ export function seedAwardSharingStore(): AwardSharingStore {
         { id: IDS.programHealth27, name: "Community Health 2027", awardsConfidential: false },
       ],
     },
+    profiles: {},
   };
 }
 
@@ -73,6 +87,89 @@ function badgeSvg(funder: string, verified: boolean): string {
   const lw = 74;
   const rw = Math.ceil(right.length * 6.6) + 16;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${lw + rw}" height="20" role="img" aria-label="${xml(`Funded by ${funder}${verified ? ", verified" : ""}`)}"><rect width="${lw}" height="20" rx="3" fill="#0D2A43"/><rect x="${lw}" width="${rw}" height="20" fill="#145450"/><g fill="#FFFFFF" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11" text-anchor="middle"><text x="${lw / 2}" y="14">Funded by</text><text x="${lw + rw / 2}" y="14">${xml(right)}</text></g></svg>`;
+}
+
+
+// ---- the kit, plus (v1.12.0): the same words as services/award-sharing.ts, in English
+
+const PAGE_HOSTS: Record<string, SocialTag["platform"]> = { "linkedin.com": "linkedin", "facebook.com": "facebook", "instagram.com": "instagram", "x.com": "x", "twitter.com": "x", "bsky.app": "bluesky", "threads.net": "threads", "threads.com": "threads" };
+/** An organization's page from a link, as the API reads it; null for anything else. */
+export function socialPageOf(raw: string | null | undefined): { url: string; platform: SocialTag["platform"]; handle: string } | null {
+  if (!raw) return null;
+  let u: URL;
+  try {
+    u = new URL(raw.trim());
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" || u.username || u.password || u.port) return null;
+  const host = u.hostname.toLowerCase().replace(/^(www|m|mobile)\./, "");
+  const platform = PAGE_HOSTS[host];
+  if (!platform) return null;
+  const parts = u.pathname.split("/").filter(Boolean);
+  let name: string | undefined;
+  let path: string;
+  if (platform === "linkedin") {
+    if (!["company", "school", "showcase"].includes(parts[0] ?? "")) return null;
+    name = parts[1];
+    path = `${parts[0]}/${name}`;
+  } else if (platform === "bluesky") {
+    if (parts[0] !== "profile") return null;
+    name = parts[1];
+    path = `profile/${name}`;
+  } else {
+    name = parts[0]?.replace(/^@/, "");
+    path = platform === "threads" ? `@${name}` : `${name}`;
+  }
+  if (!name || !/^[A-Za-z0-9._-]{1,100}$/.test(name) || (platform !== "linkedin" && platform !== "bluesky" && parts.length > 1)) return null;
+  const canonical = platform === "x" ? "x.com" : platform === "bluesky" ? "bsky.app" : platform === "threads" ? "www.threads.net" : `www.${host}`;
+  return { url: `https://${canonical}/${path}`, platform, handle: `@${name}` };
+}
+
+const NO_PROFILE: MockShareProfile = { pageUrl: null, tagConsent: false, consentedAt: null, creditWording: "funded_by", standardDescription: null };
+const profileOf = (s: AwardSharingStore, handle: string): MockShareProfile => s.profiles[handle] ?? NO_PROFILE;
+const tagFor = (p: MockShareProfile, name: string): SocialTag | null => {
+  const page = p.tagConsent ? socialPageOf(p.pageUrl) : null;
+  return page ? { ...page, name } : null;
+};
+const longDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+const usdIn = (amount: string) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: Number.isInteger(Number(amount)) ? 0 : 2, maximumFractionDigits: Number.isInteger(Number(amount)) ? 0 : 2 }).format(Number(amount));
+
+/** The statement of the federal share of costs: only with both numbers (the Stevens Amendment). */
+export function mockFederalStatement(f: MockShareAward["federal"]): string | null {
+  if (!f.funded || f.amount === null || f.percent === null) return null;
+  const amount = usdIn(f.amount);
+  const percent = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(f.percent);
+  return f.source
+    ? `This project is supported by ${f.source} as part of a financial assistance award totaling ${amount}, with ${percent} percent of the project's total costs funded by ${f.source}. The contents are those of the authors and do not necessarily represent the official views of, nor an endorsement by, ${f.source} or the U.S. Government.`
+    : `This project is supported with federal funds as part of a financial assistance award totaling ${amount}, with ${percent} percent of the project's total costs funded with federal money. The contents are those of the authors and do not necessarily represent the official views of, nor an endorsement by, the U.S. Government.`;
+}
+
+/** A PDF of `pages` blank 1080 × 1350 pages, standing in for the carousel the API draws. */
+function stubPdf(title: string, pages: number): Blob {
+  const objects = ["<< /Type /Catalog /Pages 2 0 R >>", `<< /Type /Pages /Kids [${Array.from({ length: pages }, (_, i) => `${i + 3} 0 R`).join(" ")}] /Count ${pages} >>`, ...Array.from({ length: pages }, () => "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 1080 1350] >>"), `<< /Title (${title.replace(/[()\\]/g, "")}) >>`];
+  let out = "%PDF-1.7\n";
+  const offsets: number[] = [];
+  objects.forEach((o, i) => {
+    offsets.push(out.length);
+    out += `${i + 1} 0 obj\n${o}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((n) => `${String(n).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info ${objects.length} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return new Blob([out], { type: "application/pdf" });
+}
+
+/** "Meet our grantees" in mock mode: a program's awards that may be public, as the API lists them. */
+export function mockMeetOurGrantees(s: AwardSharingStore, funderHandle: string, programId: string, origin: string): { program: { id: string; name: string }; grantees: { awardId: string; recipient: string; purpose: string; link: string; tag: SocialTag | null }[]; awardsPage: string } | null {
+  const program = (s.programs[funderHandle] ?? []).find((p) => p.id === programId);
+  if (!program) return null;
+  const settings = s.settings[funderHandle] ?? { listAwards: false, showAmounts: true };
+  const listed = s.awards.filter((a) => a.funder === funderHandle && a.program === program.name && !a.confidential && !a.individual && LISTABLE.includes(a.status) && settings.listAwards && !a.recipientUnlisted);
+  return {
+    program: { id: program.id, name: program.name },
+    grantees: listed.slice(0, 10).map((a) => ({ awardId: a.ids[0]!, recipient: a.recipient, purpose: a.purpose, link: `${origin}/f/${a.funder}/awards/${nameSlug(a.recipient)}-${a.token}`, tag: tagFor(profileOf(s, a.recipientHandle), a.recipient) })),
+    awardsPage: `${origin}/f/${funderHandle}/awards`,
+  };
 }
 
 export function createMockAwardSharingApi(opts: MockAwardSharingOptions): AwardSharingApi {
@@ -110,7 +207,60 @@ export function createMockAwardSharingApi(opts: MockAwardSharingOptions): AwardS
         ? { linkedin: `We are grateful to ${f.name} for ${grant}${its}. It funds our work on “${a.purpose}”.\n\nThank you to the ${f.name} team for backing this work.\n\n${page}`, short: `Thank you, ${f.name}, for ${grant} for “${a.purpose}”. ${page}`, newsletter: `${a.recipient} has received ${grant} from ${f.name}${its}. The grant funds “${a.purpose}”. We thank ${f.name} for its support. Read more: ${page}` }
         : { linkedin: `We are proud to support ${a.recipient} with ${grant}${our}. The grant funds “${a.purpose}”.\n\nCongratulations to the ${a.recipient} team.\n\n${page}`, short: `Congratulations to ${a.recipient} on ${grant} from ${f.name} for “${a.purpose}”. ${page}`, newsletter: `${f.name} has awarded ${a.recipient} ${grant}${its}. The grant funds “${a.purpose}”. See every grant we have awarded: ${awards}` };
     const width = /width="(\d+)"/.exec(svg)?.[1] ?? "200";
-    return { posts, links: { page, awards, image: award.links.image, badge: award.links.badge }, badge: { verified, text, svg, snippet: `<a href="${attr(page)}"><img src="${attr(award.links.badge)}" alt="${attr(verified ? `Funded by ${f.name}, verified` : `Funded by ${f.name}`)}" width="${width}" height="20"></a>` }, award };
+    // The extras, worded as the API words them in English.
+    const fp = profileOf(s, a.funder);
+    const credit = fp.creditWording === "supported_by" ? `Supported by ${f.name}` : `Funded by ${f.name}`;
+    const federal = mockFederalStatement(a.federal);
+    const amount = award.amount ? usd(award.amount) : null;
+    const date = longDate(a.awardDate);
+    const grantOf = amount ? `a grant of ${amount}` : "a grant";
+    const through = a.program ? ` through its ${a.program} program` : "";
+    const description = fp.standardDescription ?? f.mission ?? null;
+    const press = [
+      side === "funder" ? `${f.name} awards a grant to ${a.recipient}` : `${a.recipient} receives a grant from ${f.name}`,
+      "FOR IMMEDIATE RELEASE",
+      side === "funder" ? `${date}: ${f.name} has awarded ${a.recipient} ${grantOf}${through}. The grant funds “${a.purpose}”.` : `${date}: ${a.recipient} has received ${grantOf} from ${f.name}${through}. The grant funds “${a.purpose}”.`,
+      fp.creditWording === "supported_by" ? `The project is supported by ${f.name}.` : `The project is funded by ${f.name}.`,
+      "[Add a quote: “…,” said [name, title].]",
+      ...(federal ? [federal] : []),
+      `About ${f.name}`,
+      description ?? `[Add a short description of ${f.name}.]`,
+      `About ${a.recipient}`,
+      `[Add a short description of ${a.recipient}.]`,
+      "Media contact: [name, email address, phone]",
+      `Read more: ${page}`,
+    ].join("\n\n");
+    const pages: { heading: string; body: string[] }[] = [
+      { heading: `${f.name} awarded ${a.recipient} a grant`, body: [a.purpose] },
+      { heading: a.purpose, body: [a.program ? `Through the ${a.program} program, awarded ${date}.` : `Awarded ${date}.`] },
+      { heading: a.recipient, body: [`${a.recipient} received this grant from ${f.name}.`] },
+      ...(amount ? [{ heading: amount, body: [`A grant from ${f.name} to ${a.recipient}.`] }] : []),
+      { heading: f.name, body: [description ?? `${f.name} lists every grant it awards on its public page.`] },
+      ...(federal ? [{ heading: "The federal share of costs", body: [federal] }] : []),
+      { heading: side === "funder" ? `Congratulations to the ${a.recipient} team` : `Thank you, ${f.name}`, body: [credit] },
+      { heading: "Read about this grant", body: [page, `Every grant ${f.name} has awarded: ${awards}`] },
+    ];
+    const id = a.ids.find((x) => (side === "funder" ? x === a.ids[0] : x !== a.ids[0])) ?? a.ids[0]!;
+    return {
+      posts,
+      links: { page, awards, image: award.links.image, badge: award.links.badge },
+      badge: { verified, text, svg, snippet: `<a href="${attr(page)}"><img src="${attr(award.links.badge)}" alt="${attr(verified ? `Funded by ${f.name}, verified` : `Funded by ${f.name}`)}" width="${width}" height="20"></a>` },
+      award,
+      creditLine: credit,
+      pressRelease: press,
+      federalStatement: federal,
+      carousel: { pages: pages.map((p, i) => ({ heading: p.heading, alt: `Slide ${i + 1} of ${pages.length}: ${p.heading}. ${p.body.join(" ")}` })), path: side === "funder" ? `/gms/awards/${id}/sharing/carousel.pdf` : `/gms/my/awards/${id}/sharing/carousel.pdf`, fileName: `${award.slug}-carousel.pdf` },
+      portrait: { funder: f.name, recipient: a.recipient, program: a.program, purpose: a.purpose, year: award.year, amount: award.amount, verified },
+      tags: { funder: tagFor(fp, f.name), grantee: tagFor(profileOf(s, a.recipientHandle), a.recipient) },
+    };
+  }
+
+  function federalView(a: MockShareAward, ws: NonNullable<Current>, side: ShareSide): AwardFederalFunding {
+    return { ...a.federal, statement: mockFederalStatement(a.federal), canChange: side === "funder" && FUNDER_CHANGE_ROLES.includes(ws.role) };
+  }
+  function profileView(ws: NonNullable<Current>): ShareKitProfile {
+    const p = profileOf(s, ws.handle);
+    return { pageUrl: p.pageUrl, page: socialPageOf(p.pageUrl), tagConsent: p.tagConsent, consentedAt: p.consentedAt, creditWording: p.creditWording, standardDescription: p.standardDescription, canChange: ws.role === "admin" };
   }
 
   const current = () => {
@@ -139,6 +289,7 @@ export function createMockAwardSharingApi(opts: MockAwardSharingOptions): AwardS
       canChange: (side === "funder" ? FUNDER_CHANGE_ROLES : ["admin"]).includes(ws.role),
       awardsPage: settings.listAwards ? `${web()}/f/${a.funder}/awards` : null,
       kit: reason === null ? await kitOf(a, side) : null,
+      federal: federalView(a, ws, side),
     };
   }
   function settingsView(handle: string): AwardListingSettings {
@@ -199,6 +350,50 @@ export function createMockAwardSharingApi(opts: MockAwardSharingOptions): AwardS
       if (!p) throw fail(404, "Program not found");
       p.awardsConfidential = awardsConfidential;
       return settingsView(ws.handle);
+    },
+    async setFederalFunding(awardId, input) {
+      const { a, ws } = sideAward(awardId, "funder");
+      if (!FUNDER_CHANGE_ROLES.includes(ws.role)) throw fail(403, "This needs one of these roles: admin, program_officer");
+      const amountOk = input.amount === undefined || input.amount === null || (/^\d{1,12}(\.\d{1,2})?$/.test(input.amount) && Number(input.amount) > 0);
+      const percentOk = input.percent === undefined || input.percent === null || (input.percent > 0 && input.percent <= 100 && Math.abs(input.percent * 100 - Math.round(input.percent * 100)) < 1e-6);
+      if (!amountOk || !percentOk) throw fail(400, "Check the federal amount and percentage");
+      a.federal = input.federallyFunded
+        ? { funded: true, amount: input.amount === undefined ? a.federal.amount : input.amount === null ? null : Number(input.amount).toFixed(2), percent: input.percent === undefined ? a.federal.percent : input.percent, source: input.source === undefined ? a.federal.source : input.source?.trim() || null }
+        : { funded: false, amount: null, percent: null, source: null };
+      return panel(awardId, "funder");
+    },
+    async carouselPdf(path) {
+      const id = /^\/gms\/(?:my\/)?awards\/([^/]+)\/sharing\/carousel\.pdf$/.exec(path)?.[1];
+      const side: ShareSide = path.startsWith("/gms/my/") ? "grantee" : "funder";
+      const kit = id ? (await panel(id, side)).kit : null;
+      if (!kit) throw fail(409, "This award is not listed publicly, so it has no carousel");
+      return stubPdf(kit.carousel.pages[0]!.heading, kit.carousel.pages.length);
+    },
+    async shareProfile() {
+      return profileView(current());
+    },
+    async updateShareProfile(patch) {
+      const ws = current();
+      if (ws.role !== "admin") throw fail(403, "This needs one of these roles: admin");
+      if (ws.kind !== "funder" && (patch.creditWording !== undefined || patch.standardDescription !== undefined)) throw fail(422, "Only a funder sets the press release's credit wording and description");
+      const before = profileOf(s, ws.handle);
+      let pageUrl = patch.pageUrl === undefined ? before.pageUrl : patch.pageUrl || null;
+      if (pageUrl !== null) {
+        const page = socialPageOf(pageUrl);
+        if (!page) throw fail(422, "Give the https address of your organization's page on LinkedIn, Facebook, Instagram, X, Bluesky or Threads");
+        pageUrl = page.url;
+      }
+      const changed = pageUrl !== before.pageUrl;
+      const consent = patch.tagConsent ?? (changed ? false : before.tagConsent);
+      if (consent && !pageUrl) throw fail(422, "Give your page's link before you agree to be tagged");
+      s.profiles[ws.handle] = {
+        pageUrl,
+        tagConsent: consent,
+        consentedAt: consent ? (before.tagConsent && !changed ? before.consentedAt : new Date().toISOString()) : null,
+        creditWording: patch.creditWording ?? before.creditWording,
+        standardDescription: patch.standardDescription === undefined ? before.standardDescription : patch.standardDescription?.trim() || null,
+      };
+      return profileView(ws);
     },
   };
 }

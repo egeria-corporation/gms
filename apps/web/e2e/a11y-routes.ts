@@ -384,4 +384,7 @@ export const DIALOGS: DialogCase[] = [
   d(`${A}/outside/${OAP(3)}?tab=submission`, "applicant-admin", "Record decision", "Record the decision", es("Registrar la decisión", "Registrar la decisión")),
   d(`${A}/organization/documents`, "applicant-admin", "Add a document", "Add a document to the vault", es("Agregar un documento", "Agregar un documento al archivo")),
   d(`${A}/organization/documents`, "applicant-admin", "Edit Board of directors 2026.pdf", "Board of directors 2026.pdf", es("Editar Board of directors 2026.pdf", "Board of directors 2026.pdf")),
+  // v1.12.0: the award kit's share-kit settings, from both sides of an award.
+  d(`${F}/awards/${AWD_F}/agreement`, "funder-admin", "Share-kit settings", "Share-kit settings", es("Configuración del kit para compartir", "Configuración del kit para compartir")),
+  d(`${A}/grants/${AWD_HEALTH}`, "applicant-admin", "Share-kit settings", "Share-kit settings", es("Configuración del kit para compartir", "Configuración del kit para compartir")),
 ];

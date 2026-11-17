@@ -175,6 +175,9 @@ const RULES: { [T in TableName]: Rule } = {
   // 0038: connected accounts and the Zernio profile are the workspace's (connecting is an admin's);
   // a post is its subject's (an opportunity or an award).
   social_accounts: OPEN,
+  // 0048: share-kit settings are the workspace's own; a reminder prompt is its call's.
+  share_kit_profiles: OPEN,
+  social_reminder_prompts: parent("opportunity_id", "opportunities", "Opportunity"),
   social_posts: SUBJECT,
   social_profiles: OPEN,
   submissions: parent("award_id", "awards", "Award"),

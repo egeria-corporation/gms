@@ -376,5 +376,10 @@
   "code.not_an_intermediary": "Los enlaces de incorporación y el directorio de aliados son para espacios de trabajo que gestionan dos o más fondos. Agregue sus fondos en Configuración, Fondos.",
   "code.note_has_link": "Quite el enlace o la dirección de correo electrónico de su nota. La invitación lleva un solo enlace, para configurar un espacio de trabajo de financiador.",
   "code.too_many_peer_invites": "Un espacio de trabajo puede invitar a cinco financiadores por semana. Vuelva a intentarlo la próxima semana.",
-  "code.not_a_directory_moderator": "Solo quienes moderan el directorio de aliados pueden revisar las solicitudes."
+  "code.not_a_directory_moderator": "Solo quienes moderan el directorio de aliados pueden revisar las solicitudes.",
+  "code.not_public": "Esta subvención otorgada no se publica, así que no tiene carrusel.",
+  "code.page_url_invalid": "Indique la dirección https de la página de su organización en LinkedIn, Facebook, Instagram, X, Bluesky o Threads.",
+  "code.consent_needs_page": "Indique el enlace de su página antes de aceptar que la etiqueten.",
+  "code.funder_only_setting": "Solo un financiador define la mención del comunicado de prensa y su descripción.",
+  "notFound.reminder": "No se encontró el recordatorio."
 }

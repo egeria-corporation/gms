@@ -376,5 +376,10 @@
   "code.not_an_intermediary": "Onboarding links and the partner directory are for workspaces that run two or more funds. Add your funds in Settings, Funds.",
   "code.note_has_link": "Take the link or email address out of your note. The invitation carries one link only, to set up a funder workspace.",
   "code.too_many_peer_invites": "A workspace can invite five funders a week. Try again next week.",
-  "code.not_a_directory_moderator": "Only the partner directory's moderators can review listings."
+  "code.not_a_directory_moderator": "Only the partner directory's moderators can review listings.",
+  "code.not_public": "This award is not listed publicly, so it has no carousel.",
+  "code.page_url_invalid": "Give the https address of your organization's page on LinkedIn, Facebook, Instagram, X, Bluesky or Threads.",
+  "code.consent_needs_page": "Give your page's link before you agree to be tagged.",
+  "code.funder_only_setting": "Only a funder sets the press release's credit wording and description.",
+  "notFound.reminder": "Reminder not found."
 }

@@ -16,6 +16,13 @@ export type AwardSharing = S["Models.AwardSharing"];
 export type AwardNotListedReason = S["Models.AwardNotListedReason"];
 export type AwardListingSettings = S["Models.AwardListingSettings"];
 export type ShareSide = "funder" | "grantee";
+// The kit, plus (v1.12.0, api/award-kit.tsp).
+export type FederalFundingInput = S["Models.FederalFundingInput"];
+export type AwardFederalFunding = S["Models.AwardFederalFunding"];
+export type ShareKitProfile = S["Models.ShareKitProfile"];
+export type ShareKitProfileInput = S["Models.ShareKitProfileInput"];
+export type SocialTag = S["Models.SocialTag"];
+export type CreditWording = S["Models.CreditWording"];
 
 export interface AwardSharingApi {
   // ---- public: no sign-in ----
@@ -32,6 +39,14 @@ export interface AwardSharingApi {
   /** Workspace admins. */
   updateSettings(patch: { listAwards?: boolean; showAmounts?: boolean }): Promise<AwardListingSettings>;
   setProgramDefault(programId: string, awardsConfidential: boolean): Promise<AwardListingSettings>;
+  /** Funder admins and program officers: the federal share on an award. */
+  setFederalFunding(awardId: string, input: FederalFundingInput): Promise<AwardSharing>;
+  /** The carousel PDF at the kit's `carousel.path`. */
+  carouselPdf(path: string): Promise<Blob>;
+  /** This workspace's share-kit settings. */
+  shareProfile(): Promise<ShareKitProfile>;
+  /** Workspace admins. */
+  updateShareProfile(patch: ShareKitProfileInput): Promise<ShareKitProfile>;
 }
 
 export interface HttpAwardSharingOptions {
@@ -42,10 +57,10 @@ export interface HttpAwardSharingOptions {
 }
 
 export function createHttpAwardSharingApi(opts: HttpAwardSharingOptions): AwardSharingApi {
-  async function call<T>(method: string, path: string, body?: unknown, open = false): Promise<T> {
+  async function send(method: string, path: string, body?: unknown, open = false): Promise<Response> {
     const token = open ? null : await opts.token();
     const workspaceId = open ? null : opts.workspaceId();
-    const res = await (opts.fetch ?? fetch)(`${opts.baseUrl}${path}`, {
+    return (opts.fetch ?? fetch)(`${opts.baseUrl}${path}`, {
       method,
       ...(open ? { credentials: "omit" as const } : {}),
       headers: {
@@ -55,6 +70,9 @@ export function createHttpAwardSharingApi(opts: HttpAwardSharingOptions): AwardS
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
+  }
+  async function call<T>(method: string, path: string, body?: unknown, open = false): Promise<T> {
+    const res = await send(method, path, body, open);
     const json = (await res.json().catch(() => ({}))) as { data?: T; message?: string; errors?: unknown[] };
     if (!res.ok) throw new ApiError(res.status, json.message ?? `Request failed (${res.status})`, (json.errors ?? []) as never);
     return json.data as T;
@@ -69,6 +87,19 @@ export function createHttpAwardSharingApi(opts: HttpAwardSharingOptions): AwardS
     settings: () => call("GET", "/gms/award-sharing/settings"),
     updateSettings: (patch) => call("PUT", "/gms/award-sharing/settings", patch),
     setProgramDefault: (programId, awardsConfidential) => call("PUT", `/gms/programs/${e(programId)}/award-sharing`, { awardsConfidential }),
+    setFederalFunding: (awardId, input) => call("PUT", `/gms/awards/${e(awardId)}/federal-funding`, input),
+    carouselPdf: async (path) => {
+      // Only the API's own carousel addresses.
+      if (!/^\/gms\/(my\/)?awards\/[A-Za-z0-9_-]+\/sharing\/carousel\.pdf$/.test(path)) throw new ApiError(400, "Not a carousel address");
+      const res = await send("GET", path);
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { message?: string; errors?: unknown[] };
+        throw new ApiError(res.status, json.message ?? `Request failed (${res.status})`, (json.errors ?? []) as never);
+      }
+      return res.blob();
+    },
+    shareProfile: () => call("GET", "/gms/share-kit/profile"),
+    updateShareProfile: (patch) => call("PUT", "/gms/share-kit/profile", patch),
   };
 }
 

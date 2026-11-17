@@ -74,7 +74,7 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   templates: () => ({ workspace_id: null, version: 1 }),
   approvals: () => ({ input: {}, summary: null, impact: null, subject_type: null, subject_id: null, status: "pending", side: "funder", error: null, decided_by: null, decided_at: null, decision_note: null, result: null, expires_at: null }),
   award_invitations: () => ({ message: null, sent_count: 1, accepted_at: null, accepted_by: null, accepted_workspace_id: null, declined_at: null, decline_reason: null, revoked_at: null }),
-  awards: () => ({ recipient_workspace_id: null, recipient_individual: null, application_id: null, opportunity_id: null, program_id: null, parent_award_id: null, description: null, status: "offered", cg_status: "awarded", funding: {}, key_dates: {}, conditions: [], passport_award_id: null, passport_synced_at: null, disbursed_at: null, cg: null, confidential: false, recipient_unlisted: false, public_slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12) }),
+  awards: () => ({ recipient_workspace_id: null, recipient_individual: null, application_id: null, opportunity_id: null, program_id: null, parent_award_id: null, description: null, status: "offered", cg_status: "awarded", funding: {}, key_dates: {}, conditions: [], passport_award_id: null, passport_synced_at: null, disbursed_at: null, cg: null, confidential: false, recipient_unlisted: false, public_slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12), federally_funded: false, federal_amount: null, federal_percent: null, federal_source: null }),
   agreements: () => ({ template_id: null, version: 1, status: "draft", rendered_pdf_path: null, document_sha256: null, grantee_signature: null, funder_signature: null, executed_at: null }),
   payment_schedules: () => ({ currency: "USD", notes: null }),
   tranches: () => ({ currency: "USD", condition: { type: "manual" }, status: "scheduled", due_at: null, released_by: null, released_at: null, mode: null, passport_disbursement_id: null, passport_status: null, external: null, hold_reason: null, idempotency_key: null }),
@@ -175,6 +175,9 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   referral_links: () => ({ logo_storage: null, logo_path: null, logo_mime: null, logo_sha256: null, logo_alt: null, revoked_at: null, created_by: null }),
   referral_joins: () => ({ source_workspace_id: null, peer_invitation_id: null, referral_link_id: null }),
   directory_listings: (at) => ({ status: "pending", submitted_at: at, decided_by: null, decided_at: null, decision_reason: null, withdrawn_at: null }),
+  // 0048: share-kit settings and the "Two weeks left" prompt.
+  share_kit_profiles: () => ({ page_url: null, tag_consent: false, consented_at: null, consented_by: null, credit_wording: "funded_by", standard_description: null, updated_by: null }),
+  social_reminder_prompts: (at) => ({ prompted_at: at, dismissed_at: null, dismissed_by: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -231,6 +234,8 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   referral_links: [{ columns: ["token"] }, { columns: ["workspace_id", "kind"], whereNull: "revoked_at" }],
   referral_joins: [{ columns: ["joined_workspace_id"] }],
   directory_listings: [{ columns: ["workspace_id"] }],
+  share_kit_profiles: [{ columns: ["workspace_id"] }],
+  social_reminder_prompts: [{ columns: ["opportunity_id"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -286,7 +291,7 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
 };
 
 /** Tables whose primary key is not a generated `id` alone. */
-const NO_GENERATED_ID = new Set<TableName>(["oauth_refresh_tokens"]);
+const NO_GENERATED_ID = new Set<TableName>(["oauth_refresh_tokens", "share_kit_profiles"]);
 
 function matches(row: AnyRow, where: AnyRow, notNull: readonly string[] = []): boolean {
   for (const [k, v] of Object.entries(where)) {

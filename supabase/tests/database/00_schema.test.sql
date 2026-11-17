@@ -38,7 +38,7 @@ select tables_are(
     'syndication_sends',
     'history_applications', 'history_reviews', 'history_reports',
     'peer_invitations', 'referral_links', 'referral_joins', 'directory_listings',
-    'user_preferences'
+    'share_kit_profiles', 'social_reminder_prompts'
   ],
   'public schema has exactly the GMS tables'
 );

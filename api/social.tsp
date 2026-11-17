@@ -93,6 +93,9 @@ namespace GMS.Models {
   union SocialSubjectType {
     opportunity: "opportunity",
     award: "award",
+
+    /** "Meet our grantees" (v1.12.0): a funder's program and its awards that may be public. */
+    program: "program",
   }
 
   model SocialSubject {
@@ -108,6 +111,9 @@ namespace GMS.Models {
   model SocialSuggestion {
     label: string;
     text: string;
+
+    /** `reminder`: the "Two weeks left" text; `meet`: "Meet our grantees". */
+    kind?: "reminder" | "meet";
   }
 
   model SocialDraft {
@@ -126,6 +132,27 @@ namespace GMS.Models {
 
     /** The share card attached when the person keeps it. */
     imageUrl: string | null;
+
+    /** A call's "Two weeks left" prompt while it waits (v1.12.0): the first suggestion is then the reminder. */
+    reminder?: {
+      id: CommonGrants.Types.uuid;
+      deadline: plainDate;
+    } | null;
+
+    /** An award's program, for the funder's "Meet our grantees" (funder side only). */
+    program?: {
+      id: CommonGrants.Types.uuid;
+      name: string;
+    } | null;
+
+    /** "Meet our grantees": the program's awards that may be public, newest first, at most 10. */
+    grantees?: SocialDraftGrantee[];
+
+    /** "Meet our grantees": the opening and closing lines around the grantees' lines. */
+    parts?: {
+      intro: string;
+      outro: string;
+    } | null;
   }
 
   model SocialSchedule {
@@ -317,7 +344,7 @@ namespace GMS.Routes.Custom {
     @delete @route("/social/accounts/{id}") @useAuth(UserSession)
     op disconnect(@path id: CommonGrants.Types.uuid): OkT<SocialAccount> | AuthErrors | NotFound | Conflict | SocialBadGateway | ServiceUnavailable;
 
-    /** The composer's starting text, link and share card for an opportunity or an award. A read: agents may use it to help write. */
+    /** The composer's starting text, link and share card for an opportunity, an award or (v1.12.0, "Meet our grantees") a funder's program. A read: agents may use it to help write. */
     @get @route("/social/compose") @useAuth(GmsOAuth<["analytics:read"]> | UserSession)
     op compose(@query subjectType: SocialSubjectType, @query subjectId: CommonGrants.Types.uuid): OkT<SocialDraft> | BadRequest | AuthErrors | NotFound;
 
