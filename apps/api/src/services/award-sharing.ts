@@ -296,35 +296,32 @@ const attr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").rep
 
 export const badgeText = (funderName: string, verified: boolean) => `Funded by ${funderName}${verified ? " · verified" : ""}`;
 
-/** The posts, links and badge for a listed award, from its public fields only. */
-export function buildShareKit(ctx: Pick<ServiceContext, "config">, award: PublicAward, funder: Ws, audience: ShareAudience): BaseShareKit {
+/**
+ * The posts, links and badge for a listed award, from its public fields only. The posts are in
+ * `locale` (the kit's language, as its press release and carousel: the reader's), from the email
+ * catalog's `kit.post.*`; English reads as it always has.
+ */
+export function buildShareKit(ctx: Pick<ServiceContext, "config">, award: PublicAward, funder: Ws, audience: ShareAudience, locale: Locale = DEFAULT_LOCALE): BaseShareKit {
   const funderName = publicFunderName(funder);
   const recipient = award.recipient.name;
-  const amount = award.amount ? formatAmount(award.amount) : null;
-  const grant = aGrant(amount);
-  const purpose = `“${award.purpose}”`;
+  const english = locale === DEFAULT_LOCALE;
+  const amount = award.amount ? (english ? formatAmount(award.amount) : formatCurrency(locale, Number(award.amount.amount), award.amount.currency, Number.isInteger(Number(award.amount.amount)) ? 0 : 2)) : null;
   const awards = `${ctx.config.webBaseUrl}/f/${funder.handle}/awards`;
-  const throughIts = award.program ? ` through its ${award.program} program` : "";
-  const throughOur = award.program ? ` through our ${award.program} program` : "";
   const page = award.links.page;
-  const short = (make: (p: string) => string) => {
+  const t = emailT(locale);
+  // "an $80,000 grant", "a $150,000 grant" or "a grant" in English (the article goes by how the amount is read); the other languages word it in the message.
+  const grantForm = amount ? aGrant(amount).split(" ")[0]! : "none";
+  const values = (purpose: string) => ({ funder: funderName, recipient, amount: amount ?? "", grantForm, program: award.program ?? "", hasProgram: award.program ? "yes" : "no", purpose, page, awards });
+  const short = (key: "kit.post.grantee.short" | "kit.post.funder.short") => {
     // Shorten the purpose until the post fits.
     let p = award.purpose;
-    while (make(`“${p}”`).length > SHORT_POST_MAX && p.length > 20) p = clip(p, Math.max(20, p.length - 10));
-    return make(`“${p}”`);
+    while (t(key, values(p)).length > SHORT_POST_MAX && p.length > 20) p = clip(p, Math.max(20, p.length - 10));
+    return t(key, values(p));
   };
   const posts =
     audience === "grantee"
-      ? {
-          linkedin: `We are grateful to ${funderName} for ${grant}${throughIts}. It funds our work on ${purpose}.\n\nThank you to the ${funderName} team for backing this work.\n\n${page}`,
-          short: short((p) => `Thank you, ${funderName}, for ${grant} for ${p}. ${page}`),
-          newsletter: `${recipient} has received ${grant} from ${funderName}${throughIts}. The grant funds ${purpose}. We thank ${funderName} for its support. Read more: ${page}`,
-        }
-      : {
-          linkedin: `We are proud to support ${recipient} with ${grant}${throughOur}. The grant funds ${purpose}.\n\nCongratulations to the ${recipient} team.\n\n${page}`,
-          short: short((p) => `Congratulations to ${recipient} on ${grant} from ${funderName} for ${p}. ${page}`),
-          newsletter: `${funderName} has awarded ${recipient} ${grant}${throughIts}. The grant funds ${purpose}. See every grant we have awarded: ${awards}`,
-        };
+      ? { linkedin: t("kit.post.grantee.linkedin", values(award.purpose)), short: short("kit.post.grantee.short"), newsletter: t("kit.post.grantee.newsletter", values(award.purpose)) }
+      : { linkedin: t("kit.post.funder.linkedin", values(award.purpose)), short: short("kit.post.funder.short"), newsletter: t("kit.post.funder.newsletter", values(award.purpose)) };
   const verified = funderVerified(funder);
   const text = badgeText(funderName, verified);
   const size = badgeSize(text);
@@ -421,7 +418,7 @@ export async function shareKit(ctx: ServiceContext, awardId: string, audience: S
 
 /** The kit with its extras, for an award that is public. */
 async function fullKit(ctx: ServiceContext, row: Award, found: { award: PublicAward; funder: Ws }, audience: ShareAudience): Promise<ShareKit> {
-  return { ...buildShareKit(ctx, found.award, found.funder, audience), ...(await kitExtras(ctx, row, found, audience)) };
+  return { ...buildShareKit(ctx, found.award, found.funder, audience, ctx.locale ?? DEFAULT_LOCALE), ...(await kitExtras(ctx, row, found, audience)) };
 }
 
 export interface AwardSharing {

@@ -147,6 +147,25 @@ describe("the press release", () => {
     expect(kit.pressRelease).toContain("PARA PUBLICACIÓN INMEDIATA");
     expect(kit.pressRelease).toContain("otorgó a Alder Creek Family Services una subvención de");
   });
+
+  it("gives the three posts in the reader's language too, the funder's and the grantee's", async () => {
+    const s = await setup();
+    const english = (await panel(s)).kit!;
+    expect(english.posts.linkedin).toMatch(/^We are proud to support Alder Creek Family Services with a \$150,000 grant through our Community Health 2027 program\. The grant funds “Mobile Health Navigation for Rural Families”\./);
+    const funder = (await data<sharing.AwardSharing>(await get(s, `/gms/awards/${awd(s.listed.id)}/sharing?lang=es`, s.officer))).kit!;
+    expect(funder.posts.linkedin).toMatch(/^Nos enorgullece apoyar a Alder Creek Family Services con una subvención de \$150[.,]000 a través de nuestro programa Community Health 2027\. La subvención financia «Mobile Health Navigation for Rural Families»\./);
+    expect(funder.posts.short).toContain("Felicitaciones a Alder Creek Family Services por una subvención de");
+    expect(funder.posts.short.length).toBeLessThanOrEqual(280);
+    expect(funder.posts.newsletter).toContain("Vea todas las subvenciones que hemos otorgado:");
+    const grantee = (await data<sharing.AwardSharing>(await get(s, `/gms/my/awards/${awd(s.listed.id)}/sharing?lang=es`, s.grantee))).kit!;
+    expect(grantee.posts.linkedin).toMatch(/^Agradecemos a Riverbend Community Foundation por una subvención de /);
+    expect(grantee.posts.newsletter).toContain("Alder Creek Family Services recibió una subvención de");
+    // Hidden amounts stay hidden in every language.
+    await put(s, "/gms/award-sharing/settings", s.admin, { showAmounts: false });
+    const hidden = (await data<sharing.AwardSharing>(await get(s, `/gms/awards/${awd(s.listed.id)}/sharing?lang=es`, s.officer))).kit!;
+    expect(hidden.posts.linkedin).toContain("con una subvención a través de nuestro programa");
+    expect(JSON.stringify(hidden.posts)).not.toContain("150");
+  });
 });
 
 describe("the carousel", () => {
