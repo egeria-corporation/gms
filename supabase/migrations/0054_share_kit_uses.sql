@@ -29,7 +29,8 @@ create table public.share_kit_uses (
 );
 create index share_kit_uses_award on public.share_kit_uses (award_id);
 alter table public.share_kit_uses enable row level security;
-revoke all on public.share_kit_uses from anon, authenticated;
+revoke all on public.share_kit_uses from public, anon, authenticated, service_role;
+grant select, insert, update, delete on public.share_kit_uses to service_role;
 
 -- A count belongs to the award's own (funder) workspace, whichever side downloaded.
 create or replace function gms.share_kit_use_award_ok()

@@ -11,6 +11,13 @@ create temporary table t_now as select timestamptz '2027-04-30 12:00:00+00' as n
 create or replace function pg_temp.ago(days numeric) returns timestamptz language sql as
   $$ select timestamptz '2027-04-30 12:00:00+00' - make_interval(secs => days * 86400) $$;
 
+-- Whatever the database already holds (the seed has an open call) is counted before the fixtures,
+-- so each "open call" expectation below is that baseline plus the fixtures' own.
+create temporary table t_base as select
+  (public.gms_operator_measures(timestamptz '2027-04-30 12:00:00+00', 30, 14) ->> 'fundersWithOpenCall')::int as open30,
+  (public.gms_operator_measures(timestamptz '2027-04-30 12:00:00+00', 7, 14) ->> 'fundersWithOpenCall')::int as open7;
+grant select on t_base to service_role;
+
 -- ---------------------------------------------------------------- fixtures (as postgres)
 insert into public.workspaces (id, kind, handle, display_name, status, created_at) values
   -- funders
@@ -109,7 +116,7 @@ select lives_ok($$ update public.operator_settings set search_console_site = 'ht
 create temporary table t_m as select public.gms_operator_measures(timestamptz '2027-04-30 12:00:00+00', 30, 14) as m;
 grant select on t_m to postgres;
 
-select is((select (m ->> 'fundersWithOpenCall')::int from t_m), 4, '1. funders with a call open in the window: open now, or closed inside it; not suspended, not unpublished');
+select is((select (m ->> 'fundersWithOpenCall')::int from t_m), (select open30 from t_base) + 4, '1. funders with a call open in the window: open now, or closed inside it; not suspended, not unpublished');
 select is((select (m ->> 'activeApplicantWorkspaces')::int from t_m), 2, '2. applicant workspaces whose members were active in the window (closed ones left out)');
 select is((select (m ->> 'newApplicantWorkspaces')::int from t_m), 2, '3. applicant workspaces made in the window');
 select is((select (m ->> 'callsPublished')::int from t_m), 2, '3. calls published in the window (a suspended funder''s left out)');
@@ -143,7 +150,7 @@ select is_empty(
 
 select is((public.gms_operator_measures(timestamptz '2027-04-30 12:00:00+00', 30, 21) ->> 'switchedFundersWithCall')::int, 2, 'the switch rule follows its parameter (21 days takes the slower switch)');
 select is((public.gms_operator_measures(timestamptz '2027-04-30 12:00:00+00', 7, 14) ->> 'newApplicantWorkspaces')::int, 0, 'a 7-day window counts only the last week''s workspaces');
-select is((public.gms_operator_measures(timestamptz '2027-04-30 12:00:00+00', 7, 14) ->> 'fundersWithOpenCall')::int, 3, 'a 7-day window leaves out the call closed 10 days ago');
+select is((public.gms_operator_measures(timestamptz '2027-04-30 12:00:00+00', 7, 14) ->> 'fundersWithOpenCall')::int, (select open7 from t_base) + 3, 'a 7-day window leaves out the call closed 10 days ago');
 select is((public.gms_operator_measures(timestamptz '2027-04-30 12:00:00+00', 0, 0) ->> 'from')::timestamptz, timestamptz '2027-04-29 12:00:00+00', 'a window under a day is held to one day');
 
 reset role;
