@@ -15,6 +15,12 @@ export const FOUNDANT_GLM: ImportAdapter = {
     "Include the request id, organization name, project title, amount awarded and decision date, and the payment columns if you have them.",
     "Save the file as CSV or .xlsx (an older .xls file must be saved again as one of these).",
   ],
+  targetSteps: {
+    history_applications: [
+      "In Foundant GLM, open the process you want and use Export Data (or a report) on its requests, with every request status, not only the approved ones.",
+      "Add the request id, organization, project title, status, the amounts and the questions you want to keep, then save it as CSV or .xlsx (save an older .xls as one of these).",
+    ],
+  },
   accepts: ["csv", "xlsx"],
   attachments: null,
   signature: {
@@ -38,6 +44,18 @@ export const FOUNDANT_GLM: ImportAdapter = {
       paidAmount: ["payment amount", "amount paid", "total paid", "paid amount"],
       paidDate: ["payment date", "date paid", "paid date"],
       paymentReference: ["check number", "payment number", "payment reference"],
+    },
+    history_applications: {
+      sourceId: ["request id", "grant id"],
+      title: ["project title", "request name", "project name", "title"],
+      organizationName: ["organization name", "organization", "organisation name", "legal name"],
+      organizationEin: ["ein"],
+      callTitle: ["process name", "process"],
+      submittedDate: ["submitted date", "date submitted", "request date", "submission date"],
+      outcome: ["request status", "status", "decision"],
+      requestedAmount: ["amount requested", "requested amount", "request amount", "funding requested"],
+      awardedAmount: ["amount awarded", "awarded amount", "amount approved", "approved amount", "grant amount"],
+      currency: ["currency"],
     },
   },
   decision: { columns: ["decision", "request status", "status"], notAwarded: [...COMMON_NOT_AWARDED, "pending", "submitted"] },

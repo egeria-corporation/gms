@@ -166,6 +166,10 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   calendar_links: () => ({ status: "pending", calendar_id: null, calendar_name: null, event_map: {}, last_sync_at: null }),
   // 0045: a call's submission to a listing service (Philanthropy News Digest).
   syndication_sends: () => ({ message_id: null, sent_at: null }),
+  // 0046: imported history (past applications, reviews and reports), written by the import only.
+  history_applications: () => ({ organization_workspace_id: null, award_id: null, program_id: null, program_name: null, call_title: null, submitted_on: null, outcome_label: null, currency: "USD", requested_amount_minor: null, awarded_amount_minor: null, answers: [], source_key: null, source_system: null, import_run_id: null }),
+  history_reviews: () => ({ application_id: null, application_key: null, application_title: null, organization_name: null, reviewer_name: null, scores: [], total_score: null, recommendation: null, comment: null, reviewed_on: null, source_key: null, source_system: null, import_run_id: null }),
+  history_reports: () => ({ award_id: null, organization_workspace_id: null, award_title: null, organization_name: null, due_on: null, submitted_on: null, report_state_label: null, source_key: null, source_system: null, import_run_id: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -265,6 +269,10 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   digest_subscriptions: { member_id: "workspace_members" },
   // 0045 checks this one with its own trigger (gms.syndication_sends_same_workspace).
   syndication_sends: { opportunity_id: "opportunities" },
+  // 0046 checks these with its own trigger (gms.history_same_workspace), with the funder kind too.
+  history_applications: { award_id: "awards", program_id: "programs", import_run_id: "import_runs" },
+  history_reviews: { application_id: "history_applications", import_run_id: "import_runs" },
+  history_reports: { award_id: "awards", import_run_id: "import_runs" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

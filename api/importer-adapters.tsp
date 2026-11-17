@@ -33,6 +33,10 @@ namespace GMS.Models {
     foundantGlm: "foundant_glm",
     smartsimple: "smartsimple",
     openwater: "openwater",
+
+    /** Bonterra CyberGrants (v1.12.0): ad hoc report exports and request snapshots. */
+    cybergrants: "cybergrants",
+
     fluxx: "fluxx",
     zengine: "zengine",
   }
@@ -186,7 +190,7 @@ namespace GMS.Models {
     size: int64;
     line: int32 | null;
 
-    /** The award's `awd_` id. */
+    /** The award's `awd_` id; for imported history (v1.12.0), the past report's or past application's UUID. */
     award: string | null;
 
     createdAt: utcDateTime;

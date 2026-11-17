@@ -2,8 +2,9 @@
 // Grant history from a grants system: its export lists every application, and only the awarded
 // ones are grant history. After the dry run (../plan.ts) checks each row, the rows the system says
 // were never awarded (a decision or status word such as Declined, or no amount awarded) are set
-// aside as skipped, with the reason, instead of asking the person to fix them. Applications are
-// not imported as anything else here; the GMS has no target for another funder's applications yet.
+// aside as skipped, with the reason, instead of asking the person to fix them. Every application,
+// awarded or not, can be imported as a past application instead (../targets/past-applications.ts),
+// where nothing is set aside.
 import type { Plan } from "../plan.ts";
 import { reconcile } from "../plan.ts";
 import type { SourceTable } from "../table.ts";

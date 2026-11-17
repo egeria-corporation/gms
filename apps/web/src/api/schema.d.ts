@@ -3170,6 +3170,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Imported history about one organization (its applicant workspace id) or one award (its `awd_` id): name exactly one. Funder staff (admin, program officer, finance, observer, auditor), or a token with `applications:read`; 403 for reviewers and external reviewers. */
+        get: operations["History_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/history/applications/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One past application with its answers, its reviews and its files. */
+        get: operations["History_application"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/history/applications/{id}/files/{docId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description A file imported with a past application. */
+        get: operations["History_applicationFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/history/reports/{id}/files/{docId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The file imported with a past report (needs `requirements:read` too). */
+        get: operations["History_reportFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/imports/connections/{provider}": {
         parameters: {
             query?: never;
@@ -16224,6 +16292,148 @@ export interface components {
             /** @description Kept on the application as a document typed `funder_guidelines` (the same file once). */
             document: components["schemas"]["Models.Document"];
         };
+        /** @description A past application, without its answers. */
+        "Models.HistoryApplication": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            title: string;
+            /** @description As the export named it. */
+            organizationName: string;
+            /** @description The applicant workspace it was linked to (through its award, or by EIN or exact name among connected organizations). */
+            organizationId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            programName: string | null;
+            callTitle: string | null;
+            /** Format: date */
+            submittedOn: string | null;
+            outcome: components["schemas"]["Models.HistoryOutcome"];
+            /** @description The outcome as the export wrote it. */
+            outcomeLabel: string | null;
+            currency: string;
+            /** Format: int64 */
+            requestedAmountMinor: number | null;
+            /** Format: int64 */
+            awardedAmountMinor: number | null;
+            /** @description The award it was linked to: by the export's own id, then by exact title and recipient. */
+            award: components["schemas"]["Models.HistoryAwardRef"] | null;
+            /** Format: int32 */
+            answerCount: number;
+            /** Format: int32 */
+            reviewCount: number;
+            sourceSystem: components["schemas"]["Models.ImportAdapterRef"] | null;
+            /** Format: date-time */
+            importedAt: string;
+        };
+        "Models.HistoryApplicationDetail": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            title: string;
+            /** @description As the export named it. */
+            organizationName: string;
+            /** @description The applicant workspace it was linked to (through its award, or by EIN or exact name among connected organizations). */
+            organizationId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            programName: string | null;
+            callTitle: string | null;
+            /** Format: date */
+            submittedOn: string | null;
+            outcome: components["schemas"]["Models.HistoryOutcome"];
+            /** @description The outcome as the export wrote it. */
+            outcomeLabel: string | null;
+            currency: string;
+            /** Format: int64 */
+            requestedAmountMinor: number | null;
+            /** Format: int64 */
+            awardedAmountMinor: number | null;
+            /** @description The award it was linked to: by the export's own id, then by exact title and recipient. */
+            award: components["schemas"]["Models.HistoryAwardRef"] | null;
+            /** Format: int32 */
+            answerCount: number;
+            /** Format: int32 */
+            reviewCount: number;
+            sourceSystem: components["schemas"]["Models.ImportAdapterRef"] | null;
+            /** Format: date-time */
+            importedAt: string;
+            answers: components["schemas"]["Models.HistoryQuestionAnswer"][];
+            /** @description Left out (empty, with `includes.reviews` false) for a token without `reviews:read`. */
+            reviews: components["schemas"]["Models.HistoryReview"][];
+            /** @description The application's snapshot or PDF from the system's zip, when imported. */
+            files: components["schemas"]["Models.HistoryFile"][];
+            includes: {
+                reviews: boolean;
+            };
+        };
+        "Models.HistoryAwardRef": {
+            /** @description The award's `awd_` id. */
+            id: string;
+            title: string;
+        };
+        "Models.HistoryCriterionScore": {
+            criterion: string;
+            /** Format: double */
+            score: number;
+            /**
+             * Format: double
+             * @description The most the criterion gives, when the export said.
+             */
+            outOf: number | null;
+        };
+        "Models.HistoryFile": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            name: string;
+            mime: string;
+            /** Format: int64 */
+            size: number;
+        };
+        "Models.HistoryList": {
+            /** @description At most 200, the latest submitted first. */
+            applications: components["schemas"]["Models.HistoryApplication"][];
+            /** @description At most 200, the latest due first. Left out (empty, with `includes.reports` false) for a token without `requirements:read`. */
+            reports: components["schemas"]["Models.HistoryReport"][];
+            includes: {
+                reviews: boolean;
+                reports: boolean;
+            };
+        };
+        /** @enum {string} */
+        "Models.HistoryOutcome": "awarded" | "declined" | "withdrawn" | "undecided" | "unknown";
+        "Models.HistoryQuestionAnswer": {
+            question: string;
+            answer: string;
+        };
+        "Models.HistoryReport": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            title: string;
+            organizationName: string | null;
+            organizationId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            /** @description The grant's title as the export named it. */
+            awardTitle: string | null;
+            award: components["schemas"]["Models.HistoryAwardRef"] | null;
+            /** Format: date */
+            dueOn: string | null;
+            /** Format: date */
+            submittedOn: string | null;
+            state: components["schemas"]["Models.HistoryReportState"];
+            stateLabel: string | null;
+            /** @description The report's file from the system's zip, when imported. */
+            file: components["schemas"]["Models.HistoryFile"] | null;
+            sourceSystem: components["schemas"]["Models.ImportAdapterRef"] | null;
+            /** Format: date-time */
+            importedAt: string;
+        };
+        /** @enum {string} */
+        "Models.HistoryReportState": "approved" | "submitted" | "late" | "not_submitted" | "unknown";
+        "Models.HistoryReview": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            applicationId: (string & components["schemas"]["CommonGrants.Types.uuid"]) | null;
+            applicationTitle: string | null;
+            /** @description The reviewer's name as text; never their contact details. */
+            reviewerName: string | null;
+            scores: components["schemas"]["Models.HistoryCriterionScore"][];
+            /** Format: double */
+            totalScore: number | null;
+            recommendation: string | null;
+            comment: string | null;
+            /** Format: date */
+            reviewedOn: string | null;
+            sourceSystem: components["schemas"]["Models.ImportAdapterRef"] | null;
+        };
         /** @description A grants system the import can read: what to export, and what a zip of its files holds. */
         "Models.ImportAdapter": {
             key: components["schemas"]["Models.ImportAdapterKey"];
@@ -16245,7 +16455,7 @@ export interface components {
             sources: string[];
         };
         /** @enum {string} */
-        "Models.ImportAdapterKey": "good_grants" | "sm_apply" | "submittable" | "foundant_glm" | "smartsimple" | "openwater" | "fluxx" | "zengine";
+        "Models.ImportAdapterKey": "good_grants" | "sm_apply" | "submittable" | "foundant_glm" | "smartsimple" | "openwater" | "cybergrants" | "fluxx" | "zengine";
         "Models.ImportAdapterRef": {
             key: components["schemas"]["Models.ImportAdapterKey"];
             system: string;
@@ -16294,8 +16504,8 @@ export interface components {
         };
         "Models.ImportEntity": {
             /** @enum {string} */
-            type: "outside_application" | "award";
-            /** @description An outside application's UUID, or an award's `awd_` id. */
+            type: "outside_application" | "award" | "history_application" | "history_review" | "history_report";
+            /** @description An outside application's or a history record's UUID, or an award's `awd_` id. */
             id: string;
         };
         "Models.ImportField": {
@@ -16314,7 +16524,7 @@ export interface components {
             size: number;
             /** Format: int32 */
             line: number | null;
-            /** @description The award's `awd_` id. */
+            /** @description The award's `awd_` id; for imported history (v1.12.0), the past report's or past application's UUID. */
             award: string | null;
             /** Format: date-time */
             createdAt: string;
@@ -16624,7 +16834,7 @@ export interface components {
             adapters: components["schemas"]["Models.ImportAdapter"][];
         };
         /** @enum {string} */
-        "Models.ImportTarget": "outside_applications" | "award_history";
+        "Models.ImportTarget": "outside_applications" | "award_history" | "history_applications" | "history_reviews" | "history_reports";
         "Models.ImportTotal": {
             outcome: components["schemas"]["Models.ImportOutcome"];
             /** @enum {string} */
@@ -19503,7 +19713,7 @@ export interface components {
             columns: components["schemas"]["Models.ReportColumnInfo"][];
         };
         /** @enum {string} */
-        "Models.ReportDataSetKey": "applications" | "awards" | "payments" | "requirements" | "organizations";
+        "Models.ReportDataSetKey": "applications" | "awards" | "payments" | "requirements" | "organizations" | "history";
         /** @description What a person builds. Every name is a column key of the data set; anything else is refused (422 `unknown_column`). */
         "Models.ReportDefinition": {
             dataSet: components["schemas"]["Models.ReportDataSetKey"];
@@ -34197,6 +34407,238 @@ export interface operations {
             };
             /** @description Access is forbidden. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    History_list: {
+        parameters: {
+            query?: {
+                organization?: components["schemas"]["CommonGrants.Types.uuid"];
+                award?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.HistoryList"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    History_application: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.HistoryApplicationDetail"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    History_applicationFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                docId: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    History_reportFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                docId: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

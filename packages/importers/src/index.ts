@@ -13,11 +13,25 @@ export * from "./table.ts";
 export * from "./target.ts";
 export * from "./targets/history.ts";
 export * from "./targets/outside.ts";
+export * from "./targets/past-applications.ts";
+export * from "./targets/past-common.ts";
+export * from "./targets/past-reports.ts";
+export * from "./targets/past-reviews.ts";
 export * from "./values.ts";
 
 import type { TargetKey } from "./target.ts";
 import { HISTORY_TARGET } from "./targets/history.ts";
 import { OUTSIDE_TARGET } from "./targets/outside.ts";
+import { PAST_APPLICATIONS_TARGET } from "./targets/past-applications.ts";
+import { PAST_REPORTS_TARGET } from "./targets/past-reports.ts";
+import { PAST_REVIEWS_TARGET } from "./targets/past-reviews.ts";
 
 /** Every target, by key. */
-export const TARGETS = { outside_applications: OUTSIDE_TARGET, award_history: HISTORY_TARGET } as const satisfies Record<TargetKey, unknown>;
+export const TARGETS = {
+  outside_applications: OUTSIDE_TARGET,
+  award_history: HISTORY_TARGET,
+  // Imported history (v1.12.0): a funder's past applications, reviews and reports, read-only.
+  history_applications: PAST_APPLICATIONS_TARGET,
+  history_reviews: PAST_REVIEWS_TARGET,
+  history_reports: PAST_REPORTS_TARGET,
+} as const satisfies Record<TargetKey, unknown>;

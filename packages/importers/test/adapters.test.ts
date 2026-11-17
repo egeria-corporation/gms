@@ -201,7 +201,7 @@ describe("recognising an export", () => {
   });
 
   it("offers adapters for funder grant history only", () => {
-    expect(adaptersFor("award_history").map((a) => a.key)).toEqual(["good_grants", "sm_apply", "submittable", "foundant_glm", "smartsimple", "openwater", "fluxx", "zengine"]);
+    expect(adaptersFor("award_history").map((a) => a.key)).toEqual(["good_grants", "sm_apply", "submittable", "foundant_glm", "smartsimple", "openwater", "cybergrants", "fluxx", "zengine"]);
     expect(adaptersFor("outside_applications")).toEqual([]);
   });
 

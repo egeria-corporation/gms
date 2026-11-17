@@ -22,6 +22,7 @@ import "./digests.tsp";
 import "./importer-adapters.tsp";
 import "./connectors.tsp";
 import "./syndication.tsp";
+import "./history.tsp";
 
 using TypeSpec.Http;
 

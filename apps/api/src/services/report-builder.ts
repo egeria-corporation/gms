@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The report builder (docs/reports.md): five data sets over the funder's own records, each a
+// The report builder (docs/reports.md): six data sets over the funder's own records, each a
 // typed whitelist of columns (report-engine.ts); previews and CSV downloads of a definition built
 // from those columns; saved views, private or shared with the workspace, plus six starter views;
 // and a weekly or monthly schedule that writes the CSV to the EXPORTS bucket and emails members of
@@ -26,6 +26,7 @@ import { normalizePreferences } from "./notifications.ts";
 import { recipientLocales } from "./preferences.ts";
 import { columnsIn, withHeaderIn } from "./report-words.ts";
 import { toRubric } from "./reviews.ts";
+import { ADAPTERS } from "@gms/importers";
 import {
   CSV_MAX_ROWS,
   MAX_SOURCE_ROWS,
@@ -46,6 +47,9 @@ import {
 } from "./report-engine.ts";
 
 export { csvStream } from "./report-engine.ts";
+
+/** Each grants system's name, by adapter key, for imported history's "Imported from". */
+const SYSTEM_NAMES: Record<string, string> = Object.fromEntries(Object.values(ADAPTERS).map((a) => [a.key, a.system]));
 
 // ------------------------------------------------------------------------------------ data sets
 
@@ -154,6 +158,34 @@ export const DATA_SETS: Record<DataSetKey, DataSetDef> = {
       { key: "awardCount", label: "Awards", type: "number", source: "awards from this funder" },
       { key: "totalAwarded", label: "Total awarded", type: "money", source: "awarded amounts of accepted, active, suspended and completed awards (blank when they are in more than one currency)", currencyColumn: "currency" },
       { key: "currency", label: "Currency", type: "text", source: "the currency of those awards, or Mixed" },
+    ],
+  }),
+  // Imported history (v1.12.0, ./history.ts): what came from the system used before. No reviewer's
+  // name and no contact field: an organization is named as the export named it.
+  history: defineDataSet({
+    key: "history",
+    label: "Imported history",
+    description: "Past applications, reviews and reports brought from the system you used before: what was asked for, decided, scored and reported. Read-only history, never part of a live competition.",
+    scope: "applications:read",
+    columns: [
+      { key: "record", label: "Record", type: "text", source: "Past application, Past review or Past report" },
+      { key: "title", label: "Title", type: "text", source: "the application's or report's title; for a review, its application's" },
+      { key: "organization", label: "Organization", type: "text", source: "the organization as the export named it" },
+      { key: "program", label: "Program", type: "text", source: "the program as the export named it, or the linked award's program" },
+      { key: "fund", label: "Fund", type: "text", source: "funds.name, through the matched program or the linked award's program" },
+      { key: "call", label: "Call or round", type: "text", source: "history_applications.call_title" },
+      { key: "outcome", label: "Outcome", type: "text", source: "the outcome, recommendation or report status as the export wrote it" },
+      { key: "submittedOn", label: "Submitted on", type: "date", source: "when the application or the report was submitted" },
+      { key: "submittedYear", label: "Year submitted", type: "text", source: "the submitted date" },
+      { key: "dueOn", label: "Due on", type: "date", source: "history_reports.due_on" },
+      { key: "reviewedOn", label: "Reviewed on", type: "date", source: "history_reviews.reviewed_on" },
+      { key: "requested", label: "Requested amount", type: "money", source: "history_applications.requested_amount_minor", currencyColumn: "currency" },
+      { key: "awarded", label: "Awarded amount", type: "money", source: "history_applications.awarded_amount_minor", currencyColumn: "currency" },
+      { key: "currency", label: "Currency", type: "text", source: "history_applications.currency" },
+      { key: "score", label: "Total score", type: "number", source: "history_reviews.total_score" },
+      { key: "reviews", label: "Reviews", type: "number", source: "past reviews of the application" },
+      { key: "award", label: "Linked award", type: "text", source: "awards.title of the award it was linked to" },
+      { key: "importedFrom", label: "From system", type: "text", source: "the grants system whose export it came from" },
     ],
   }),
 };
@@ -438,6 +470,84 @@ async function loadOrganizations(base: Repos, wsId: string): Promise<Loaded> {
   return { rows, truncated: apps.more || awards.more };
 }
 
+const RECORD_WORDS = { application: "Past application", review: "Past review", report: "Past report" } as const;
+const PAST_OUTCOME_WORDS: Record<string, string> = { awarded: "Awarded", declined: "Declined", withdrawn: "Withdrawn", undecided: "Not decided" };
+const PAST_REPORT_WORDS: Record<string, string> = { approved: "Approved", submitted: "Submitted", late: "Late", not_submitted: "Not submitted" };
+
+/** Imported history: one row per past application, review and report (./history.ts). Read through the reader's repositories, so a fund advisor sees their funds' only. */
+async function loadHistory(base: Repos, wsId: string): Promise<Loaded> {
+  const [apps, reviews, reports, programs] = await Promise.all([
+    readAll(base.repos, "history_applications", { workspace_id: wsId }, MAX_SOURCE_ROWS),
+    readAll(base.repos, "history_reviews", { workspace_id: wsId }, MAX_SOURCE_ROWS * 2),
+    readAll(base.repos, "history_reports", { workspace_id: wsId }, MAX_SOURCE_ROWS),
+    readAll(base.repos, "programs", { workspace_id: wsId }, MAX_SOURCE_ROWS),
+  ]);
+  const awards = new Map((await byIds(base.repos, "awards", [...apps.rows, ...reports.rows].map((x) => x.award_id).filter((x): x is string => !!x))).map((a) => [a.id, a]));
+  const program = new Map(programs.rows.map((p) => [p.id, p.name]));
+  const fund = await fundNames(base, wsId, programs.rows);
+  const app = new Map(apps.rows.map((a) => [a.id, a]));
+  const reviewCount = new Map<string, number>();
+  for (const r of reviews.rows) if (r.application_id) reviewCount.set(r.application_id, (reviewCount.get(r.application_id) ?? 0) + 1);
+  const system = (k: string | null) => (k ? (SYSTEM_NAMES[k] ?? null) : null);
+  const awardOf = (id: string | null) => (id ? (awards.get(id) ?? null) : null);
+  const programIdOf = (programId: string | null, awardId: string | null) => programId ?? awardOf(awardId)?.program_id ?? null;
+  const programOf = (name: string | null, programId: string | null, awardId: string | null) => name ?? (programIdOf(programId, awardId) ? program.get(programIdOf(programId, awardId)!) : null) ?? "No program";
+  const fundOf = (programId: string | null, awardId: string | null) => (programIdOf(programId, awardId) ? fund.get(programIdOf(programId, awardId)!) : null) ?? NO_FUND;
+  const blank = { call: null, submittedOn: null, submittedYear: null, dueOn: null, reviewedOn: null, requested: null, awarded: null, currency: null, score: null, reviews: null } as const;
+  const rows: Row[] = [
+    ...apps.rows.map((a): Row => ({
+      ...blank,
+      record: RECORD_WORDS.application,
+      title: a.title,
+      organization: a.organization_name,
+      program: programOf(a.program_name, a.program_id, a.award_id),
+      fund: fundOf(a.program_id, a.award_id),
+      call: a.call_title,
+      outcome: a.outcome_label ?? PAST_OUTCOME_WORDS[a.outcome] ?? null,
+      submittedOn: a.submitted_on,
+      submittedYear: a.submitted_on?.slice(0, 4) ?? null,
+      requested: a.requested_amount_minor,
+      awarded: a.awarded_amount_minor,
+      currency: a.currency,
+      reviews: reviewCount.get(a.id) ?? 0,
+      award: awardOf(a.award_id)?.title ?? null,
+      importedFrom: system(a.source_system),
+    })),
+    ...reviews.rows.map((r): Row => {
+      const a = r.application_id ? app.get(r.application_id) : undefined;
+      return {
+        ...blank,
+        record: RECORD_WORDS.review,
+        title: a?.title ?? r.application_title,
+        organization: a?.organization_name ?? r.organization_name,
+        program: a ? programOf(a.program_name, a.program_id, a.award_id) : "No program",
+        fund: a ? fundOf(a.program_id, a.award_id) : NO_FUND,
+        call: a?.call_title ?? null,
+        outcome: r.recommendation,
+        reviewedOn: r.reviewed_on,
+        score: r.total_score === null ? null : Number(r.total_score),
+        award: a ? (awardOf(a.award_id)?.title ?? null) : null,
+        importedFrom: system(r.source_system),
+      };
+    }),
+    ...reports.rows.map((r): Row => ({
+      ...blank,
+      record: RECORD_WORDS.report,
+      title: r.title,
+      organization: r.organization_name ?? null,
+      program: programOf(null, null, r.award_id),
+      fund: fundOf(null, r.award_id),
+      outcome: r.report_state_label ?? PAST_REPORT_WORDS[r.report_state] ?? null,
+      submittedOn: r.submitted_on,
+      submittedYear: r.submitted_on?.slice(0, 4) ?? null,
+      dueOn: r.due_on,
+      award: awardOf(r.award_id)?.title ?? r.award_title,
+      importedFrom: system(r.source_system),
+    })),
+  ];
+  return { rows, truncated: apps.more || reviews.more || reports.more };
+}
+
 /** The rows of a data set for one funder workspace. Callers have authorized the reader. */
 export function loadDataSet(base: Repos, key: DataSetKey, wsId: string, now: Date): Promise<Loaded> {
   switch (key) {
@@ -451,6 +561,8 @@ export function loadDataSet(base: Repos, key: DataSetKey, wsId: string, now: Dat
       return loadRequirements(base, wsId, now);
     case "organizations":
       return loadOrganizations(base, wsId);
+    case "history":
+      return loadHistory(base, wsId);
   }
 }
 

@@ -1,0 +1,5 @@
+Submission ID,Submission Title,Reviewer,Reviewer Email,Impact score,Feasibility score,Budget score,Total Score,Recommendation,Comments,Date Completed
+70012345,Clinic van,Jo Park,jo@example.org,5,4,4/5,13,Fund,"Strong plan. Questions to jo@example.org",2024-02-01
+70012345,Clinic van,Lee Moss <lee@example.org>,lee@example.org,4,4,3,11,Fund,Good reach,2024-02-03
+70012346,After-school tutors,Jo Park,jo@example.org,2,3,n/a,5,Decline,Budget unclear,2024-02-02
+70099999,Not in the applications,,,3,3,3,9,,Review of an application that was not imported,2024-02-04

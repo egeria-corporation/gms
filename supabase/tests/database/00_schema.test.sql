@@ -35,7 +35,8 @@ select tables_are(
     'user_preferences',
     'alert_subscriptions', 'alert_deliveries', 'calendar_links',
     -- 0045: a call's submission to a listing service (Philanthropy News Digest).
-    'syndication_sends'
+    'syndication_sends',
+    'history_applications', 'history_reviews', 'history_reports'
   ],
   'public schema has exactly the GMS tables'
 );

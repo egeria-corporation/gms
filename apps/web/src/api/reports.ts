@@ -10,7 +10,7 @@ import { ApiError } from "./client.ts";
 import { getLocale } from "../i18n/current.ts";
 import type { ExportFile } from "./outside.ts";
 
-export type DataSetKey = "applications" | "awards" | "payments" | "requirements" | "organizations";
+export type DataSetKey = "applications" | "awards" | "payments" | "requirements" | "organizations" | "history";
 export type ColumnType = "text" | "number" | "money" | "date" | "status";
 export type StatusKind = "application" | "award" | "tranche" | "requirement";
 export type Cell = string | number | null;

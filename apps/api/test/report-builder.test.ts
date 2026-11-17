@@ -134,8 +134,10 @@ describe("the column whitelist", () => {
     const member = (await t("workspace_members").find({ workspace_id: WS_FUNDER, user_id: USER_AUDITOR }))[0]!;
     await t("workspace_members").update({ id: member.id }, { scope: { email: `${M.toLowerCase()}@sso.example`, joinedThrough: "sso" } as never, dismissed_notes: ["invite_teammate"] });
 
+    // Imported history (v1.12.0) holds one plain past application, so its data set has a row to export.
+    await t("history_applications").insert({ workspace_id: WS_FUNDER, organization_name: "Alder Creek", title: "Past van", outcome: "awarded" });
     const all = Object.values(reports.DATA_SETS);
-    expect(all.map((d) => d.key).sort()).toEqual(["applications", "awards", "organizations", "payments", "requirements"]);
+    expect(all.map((d) => d.key).sort()).toEqual(["applications", "awards", "history", "organizations", "payments", "requirements"]);
     for (const d of all) {
       // No column's source names one of those tables.
       for (const c of d.columns) expect(/invitation|import|summar(y|ies)\b(?! of)|coi_|signature|sso|gallery|dismissed|report_files|scope\.email/i.test(c.source), `${d.key}.${c.key}: ${c.source}`).toBe(false);

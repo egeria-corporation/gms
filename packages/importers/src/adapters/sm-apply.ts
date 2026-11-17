@@ -14,6 +14,13 @@ export const SM_APPLY: ImportAdapter = {
     "Add the applicant's organization, the award amount and any dates you keep, then export as CSV or XLSX.",
     "To bring the PDFs too, download the applications as a bulk PDF zip.",
   ],
+  targetSteps: {
+    history_applications: [
+      "In SurveyMonkey Apply, open Reports, then Data Exports, and create an export for one program (one export per program, up to 100 columns).",
+      "Add the application's id, title, organization, status, the amounts and the questions you want to keep, then export as CSV or XLSX.",
+      "To bring the PDFs too, download the applications as a bulk PDF zip.",
+    ],
+  },
   accepts: ["csv", "xlsx"],
   attachments: { description: "The bulk PDF zip: one PDF per application, matched by the application's id or title.", idPattern: /(?:^|\D)(\d{4,})(?:\D|$)/ },
   signature: {
@@ -34,6 +41,18 @@ export const SM_APPLY: ImportAdapter = {
       paidDate: ["date paid", "payment date"],
       startDate: ["start date", "grant start date"],
       endDate: ["end date", "grant end date"],
+    },
+    history_applications: {
+      sourceId: ["application id", "submission id", "id"],
+      title: ["submission title", "application title", "title", "name"],
+      organizationName: ["organization", "organization name", "organisation", "applicant organization", "company"],
+      programName: ["program", "program name"],
+      callTitle: ["cycle", "cycle name", "round"],
+      submittedDate: ["submitted", "date submitted", "submitted date", "submitted at"],
+      outcome: ["status", "decision"],
+      requestedAmount: ["amount requested", "requested amount", "request amount", "funding requested"],
+      awardedAmount: ["amount awarded", "award amount", "awarded amount", "approved amount", "amount approved", "grant amount"],
+      currency: ["currency"],
     },
   },
   // Its status says how complete an application is and its stage says where it is, so only

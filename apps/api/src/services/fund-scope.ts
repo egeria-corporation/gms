@@ -114,6 +114,18 @@ const RULES: { [T in TableName]: Rule } = {
   gallery_items: OPEN,
   gallery_submissions: OPEN,
   grantee_records: parent("applicant_workspace_id", "grantees", "Grantee"),
+  // 0046 (imported history): a past application or report is its award's, else its program's (an
+  // application only); a review is its application's. One linked to neither is the whole
+  // workspace's and never a fund advisor's. Their files (history_*_file subjects) are outside every fund.
+  history_applications: { kind: "check", allowed: async (r, v) => (r.award_id ? has(v, "awards", r.award_id) : has(v, "programs", r.program_id)) },
+  history_reports: { kind: "check", allowed: async (r, v) => has(v, "awards", r.award_id) },
+  history_reviews: {
+    kind: "check",
+    allowed: async (r, v) => {
+      const a = typeof r.application_id === "string" ? await v.base.table("history_applications").one({ id: r.application_id }) : null;
+      return !!a && (a.award_id ? has(v, "awards", a.award_id) : has(v, "programs", a.program_id));
+    },
+  },
   import_mappings: CLOSED,
   import_rows: CLOSED,
   import_runs: CLOSED,

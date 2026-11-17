@@ -125,6 +125,9 @@ export async function planImport<F extends string, N>(input: { target: ImportTar
   const missingRequired = requiredFields(target).filter((f) => !mapping[f]);
   const index = new Map<F, number>();
   for (const [field, column] of Object.entries(mapping) as [F, string][]) index.set(field, table.header.indexOf(column));
+  // A target that reads the rest (./target.ts `readsRest`): the kept columns no field is mapped to.
+  const mappedColumns = new Set(Object.values(mapping) as string[]);
+  const restAt = target.readsRest ? screened.keep.filter((i) => !mappedColumns.has(table.header[i]!)) : [];
   const idColumn = (mapping as Record<string, string | undefined>).sourceId;
   const scope = source.ref ?? `${source.kind}:${idColumn ?? ""}`;
   const seen = new Map<string, number>();
@@ -135,7 +138,7 @@ export async function planImport<F extends string, N>(input: { target: ImportTar
       const v = (r.cells[at] ?? "").trim();
       if (v) values[field] = v;
     }
-    const check = target.check(values);
+    const check = restAt.length ? target.check(values, restAt.map((at) => ({ column: table.header[at]!, value: (r.cells[at] ?? "").trim() })).filter((c) => c.value)) : target.check(values);
     const id = idColumn ? (values as Record<string, string | undefined>).sourceId : r.id;
     const key = await rowKey(target.key, id ? { id, scope: idColumn ? scope : (source.ref ?? source.kind) } : { content: check.record ?? values });
     let outcome: Outcome = check.problems.length || missingRequired.length ? "error" : "create";

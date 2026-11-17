@@ -63,7 +63,7 @@ describe("a grants system's export", () => {
 
   it("is offered as a system to pick, for grant history only", async () => {
     const s = await data<{ adapters: { key: string; system: string; via: string; steps: string[]; attachments: string | null }[]; sources: { kind: string }[] }>(funderAdmin, "GET", "/gms/imports/sources?target=award_history");
-    expect(s.adapters.map((a) => a.key)).toEqual(["good_grants", "sm_apply", "submittable", "foundant_glm", "smartsimple", "openwater", "fluxx", "zengine"]);
+    expect(s.adapters.map((a) => a.key)).toEqual(["good_grants", "sm_apply", "submittable", "foundant_glm", "smartsimple", "openwater", "cybergrants", "fluxx", "zengine"]);
     expect(s.adapters.find((a) => a.key === "submittable")).toMatchObject({ system: "Submittable", via: "file", attachments: expect.stringMatching(/zip/) });
     expect(s.sources.map((x) => x.kind)).toEqual(["csv", "xlsx", "google_sheets", "airtable", "fluxx", "zengine"]);
     const a = await data<{ adapters: unknown[]; sources: { kind: string }[] }>(applicant, "GET", "/gms/imports/sources?target=outside_applications");
