@@ -66,6 +66,9 @@ What travels on the channel (`apps/web/src/lib/presence.ts`):
 
 Answers are read again through the API, which checks again on every read.
 
+A name and a place on the channel are what each person's app says; the pass decides who may be on
+the channel at all, so only the people who may open the draft can say anything there.
+
 ## Limits and rules (verified 2026-11-17)
 
 From Supabase's documentation:
