@@ -13,7 +13,6 @@ import {
   setTranslation,
   translatableTexts,
   translationStatus,
-  translationsCustomField,
   unreviewedDrafts,
   validateFormDefinition,
   validateOpportunityTranslations,
@@ -251,12 +250,6 @@ describe("validation", () => {
   it("refuses a text longer than the limit", () => {
     const long = setTranslation({}, "es", translatableTexts(small)[0]!, "x".repeat(20_001));
     expect(validateFormDefinition({ ...small, translations: long }).map((e) => e.path)).toEqual(["translations/es/title/text"]);
-  });
-
-  it("the CommonGrants custom field carries the translations, and nothing when there are none", () => {
-    expect(translationsCustomField(undefined)).toBeNull();
-    expect(translationsCustomField({ source: "en" })).toBeNull();
-    expect(translationsCustomField(spanish())).toMatchObject({ name: "translations", fieldType: "object", value: spanish() });
   });
 });
 

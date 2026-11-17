@@ -389,12 +389,6 @@ export function unreviewedDrafts(form: Pick<FormDefinition, "title" | "jsonSchem
   );
 }
 
-/** The translations a CommonGrants `FormBase` carries, as a custom field (canonical fields keep the form's own language). */
-export function translationsCustomField(translations: FormTranslations | null | undefined): { name: "translations"; fieldType: "object"; value: FormTranslations; description: string } | null {
-  if (!translations || !Object.keys(translations).some(isFormLanguage)) return null;
-  return { name: "translations", fieldType: "object", value: translations, description: "The funder's text in other languages, by language code; each text keeps the source it translates. Canonical fields are in `source` (English when absent)." };
-}
-
 // ------------------------------------------------------------------------------- opportunities
 
 /** An opportunity's public text in another language: its title, summary and eligibility labels. */

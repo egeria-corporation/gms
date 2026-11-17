@@ -81,6 +81,8 @@ export interface FormRow {
   mapping_from_cg?: Json | null;
   mapping_to_cg?: Json | null;
   field_meta?: Json | null;
+  /** The funder's text in other languages (`@gms/forms` FormTranslations; migration 0049). */
+  translations?: Json | null;
   purpose?: string | null;
   published_at?: string | null;
   created_at: string;

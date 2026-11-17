@@ -91,6 +91,19 @@ describe("form", () => {
     expect(FormBaseSchema.safeParse(projectForm(fullForm)).success).toBe(true);
   });
 
+  it("carries a form's translations in customFields only, and nothing when it has none", () => {
+    const translations = { es: { title: { text: "Carta de intención", source: loiForm.title }, fields: { "/projectTitle": { label: { text: "Título del proyecto", source: "Project title" } } } } };
+    const cg = projectForm({ ...loiForm, translations });
+    expect(FormBaseSchema.safeParse(cg).success).toBe(true);
+    // The canonical fields keep the funder's own language; no field is added outside customFields.
+    expect(Object.keys(cg).sort()).toEqual(Object.keys(projectForm(loiForm)).sort());
+    expect(cg.title).toBe(loiForm.title);
+    expect(cg.uiSchema).toEqual(loiForm.ui_schema);
+    expect(cg.customFields?.translations).toMatchObject({ name: "translations", fieldType: "object", value: translations });
+    expect(projectForm({ ...loiForm, translations: {} }).customFields?.translations).toBeUndefined();
+    expect(projectForm({ ...loiForm, translations: { source: "en" } }).customFields?.translations).toBeUndefined();
+  });
+
   it("rejects a mapping leaf that is not a mapping function", () => {
     const err = projectionError(() => projectForm({ ...loiForm, mapping_from_cg: { legalName: "name" } }));
     expect(err.model).toBe("FormBase");
