@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Forms: CommonGrants `FormBase`, versioned. A published version is immutable; editing creates the
 // next draft (build spec §10.2). Definitions are checked by `@gms/forms` before every save.
-import { FormDefinitionError, assertEditable, isPlainObject, nextDraft, normalizeTranslations, publishForm, testFill, validateFormDefinition, type FormDefinition, type FormTranslations } from "@gms/forms";
+import { FormDefinitionError, assertEditable, isPlainObject, nextDraft, normalizeTranslations, publishForm, testFill, validateFormDefinition, validateTranslations, type FormDefinition, type FormTranslations } from "@gms/forms";
 import { z } from "zod";
 import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
@@ -108,7 +108,7 @@ function withTranslations<T extends Partial<FormRow>>(draft: FormRow, patch: T):
 }
 
 function assertValid(def: FormDefinition) {
-  const errors = validateFormDefinition(def);
+  const errors = [...validateFormDefinition(def), ...validateTranslations(def.translations)];
   if (errors.length) throw unprocessable("This form definition is not valid", errors);
 }
 

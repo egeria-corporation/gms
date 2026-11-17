@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The translation-drafting port in the browser (api/translations.ts). It drafts from a small
-// phrase list (the fixture forms' Spanish and the builder's default labels); a text it does not
-// know comes back as written, still marked as a draft for the funder to rewrite. Like the API, it
+// phrase list (the fixture forms' Spanish); a text it does not know comes back as written, still
+// marked as a draft for the funder to rewrite. Like the API, it
 // saves nothing, refuses a published version, and answers 404 while the mock assistant is off.
 import { opportunityTranslationStatus, sourceLanguageOf, translationStatus, type FormLanguage } from "@gms/forms";
 import type { Rule } from "@gms/rules";
@@ -9,31 +9,9 @@ import { ApiError, type GmsApi } from "../api/client.ts";
 import type { FormTranslationDraft, OpportunityTranslationDraft, TranslationsApi } from "../api/translations.ts";
 import { LOI_SPANISH } from "./forms.ts";
 
-/** Spanish for the builder's default labels and a few common form words (fixture text, not the catalogs). */
-const PHRASES: Readonly<Record<string, string>> = {
-  ...LOI_SPANISH,
-  Questions: "Preguntas",
-  "Short text": "Texto corto",
-  "Long text": "Texto largo",
-  Number: "Número",
-  Money: "Monto",
-  Date: "Fecha",
-  Select: "Selección",
-  "Multi-select": "Selección múltiple",
-  "Yes / No": "Sí / No",
-  File: "Archivo",
-  Address: "Dirección",
-  Phone: "Teléfono",
-  Email: "Correo electrónico",
-  "Rich text": "Texto con formato",
-  "Budget table": "Tabla de presupuesto",
-  Signature: "Firma",
-  "Option 1": "Opción 1",
-  "Option 2": "Opción 2",
-  "Full proposal": "Propuesta completa",
-  "Community Health Grants 2027": "Subvenciones de Salud Comunitaria 2027",
-};
-const spanish = (text: string) => PHRASES[text] ?? (/^Section (\d+)$/.exec(text) ? `Sección ${/^Section (\d+)$/.exec(text)![1]}` : text);
+/** Spanish for the fixture forms and calls (fixture text, not the catalogs). */
+const PHRASES: Readonly<Record<string, string>> = { ...LOI_SPANISH, "Full proposal": "Propuesta completa", "Community Health Grants 2027": "Subvenciones de Salud Comunitaria 2027" };
+const spanish = (text: string) => PHRASES[text] ?? text;
 
 function labelsOf(rule: Rule | null | undefined, out: string[] = []): string[] {
   if (!rule) return out;

@@ -19,14 +19,17 @@ export class FormDefinitionError extends Error {
   }
 }
 
-/** Everything checked at save time: schema subset, UI schema, mappings, the shape of the translations. */
-export function validateFormDefinition(form: Pick<FormDefinition, "jsonSchema" | "uiSchema" | "mappingFromCommonGrants" | "mappingToCommonGrants" | "translations">): DefinitionError[] {
+/**
+ * Everything checked at save time: schema subset, UI schema, mappings. A saved version's
+ * translations are checked with `validateTranslations` beside it (the API does both; the web app
+ * never needs the second, so it is not bundled there).
+ */
+export function validateFormDefinition(form: Pick<FormDefinition, "jsonSchema" | "uiSchema" | "mappingFromCommonGrants" | "mappingToCommonGrants">): DefinitionError[] {
   const schemaErrors = checkSchemaSubset(form.jsonSchema).map((e) => ({ ...e, path: `jsonSchema${e.path.replace(/^#/, "")}` }));
   if (schemaErrors.length) return schemaErrors;
   return [
     ...validateUiSchema(form.uiSchema, form.jsonSchema).map((e) => ({ ...e, path: `uiSchema${e.path.replace(/^#/, "")}` })),
     ...validateMappings(form),
-    ...validateTranslations(form.translations),
   ];
 }
 
@@ -45,7 +48,7 @@ export function assertEditable(form: Pick<FormDefinition, "id" | "version" | "pu
  */
 export function publishForm<T extends FormDefinition>(form: T, now: Date = new Date()): T {
   assertEditable(form);
-  const errors = [...validateFormDefinition(form), ...unreviewedDrafts(form)];
+  const errors = [...validateFormDefinition(form), ...validateTranslations(form.translations), ...unreviewedDrafts(form)];
   if (errors.length) throw new FormDefinitionError(`form ${form.id} v${form.version} cannot be published`, errors);
   return { ...clone(form), publishedAt: now.toISOString() };
 }

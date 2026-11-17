@@ -17,6 +17,7 @@ import {
   validateFormDefinition,
   validateOpportunityTranslations,
   validateResponse,
+  validateTranslations,
   type FormDefinition,
   type FormTranslations,
 } from "../src/index.ts";
@@ -232,12 +233,12 @@ describe("versions", () => {
 
 describe("validation", () => {
   it("accepts a well-formed translations object", () => {
-    expect(validateFormDefinition({ ...small, translations: spanish() })).toEqual([]);
+    expect(validateTranslations(spanish())).toEqual([]);
   });
 
   it("names every malformed part", () => {
     const bad = { fr: {}, source: "de", es: { title: { text: 1, source: "x" }, colour: {}, fields: { "/a": { label: { text: "a", source: "a", draft: false }, size: 1 } } } };
-    expect(validateFormDefinition({ ...small, translations: bad as unknown as FormTranslations }).map((e) => e.path)).toEqual([
+    expect(validateTranslations(bad).map((e) => e.path)).toEqual([
       "translations/fr",
       "translations/source",
       "translations/es/colour",
@@ -249,7 +250,9 @@ describe("validation", () => {
 
   it("refuses a text longer than the limit", () => {
     const long = setTranslation({}, "es", translatableTexts(small)[0]!, "x".repeat(20_001));
-    expect(validateFormDefinition({ ...small, translations: long }).map((e) => e.path)).toEqual(["translations/es/title/text"]);
+    expect(validateTranslations(long).map((e) => e.path)).toEqual(["translations/es/title/text"]);
+    // Publishing checks them too.
+    expect(() => publishForm({ ...small, translations: long })).toThrow(FormDefinitionError);
   });
 });
 
