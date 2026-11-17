@@ -175,7 +175,15 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/w/:ws/programs/:programId": [one(`${F}/programs/${PROGRAM}`, "funder-admin")],
   "/w/:ws/opportunities": [one(`${F}/opportunities`, "funder-admin")],
   "/w/:ws/opportunities/new": [one(`${F}/opportunities/new`, "funder-admin")],
-  "/w/:ws/opportunities/:oppId/edit": [one(`${F}/opportunities/${OPP}/edit`, "funder-admin"), one(`${F}/opportunities/${OPP}/edit#publish`, "funder-admin")],
+  "/w/:ws/opportunities/:oppId/edit": [
+    one(`${F}/opportunities/${OPP}/edit`, "funder-admin"),
+    one(`${F}/opportunities/${OPP}/edit#publish`, "funder-admin"),
+    // Share this call (E2): the preview of the email to Philanthropy News Digest, shown in place.
+    one(`${F}/opportunities/${OPP}/edit#publish`, "funder-admin", async (page) => {
+      await page.getByRole("button", { name: /^(Preview the email to PND|Ver el correo para PND)$/ }).click();
+      await page.getByRole("region", { name: /^(Email to|Correo para) Philanthropy News Digest$/ }).waitFor();
+    }),
+  ],
   "/w/:ws/opportunities/:oppId/competition": [one(`${F}/opportunities/${OPP}/competition`, "funder-admin")],
   "/w/:ws/forms": [one(`${F}/forms`, "funder-admin")],
   "/w/:ws/forms/:formId/edit": [one(`${F}/forms/${FORM}/edit`, "funder-admin")],
