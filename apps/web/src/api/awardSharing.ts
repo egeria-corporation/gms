@@ -41,8 +41,10 @@ export interface AwardSharingApi {
   setProgramDefault(programId: string, awardsConfidential: boolean): Promise<AwardListingSettings>;
   /** Funder admins and program officers: the federal share on an award. */
   setFederalFunding(awardId: string, input: FederalFundingInput): Promise<AwardSharing>;
-  /** The carousel PDF at the kit's `carousel.path`. */
+  /** The carousel PDF at the kit's `carousel.path` (the download is counted as a use of the kit). */
   carouselPdf(path: string): Promise<Blob>;
+  /** Say that the person copied the press release or saved the portrait card: a count only, for the operators' measures. */
+  kitUse(awardId: string, side: ShareSide, kind: "press_release" | "portrait"): Promise<void>;
   /** This workspace's share-kit settings. */
   shareProfile(): Promise<ShareKitProfile>;
   /** Workspace admins. */
@@ -98,6 +100,7 @@ export function createHttpAwardSharingApi(opts: HttpAwardSharingOptions): AwardS
       }
       return res.blob();
     },
+    kitUse: async (awardId, side, kind) => void (await call("POST", side === "funder" ? `/gms/awards/${e(awardId)}/sharing/uses` : `/gms/my/awards/${e(awardId)}/sharing/uses`, { kind })),
     shareProfile: () => call("GET", "/gms/share-kit/profile"),
     updateShareProfile: (patch) => call("PUT", "/gms/share-kit/profile", patch),
   };

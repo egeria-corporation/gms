@@ -44,7 +44,9 @@ select tables_are(
     -- 0051: QuickBooks sync (the mapping and one entry per payment).
     'accounting_links', 'accounting_entries',
     -- 0052: the operators' growth measures (deals lost by reason, the Search Console property).
-    'lost_deals', 'operator_settings'
+    'lost_deals', 'operator_settings',
+    -- 0054: share-kit downloads, counted only.
+    'share_kit_uses'
   ],
   'public schema has exactly the GMS tables'
 );

@@ -4071,6 +4071,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      share_kit_uses: {
+        Row: {
+          award_id: string;
+          created_at: string;
+          id: string;
+          kind: string;
+          updated_at: string;
+          used_on: string;
+          workspace_id: string;
+        };
+        Insert: {
+          award_id: string;
+          created_at?: string;
+          id?: string;
+          kind: string;
+          updated_at?: string;
+          used_on: string;
+          workspace_id: string;
+        };
+        Update: {
+          award_id?: string;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          updated_at?: string;
+          used_on?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       social_accounts: {
         Row: {
           connected_at: string;
@@ -4841,4 +4871,4 @@ export type Tables<T extends TableName> = PublicTables[T]["Row"];
 export type TablesInsert<T extends TableName> = PublicTables[T]["Insert"];
 export type TablesUpdate<T extends TableName> = PublicTables[T]["Update"];
 
-export const TABLE_NAMES = ["accounting_entries","accounting_links","agreements","alert_deliveries","alert_subscriptions","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","calendar_links","coi_policies","coi_signatures","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","digest_sends","digest_subscriptions","directory_listings","discover_saved","documents","form_responses","forms","funder_records","funds","gallery_items","gallery_submissions","grantee_records","history_applications","history_reports","history_reviews","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","lost_deals","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","operator_settings","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","package_sends","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","peer_invitations","presence_passes","programs","referral_joins","referral_links","reminder_sends","report_files","report_schedules","report_views","requirements","review_assignments","reviews","rubrics","share_kit_profiles","social_accounts","social_posts","social_profiles","social_reminder_prompts","submissions","syndication_sends","tasks","templates","threads","tranches","user_preferences","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspace_sso_domains","workspaces"] as const satisfies readonly TableName[];
+export const TABLE_NAMES = ["accounting_entries","accounting_links","agreements","alert_deliveries","alert_subscriptions","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","calendar_links","coi_policies","coi_signatures","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","digest_sends","digest_subscriptions","directory_listings","discover_saved","documents","form_responses","forms","funder_records","funds","gallery_items","gallery_submissions","grantee_records","history_applications","history_reports","history_reviews","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","lost_deals","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","operator_settings","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","package_sends","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","peer_invitations","presence_passes","programs","referral_joins","referral_links","reminder_sends","report_files","report_schedules","report_views","requirements","review_assignments","reviews","rubrics","share_kit_profiles","share_kit_uses","social_accounts","social_posts","social_profiles","social_reminder_prompts","submissions","syndication_sends","tasks","templates","threads","tranches","user_preferences","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspace_sso_domains","workspaces"] as const satisfies readonly TableName[];

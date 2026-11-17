@@ -250,6 +250,8 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   // 0050: one pass per session and draft channel.
   presence_passes: [{ columns: ["user_id", "session_id", "topic"] }],
   operator_settings: [{ columns: ["id"] }],
+  // 0054: one count per award, part of the kit and day.
+  share_kit_uses: [{ columns: ["award_id", "kind", "used_on"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };

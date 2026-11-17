@@ -182,6 +182,8 @@ const RULES: { [T in TableName]: Rule } = {
   social_accounts: OPEN,
   // 0048: share-kit settings are the workspace's own; a reminder prompt is its call's.
   share_kit_profiles: OPEN,
+  // 0054: a count of the kit's downloads, by its award.
+  share_kit_uses: parent("award_id", "awards", "Award"),
   social_reminder_prompts: parent("opportunity_id", "opportunities", "Opportunity"),
   // 0052: the operators' own tables (no workspace); a fund advisor's context never reads them.
   lost_deals: CLOSED,

@@ -49,7 +49,7 @@ or still onboarding, never when it is suspended or closed.
 | 3 | New applicant workspaces per published call | Applicant workspaces made in the window ÷ calls first published in the window | 10 or more |
 | 4 | Funders who joined from an applicant's link | `referral_joins` with source `package` and a funder joined in the window (E4: the link in the footer of a sent application package) | 5 |
 | 5 | Funders with history imported and a call open within 14 days | Funder workspaces that published a call in the window within 14 days (`SWITCH_CALL_WITHIN_DAYS`) after committing a history import (`import_runs.committed_at`, targets `award_history`, `history_applications`, `history_reviews`, `history_reports`) | 25 |
-| 6 | Share-kit uses per award, and clicks | Of the awards made in the window that are accepted or later, to an organization and not confidential, the share with at least one social post about them that did not fail (`social_posts`, either side). Clicks are the sum the platforms reported for award posts sent in the window (`social_posts.metrics.clicks`, from Zernio), and clicks per post among posts that reported any | 30% of awards |
+| 6 | Share-kit uses per award, and clicks | Of the awards made in the window that are accepted or later, to an organization and not confidential, the share with at least one social post about them that did not fail (`social_posts`, either side) or a download from the kit (`share_kit_uses`, migration 0054: the carousel PDF downloaded, the press release copied or the portrait card saved, by a person on either side; a count of the award, the part and the day, never who). Clicks are the sum the platforms reported for award posts sent in the window (`social_posts.metrics.clicks`, from Zernio), and clicks per post among posts that reported any | 30% of awards |
 | 7 | Organic visits to funder and call pages | Google Search Console: clicks from Google Search to `/f/…` pages (funder pages and their calls, funds and awards) over the last 30 days Search Console has final figures for | 3× the first week |
 | 8 | Invited teammates who join | Of the teammate invitations made in the window (`invitations`), the share accepted | 40% |
 | 9 | Deals lost, by stated reason | `lost_deals` with a lost day in the window, counted by reason | Tracked |
@@ -166,3 +166,11 @@ Every route is operators only (403 `not_an_operator`) and a session only (401 `s
 
 RLS is on for both tables, with no policy and no grant for signed-in or anonymous roles. The
 migration is additive: no existing row, table, function or policy changes.
+
+## Share-kit downloads (migration 0054, v1.13.0)
+
+- `share_kit_uses`: `award_id`, the award's own `workspace_id`, `kind` (`carousel`, `press_release`,
+  `portrait`) and `used_on`, unique per award, kind and day. No person and no address. RLS on, no
+  policy or grant for signed-in or anonymous roles; the API writes it for a person's session only.
+- 0054 replaces `gms_operator_measures` with the same answer shape; only `awardsShared` changes (a
+  post that did not fail, or a download).

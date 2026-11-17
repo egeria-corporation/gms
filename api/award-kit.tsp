@@ -193,6 +193,16 @@ namespace GMS.Models {
     dismissed: true;
   }
 
+  /** A download from the kit that the browser makes itself (v1.13.0): copying the press release or saving the portrait card. The carousel PDF is counted when it is downloaded. */
+  model ShareKitUseInput {
+    kind: "press_release" | "portrait";
+  }
+
+  /** Counted for the operators' measure 6, as a count only: the award, which part of the kit and the day; never who. */
+  model ShareKitUseRecorded {
+    recorded: true;
+  }
+
   /** The carousel PDF, saved by the person under its name. */
   model CarouselPdf {
     @statusCode statusCode: 200;
@@ -216,6 +226,14 @@ namespace GMS.Routes.Custom {
     /** The carousel PDF for a public award, from the grantee's side. */
     @get @route("/my/awards/{id}/sharing/carousel.pdf") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
     op granteeCarousel(@path id: GmsId): CarouselPdf | AuthErrors | NotFound | Conflict;
+
+    /** Record a use of the kit from the funder's side: the press release copied or the portrait card saved (a count only, for the operators' measure 6). A person's session only (403 `person_required` for tokens). */
+    @post @route("/awards/{id}/sharing/uses") @useAuth(UserSession)
+    op funderKitUse(@path id: GmsId, @body body: ShareKitUseInput): OkT<ShareKitUseRecorded> | BadRequest | AuthErrors | NotFound | Conflict;
+
+    /** Record a use of the kit from the grantee's side. */
+    @post @route("/my/awards/{id}/sharing/uses") @useAuth(UserSession)
+    op granteeKitUse(@path id: GmsId, @body body: ShareKitUseInput): OkT<ShareKitUseRecorded> | BadRequest | AuthErrors | NotFound | Conflict;
 
     /** The workspace's share-kit settings: its social page, consent to be tagged, and a funder's credit wording and description. Any staff member who reads awards. */
     @get @route("/share-kit/profile") @useAuth(GmsOAuth<["awards:read"]> | UserSession)
