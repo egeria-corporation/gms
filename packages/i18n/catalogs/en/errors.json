@@ -381,5 +381,12 @@
   "code.page_url_invalid": "Give the https address of your organization's page on LinkedIn, Facebook, Instagram, X, Bluesky or Threads.",
   "code.consent_needs_page": "Give your page's link before you agree to be tagged.",
   "code.funder_only_setting": "Only a funder sets the press release's credit wording and description.",
-  "notFound.reminder": "Reminder not found."
+  "notFound.reminder": "Reminder not found.",
+  "code.quickbooks_not_connected": "Connect QuickBooks first.",
+  "code.quickbooks_refused": "QuickBooks did not take that. Check the accounts, class or vendor chosen in Settings › Accounting.",
+  "code.unknown_account": "That account is not in QuickBooks, or is not active.",
+  "code.unknown_class": "That class or location is not in QuickBooks, or is not active.",
+  "code.unknown_program": "A program named is not one of this workspace's.",
+  "code.unknown_vendor": "That vendor is not in QuickBooks, or is not active.",
+  "code.too_many": "That is more than can be saved at once."
 }
