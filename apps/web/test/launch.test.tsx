@@ -9,9 +9,8 @@ import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { contentSecurityPolicy, headersFile } from "../build/headers.ts";
 import { provideApplicantFullApi } from "../src/api/applicantFullHooks.ts";
-import { provideApplicantApi, provideMockApplicantStore, provideRealtime } from "../src/api/applicantHooks.ts";
+import { provideApplicantApi, provideMockApplicantStore } from "../src/api/applicantHooks.ts";
 import { provideApplicantMoreApi } from "../src/api/applicantMoreHooks.ts";
-import { createRealtimeHub } from "../src/api/applicantRealtime.ts";
 import { mockLaunchStore, provideLaunchApi } from "../src/api/launchHooks.ts";
 import { App } from "../src/app/App.tsx";
 import { createMockServices, ServicesProvider, type Services } from "../src/app/services.tsx";
@@ -64,7 +63,6 @@ function applicant(path: string, arrange?: (store: ApplicantStore, full: FullSto
   provideApplicantMoreApi(services, createMockApplicantMoreApi({ session, store, more }));
   provideApplicantFullApi(services, createMockApplicantFullApi({ session, store, full }));
   provideLaunchApi(services, createMockLaunchApi({ session, store: launch }), launch);
-  provideRealtime(services, createRealtimeHub());
   return { ...show(path, services), store, full, launch };
 }
 
@@ -147,7 +145,6 @@ describe("accepting an award", () => {
     provideApplicantApi(services, api);
     provideApplicantMoreApi(services, createMockApplicantMoreApi({ session, store, more: seedMoreStore(store) }));
     provideApplicantFullApi(services, createMockApplicantFullApi({ session, store, full: seedFullStore(store) }));
-    provideRealtime(services, createRealtimeHub());
     show(`${A}/grants/${award.id}/offer`, services);
     const button = await screen.findByRole("button", { name: "Accept award" });
     const name = await screen.findByLabelText("Your full legal name");

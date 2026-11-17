@@ -8,8 +8,7 @@ import { MemoryRouter, useLocation } from "react-router";
 import { describe, expect, it } from "vitest";
 import type { ApplicantApi } from "../src/api/applicant.ts";
 import { changedPaths } from "../src/api/applicant.ts";
-import { provideApplicantApi, provideRealtime } from "../src/api/applicantHooks.ts";
-import { createRealtimeHub } from "../src/api/applicantRealtime.ts";
+import { provideApplicantApi } from "../src/api/applicantHooks.ts";
 import { createDraftRoom, providePresence } from "../src/lib/presence.ts";
 import { createPresenceHub } from "../src/mocks/presence.ts";
 import { App } from "../src/app/App.tsx";
@@ -29,7 +28,6 @@ function open(path: string, opts: { store?: ApplicantStore; api?: ApplicantApi }
   const store = opts.store ?? seedApplicantStore();
   const api = opts.api ?? createMockApplicantApi({ session: () => services.auth.getSession(), store });
   provideApplicantApi(services, api);
-  provideRealtime(services, createRealtimeHub());
   const view = render(
     <MemoryRouter initialEntries={[path]}>
       <App services={services} />
