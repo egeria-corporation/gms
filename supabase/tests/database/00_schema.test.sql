@@ -32,7 +32,8 @@ select tables_are(
     'funds',
     'package_sends',
     'digest_subscriptions', 'digest_sends',
-    'user_preferences'
+    'user_preferences',
+    'share_kit_profiles', 'social_reminder_prompts'
   ],
   'public schema has exactly the GMS tables'
 );
