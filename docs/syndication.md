@@ -144,16 +144,16 @@ builder).
   `listing_url`, and searches for "gms.opengrants.io", "opengrants" and "CommonGrants" find
   nothing. OpenGrants' records name the funder's own page in `listing_url`; there is no source field.
 
-So the GMS pushes nothing (no jobs queue, no secret), and the builder's help text "Pulled by the
-OpenGrants importer from the CommonGrants feed" describes a pull that does not happen yet. The
-Share this call panel says so (`OPENGRANTS_PULLS_FEED = false`).
+So the GMS pushes nothing (no jobs queue, no secret). The builder's help text for the OpenGrants
+index says what is true today, "Listed in the feed OpenGrants can pull", and the Share this call
+panel says OpenGrants does not import yet (`OPENGRANTS_PULLS_FEED = false`).
 
 **What OpenGrants must pull** (for the owner to hand to the OpenGrants team):
 
 | | |
 |---|---|
 | Feed | `GET https://gms.opengrants.io/gms/public/feeds/opengrants.json` (no token, any origin) |
-| Filter (done by the GMS) | Published calls with `publish.openGrantsIndex` and the public page on, under an active funder, open, forecasted or closed. Use this feed, not `/common-grants/opportunities`, which lists every published call whatever the funder chose. |
+| Filter (done by the GMS) | Published calls with `publish.openGrantsIndex` and the public page on, under an active funder, open, forecasted or closed. Use this feed, not `/common-grants/opportunities`, which lists every published call with its public page on whether or not the funder chose the OpenGrants index. |
 | Shape | The CommonGrants v0.5.0 list envelope: `{ status, message, items: OpportunityBase[], paginationInfo }`, each record validated with `@common-grants/sdk`. Oldest change first. |
 | Paging | `page` (from 1), `pageSize` (1 to 100, default 100); `paginationInfo.totalItems` |
 | Incremental | `modifiedSince=<ISO 8601>`: records whose `lastModifiedAt` is later |

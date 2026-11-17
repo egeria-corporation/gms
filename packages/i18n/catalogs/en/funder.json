@@ -1897,7 +1897,7 @@
   "opportunityBuilder.steps": "Steps",
   "opportunityBuilder.summary": "Summary",
   "opportunityBuilder.target.index": "OpenGrants index",
-  "opportunityBuilder.target.indexHelp": "Pulled by the OpenGrants importer from the CommonGrants feed",
+  "opportunityBuilder.target.indexHelp": "Listed in the feed OpenGrants can pull",
   "opportunityBuilder.target.publicPage": "Public page",
   "opportunityBuilder.target.publicPageHelp": "Listed on /f/{handle}",
   "opportunityBuilder.target.sitemap": "Sitemap",

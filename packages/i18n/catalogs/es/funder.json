@@ -1897,7 +1897,7 @@
   "opportunityBuilder.steps": "Pasos",
   "opportunityBuilder.summary": "Resumen",
   "opportunityBuilder.target.index": "Índice de OpenGrants",
-  "opportunityBuilder.target.indexHelp": "El importador de OpenGrants la toma del feed de CommonGrants",
+  "opportunityBuilder.target.indexHelp": "Incluida en el canal que OpenGrants puede leer",
   "opportunityBuilder.target.publicPage": "Página pública",
   "opportunityBuilder.target.publicPageHelp": "Aparece en /f/{handle}",
   "opportunityBuilder.target.sitemap": "Mapa del sitio",
