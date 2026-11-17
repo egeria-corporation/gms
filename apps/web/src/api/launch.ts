@@ -267,7 +267,7 @@ export function createHttpLaunchApi(opts: HttpLaunchOptions): LaunchApi {
         return {
           facilitatedPayments: c.facilitatedPayments === true,
           ...(c.passport && typeof c.passport === "object" ? { passport: { signIn: rec(c.passport).signIn === true, linking: rec(c.passport).linking === true, payments: rec(c.passport).payments === true } } : {}),
-          ...(a ? { available: { openGrants: a.openGrants === true, assistant: a.assistant === true, googleWorkspace: a.googleWorkspace === true, mercury: a.mercury === true, customMcp: a.customMcp === true } } : {}),
+          ...(a ? { available: { openGrants: a.openGrants === true, assistant: a.assistant === true, googleWorkspace: a.googleWorkspace === true, mercury: a.mercury === true, customMcp: a.customMcp === true, slack: a.slack === true, googleCalendar: a.googleCalendar === true, googleDrive: a.googleDrive === true, salesforce: a.salesforce === true } } : {}),
         };
       }, { facilitatedPayments: false }),
 
