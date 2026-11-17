@@ -35,6 +35,13 @@ COMPOSIO_GOOGLE_AUTH_CONFIG_ID=
 # Import from Google Sheets and Airtable (read-only auth configs; docs/connectors.md)
 COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID=
 COMPOSIO_AIRTABLE_AUTH_CONFIG_ID=
+# Connected apps (v1.12.0, docs/connectors.md): each app is hidden until its auth config id is set.
+# Slack and Calendar also on the jobs Worker, with COMPOSIO_API_KEY. Drive must be on the same Google
+# OAuth client as the Picker (VITE_GOOGLE_OAUTH_CLIENT_ID in the web build).
+COMPOSIO_SLACK_AUTH_CONFIG_ID=
+COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID=
+COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID=
+COMPOSIO_SALESFORCE_AUTH_CONFIG_ID=
 # Social posting through Zernio (docs/social.md); both, or social posting is hidden.
 ZERNIO_API_KEY=
 ZERNIO_WEBHOOK_SECRET=
@@ -42,6 +49,8 @@ RESEND_API_KEY=
 RESEND_FROM=
 # Template gallery moderators: comma-separated user ids or email addresses (a secret, never in wrangler.toml)
 GALLERY_MODERATORS=
+# Partner directory moderators (v1.12.0): optional; while unset or blank, GALLERY_MODERATORS moderate (a secret, never in wrangler.toml)
+DIRECTORY_MODERATORS=
 RESEND_INBOUND_SECRET=
 # Domain that receives replies (thread+<id>@domain); defaults to the domain of RESEND_FROM
 RESEND_INBOUND_DOMAIN=
