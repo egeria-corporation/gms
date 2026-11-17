@@ -79,8 +79,8 @@ namespace GMS.Models {
     es?: OpportunityTranslation;
   }
 
+  /** `language`: the language to draft into; not the record's own. */
   model TranslationDraftRequest {
-    /** The language to draft into; not the record's own. */
     language: TranslationLanguage;
   }
 
@@ -96,7 +96,7 @@ namespace GMS.Models {
     text: string;
   }
 
-  /** `POST /gms/translations/forms/{formId}/draft`: drafts for the texts not translated yet. Nothing was saved. */
+  /** `POST /gms/translations/forms/{id}/draft`: drafts for the texts not translated yet. Nothing was saved. */
   model FormTranslationDraft {
     draft: true;
     language: TranslationLanguage;
@@ -141,11 +141,11 @@ namespace GMS.Routes.Custom {
      * when the assistant is off; 409 `form_published` for a published version (start the next one);
      * 422 for the form's own language.
      */
-    @post @route("/translations/forms/{formId}/draft") @useAuth(GmsOAuth<["assist", "forms:write"]> | UserSession)
-    op draftForm(@path formId: GmsId, @body body: TranslationDraftRequest): OkT<FormTranslationDraft> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable | TooManyRequests;
+    @post @route("/translations/forms/{id}/draft") @useAuth(GmsOAuth<["assist", "forms:write"]> | UserSession)
+    op draftForm(@path id: GmsId, @body body: TranslationDraftRequest): OkT<FormTranslationDraft> | BadRequest | AuthErrors | NotFound | Conflict | Unprocessable | TooManyRequests;
 
     /** The same for an opportunity's title, summary and eligibility labels. The drafts must be reviewed before they are saved. */
-    @post @route("/translations/opportunities/{oppId}/draft") @useAuth(GmsOAuth<["assist", "opportunities:write"]> | UserSession)
-    op draftOpportunity(@path oppId: GmsId, @body body: TranslationDraftRequest): OkT<OpportunityTranslationDraft> | BadRequest | AuthErrors | NotFound | Unprocessable | TooManyRequests;
+    @post @route("/translations/opportunities/{id}/draft") @useAuth(GmsOAuth<["assist", "opportunities:write"]> | UserSession)
+    op draftOpportunity(@path id: GmsId, @body body: TranslationDraftRequest): OkT<OpportunityTranslationDraft> | BadRequest | AuthErrors | NotFound | Unprocessable | TooManyRequests;
   }
 }

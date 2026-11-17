@@ -6711,7 +6711,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/gms/translations/forms/{formId}/draft": {
+    "/gms/translations/forms/{id}/draft": {
         parameters: {
             query?: never;
             header?: never;
@@ -6734,7 +6734,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/gms/translations/opportunities/{oppId}/draft": {
+    "/gms/translations/opportunities/{id}/draft": {
         parameters: {
             query?: never;
             header?: never;
@@ -14534,7 +14534,7 @@ export interface components {
                 [key: string]: components["schemas"]["Models.FieldTranslation"];
             };
         };
-        /** @description `POST /gms/translations/forms/{formId}/draft`: drafts for the texts not translated yet. Nothing was saved. */
+        /** @description `POST /gms/translations/forms/{id}/draft`: drafts for the texts not translated yet. Nothing was saved. */
         "Models.FormTranslationDraft": {
             /** @enum {boolean} */
             draft: true;
@@ -20908,8 +20908,8 @@ export interface components {
              */
             draft?: true;
         };
+        /** @description `language`: the language to draft into; not the record's own. */
         "Models.TranslationDraftRequest": {
-            /** @description The language to draft into; not the record's own. */
             language: components["schemas"]["Models.TranslationLanguage"];
         };
         /** @enum {string} */
@@ -47957,7 +47957,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                formId: components["schemas"]["Models.GmsId"];
+                id: components["schemas"]["Models.GmsId"];
             };
             cookie?: never;
         };
@@ -48049,7 +48049,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                oppId: components["schemas"]["Models.GmsId"];
+                id: components["schemas"]["Models.GmsId"];
             };
             cookie?: never;
         };
