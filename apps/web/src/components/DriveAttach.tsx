@@ -29,8 +29,23 @@ function useDriveOn(): boolean {
   return !!ws && ws.kind === "applicant" && available && (env.useMocks || !!pickerConfig());
 }
 
-const errorText = (e: unknown) => (e instanceof Error && e.message ? e.message : t("driveAttach.failed"));
-const notConnected = (e: unknown) => (e as { errors?: { code?: string }[] } | null)?.errors?.some((x) => x.code === "drive_not_connected") === true;
+/** What went wrong, and the way to Connected apps when Drive is not connected yet. */
+function Problem({ error }: { error: unknown }) {
+  const ws = useCurrentWorkspace();
+  if (error === null) return null;
+  const notConnected = (error as { errors?: { code?: string }[] } | null)?.errors?.some((x) => x.code === "drive_not_connected") === true;
+  return (
+    <span className="err-msg" role="alert">
+      {error instanceof Error && error.message ? error.message : t("driveAttach.failed")}
+      {notConnected && ws && (
+        <>
+          {" "}
+          <Link to={`/w/${ws.handle}/settings/apps`}>{t("driveAttach.openConnectedApps")}</Link>
+        </>
+      )}
+    </span>
+  );
+}
 
 /**
  * "Attach from Google Drive": `onFile` is the same function the upload control calls with a file
@@ -38,7 +53,6 @@ const notConnected = (e: unknown) => (e as { errors?: { code?: string }[] } | nu
  */
 export function DriveAttachButton({ onFile, pick, disabled }: { onFile: (file: File) => unknown; pick?: (config: PickerConfig, title: string) => Promise<PickedFile | null>; disabled?: boolean }) {
   const on = useDriveOn();
-  const ws = useCurrentWorkspace();
   const [done, setDone] = useState<string | null>(null);
   const copy = useConnectedAppsMutation(async (api) => {
     const config = pickerConfig();
@@ -64,17 +78,7 @@ export function DriveAttachButton({ onFile, pick, disabled }: { onFile: (file: F
         <FolderUp className="ic" aria-hidden="true" />
         {copy.state === "saving" ? t("driveAttach.copying") : t("driveAttach.attachFromDrive")}
       </button>
-      {copy.error !== null && (
-        <span className="err-msg" role="alert">
-          {errorText(copy.error)}
-          {notConnected(copy.error) && ws && (
-            <>
-              {" "}
-              <Link to={`/w/${ws.handle}/settings/apps`}>{t("driveAttach.openConnectedApps")}</Link>
-            </>
-          )}
-        </span>
-      )}
+      <Problem error={copy.error} />
       {done && (
         <span className="small" role="status">
           <CircleCheck className="ic" aria-hidden="true" /> {t("driveAttach.copied", { name: done })}
@@ -87,7 +91,6 @@ export function DriveAttachButton({ onFile, pick, disabled }: { onFile: (file: F
 /** "Save the as-submitted copy to Google Drive": the PDF of what was submitted, created in My Drive. */
 export function SaveToDriveButton({ kind, id }: { kind: DriveSaveInput["kind"]; id: string }) {
   const on = useDriveOn();
-  const ws = useCurrentWorkspace();
   const [saved, setSaved] = useState<DriveSaved | null>(null);
   const save = useConnectedAppsMutation((api) => api.saveToDrive({ kind, id }));
   if (!on) return null;
@@ -106,17 +109,7 @@ export function SaveToDriveButton({ kind, id }: { kind: DriveSaveInput["kind"]; 
         <HardDriveDownload className="ic" aria-hidden="true" />
         {save.state === "saving" ? t("driveAttach.saving") : t("driveAttach.saveToDrive")}
       </button>
-      {save.error !== null && (
-        <span className="err-msg" role="alert">
-          {errorText(save.error)}
-          {notConnected(save.error) && ws && (
-            <>
-              {" "}
-              <Link to={`/w/${ws.handle}/settings/apps`}>{t("driveAttach.openConnectedApps")}</Link>
-            </>
-          )}
-        </span>
-      )}
+      <Problem error={save.error} />
       {saved && (
         <span className="small" role="status">
           <CircleCheck className="ic" aria-hidden="true" /> {t("driveAttach.savedToDrive", { name: saved.fileName })}{" "}

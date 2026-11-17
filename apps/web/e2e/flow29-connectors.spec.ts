@@ -64,7 +64,7 @@ test("connect Slack alerts, a calendar, Google Drive and Salesforce", async ({ a
     await page.getByRole("link", { name: "Import", exact: true }).click();
     await page.getByRole("radio", { name: /Salesforce/ }).check();
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("The GMS only runs read queries and never changes a record")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Connect Salesforce" })).toContainText("The GMS only runs read queries and never changes a record");
     await page.getByRole("button", { name: "Connect Salesforce" }).click();
     await expect(page.getByRole("heading", { name: "What should be read from Salesforce?" })).toBeVisible();
     await expect(page.getByRole("radio", { name: /Grants/ })).toBeChecked();

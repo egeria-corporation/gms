@@ -7,7 +7,7 @@
 // and turning alerts on or off are done here by a person, never by an agent.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
-import { BellRing, CalendarDays, CircleCheck, CircleDashed, Cloud, HardDrive, Hash, Plug, RefreshCw, TriangleAlert, Unplug } from "lucide-react";
+import { CalendarDays, CircleCheck, CircleDashed, Cloud, HardDrive, Hash, Plug, RefreshCw, TriangleAlert, Unplug } from "lucide-react";
 import type { AlertEvent, AppConnection, CalendarEntry, SlackAlerts, SlackChannel, WorkspaceApp } from "../../api/connectedApps.ts";
 import { useConnectedAppsMutation, useConnectedAppsQuery } from "../../api/connectedAppsHooks.ts";
 import { useAppConfig } from "../../api/launchHooks.ts";
@@ -254,20 +254,6 @@ function SlackCard() {
       {app.error !== null && <ErrorBanner error={app.error} />}
       {c && <ConnectRow app="slack" c={c} start={() => void app.start()} stop={() => void app.stop()} busy={app.busy} label="Slack" />}
       {c?.connected && alerts.status === "ready" && <SlackSettings key={alerts.data.subscription?.updatedAt ?? "new"} alerts={alerts.data} onSaved={alerts.reload} />}
-      {c?.connected && alerts.status === "ready" && alerts.data.recent.length > 0 && (
-        <div>
-          <h3 className="b" style={{ fontSize: "14px" }}>
-            {t("connectedApps.slack.recent")}
-          </h3>
-          <ul className="small" style={{ margin: 0, paddingLeft: "18px" }}>
-            {alerts.data.recent.slice(0, 5).map((r, i) => (
-              <li key={i}>
-                {EVENT_LABEL[r.event]()} · {r.status === "sent" ? t("connectedApps.slack.sent") : r.status === "failed" ? t("connectedApps.slack.failed") : t("connectedApps.slack.sending")} · {when(r.at)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </Card>
   );
 }
@@ -427,12 +413,9 @@ export default function ConnectedApps() {
   return (
     <Frame>
       <title>{t("connectedApps.pageTitle", { name: ws.name })}</title>
-      <p className="muted" style={{ margin: 0 }}>
-        {t("connectedApps.intro")}
-      </p>
       {!slack && !calendar && !drive && !salesforce && (
         <Notice tone="neu" title={t("connectedApps.noneTitle")}>
-          {admin ? t("connectedApps.noneBody") : t("connectedApps.noneMember")}
+          {t("connectedApps.noneBody")}
         </Notice>
       )}
       {slack && <SlackCard />}
@@ -446,30 +429,5 @@ export default function ConnectedApps() {
         </SimpleAppCard>
       )}
     </Frame>
-  );
-}
-
-/** A card on the applicant's Settings page that leads to Connected apps. */
-export function ConnectedAppsLinkCard() {
-  const ws = useCurrentWorkspace()!;
-  const available = useAppConfig().available;
-  if (!available?.slack && !available?.googleCalendar && !available?.googleDrive && !available?.salesforce) return null;
-  return (
-    <section className="card" aria-labelledby="ca-link-h">
-      <div className="card-h">
-        <h3 id="ca-link-h" className="row" style={{ gap: "8px" }}>
-          <BellRing className="ic" aria-hidden="true" />
-          {t("connectedApps.title")}
-        </h3>
-      </div>
-      <div className="card-b">
-        <p className="small" style={{ marginTop: 0 }}>
-          {t("connectedApps.linkCard")}
-        </p>
-        <Link to={`/w/${ws.handle}/settings/apps`} className="btn btn-sm btn-secondary">
-          {t("connectedApps.open")}
-        </Link>
-      </div>
-    </section>
   );
 }

@@ -73,8 +73,8 @@ export interface ImportsStore {
   written: Map<string, string>;
   mappings: Map<string, Record<string, string>>;
   connected: Record<ConnectedApp, boolean>;
-  /** Salesforce records (grant Opportunities) read in mock mode. */
-  salesforce: Record<string, unknown>[];
+  /** Salesforce records read in mock mode, under the grants preset's column names. */
+  salesforce: Record<string, string>[];
   sheets: Record<string, Record<string, string[][]>>;
   airtable: Record<string, { tables: { id: string; name: string; fields: string[] }[]; records: Record<string, { id: string; fields: Record<string, unknown> }[]> }>;
   /** Grant history written in mock mode (there is no mock awards store to share). */
@@ -94,8 +94,8 @@ export function seedImportsStore(): ImportsStore {
     mappings: new Map(),
     connected: { google_sheets: false, airtable: false, salesforce: false },
     salesforce: [
-      { Id: "006000000000001AAA", Name: "Youth mentoring", Account: { Name: "Cedar Fund" }, StageName: "Prospecting", Amount: null, npsp__Requested_Amount__c: 15000, npsp__Next_Grant_Deadline_Due_Date__c: "2027-08-01" },
-      { Id: "006000000000002AAA", Name: "Clinic van", Account: { Name: "Harbor Trust" }, StageName: "Closed Won", Amount: 40000, npsp__Requested_Amount__c: 40000, CloseDate: "2027-03-15" },
+      { "Record ID": "006000000000001AAA", "Grant name": "Youth mentoring", Funder: "Cedar Fund", StageName: "Prospecting", Ask: "15000", Deadline: "2027-08-01" },
+      { "Record ID": "006000000000002AAA", "Grant name": "Clinic van", Funder: "Harbor Trust", StageName: "Closed Won", Ask: "40000", Deadline: "2027-03-15" },
     ],
     sheets: {
       [MOCK_SHEET_ID]: {
@@ -192,19 +192,12 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
         return { table: tableFromGrid(book[sheet]!), label: `Google Sheets · ${sheet}`, ref: `${id}/${sheet}`, extra: { sheets, sheet } };
       }
       if (source.kind === "salesforce") {
-        // Salesforce, read only: a preset or the person's own SELECT, checked as the server checks it.
+        // Salesforce in mock mode: the records as the grants preset names them. The server runs the
+        // full read-only check (@gms/importers, sources/salesforce.ts); the mock refuses the same clauses.
         if (!store.connected.salesforce) throw new ApiError(409, "Connect Salesforce first", [{ code: "source_not_connected" }]);
-        const { checkSoql, SoqlRefusedError, tableFromSalesforce, SALESFORCE_PRESET_DEFS } = await import("@gms/importers");
-        if (!source.preset && !source.query) throw invalid("invalid_query", "Choose what to read: grants, accounts, or a SOQL query of your own");
-        try {
-          if (source.query) checkSoql(source.query);
-        } catch (e) {
-          if (e instanceof SoqlRefusedError) throw invalid("invalid_query", e.message);
-          throw e;
-        }
-        const target = opts.workspace()?.kind === "funder" ? "award_history" : "outside_applications";
-        const table = tableFromSalesforce(store.salesforce, { target, ...(source.preset ? { preset: source.preset } : {}) });
-        return { table, label: `Salesforce · ${source.preset ? SALESFORCE_PRESET_DEFS[source.preset].label : "Query"}`, ref: source.preset ? `preset:${source.preset}` : "soql", extra: {} };
+        const q = source.query ?? "";
+        if (!source.preset && (!/^\s*select\s/i.test(q) || /;|\bfor\s+(update|view|reference)\b|\bupdate\s+(tracking|viewstat)\b/i.test(q))) throw invalid("invalid_query", "Only a SELECT query can be run. FOR UPDATE, FOR VIEW, FOR REFERENCE and UPDATE TRACKING change records in Salesforce, so they cannot be used here");
+        return { table: tableFromRecords(store.salesforce.map((r) => ({ id: String(r["Record ID"]), fields: r })), []), label: "Salesforce", ref: source.preset ? `preset:${source.preset}` : "soql", extra: {} };
       }
       if (!store.connected.airtable) throw new ApiError(409, "Connect Airtable first", [{ code: "source_not_connected" }]);
       const baseId = /(app[A-Za-z0-9]{14})/.exec(source.url)?.[1];

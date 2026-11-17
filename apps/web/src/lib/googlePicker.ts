@@ -81,58 +81,10 @@ export function appIdOf(clientId: string): string {
 }
 
 /**
- * Opens the Picker in folder mode. Resolves to the chosen folder, or null when the person closes
- * the Picker without choosing.
+ * The Picker with a `drive.file` token, in folder or file mode. A token Google returns with any
+ * broader Drive scope is refused. Resolves to the chosen item, or null when the person closes it.
  */
-export async function pickDriveFolder(config: PickerConfig): Promise<PickedFolder | null> {
-  await Promise.all([loadScript(GAPI_SRC), loadScript(GSI_SRC)]);
-  const g = window as unknown as GoogleGlobals;
-  if (!g.gapi || !g.google?.accounts?.oauth2) throw new PickerError("Google's file picker did not start.");
-  await new Promise<void>((resolve) => g.gapi!.load("picker", resolve));
-  const picker = g.google.picker;
-  if (!picker) throw new PickerError("Google's file picker did not start.");
-
-  const token = await new Promise<string>((resolve, reject) => {
-    g.google!.accounts!.oauth2!.initTokenClient({
-      client_id: config.clientId,
-      scope: DRIVE_FILE_SCOPE,
-      callback: (r) => (r.access_token ? resolve(r.access_token) : reject(new PickerError("Google did not grant access to choose a folder."))),
-      error_callback: (e) => reject(new PickerError(e.type === "popup_closed" ? "The Google sign-in window was closed before a folder was chosen." : "The Google sign-in window could not open. Allow pop-ups for this site and try again.")),
-    }).requestAccessToken();
-  });
-
-  return new Promise<PickedFolder | null>((resolve) => {
-    const view = new picker.DocsView(picker.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes(FOLDER_MIME);
-    new picker.PickerBuilder()
-      .addView(view)
-      .setOAuthToken(token)
-      .setDeveloperKey(config.apiKey)
-      .setAppId(appIdOf(config.clientId))
-      .setTitle("Choose a Drive folder")
-      .setCallback((r) => {
-        if (r.action === picker.Action.PICKED) {
-          const doc = r.docs?.[0];
-          resolve(doc ? { id: doc.id, name: doc.name ?? "the chosen folder" } : null);
-        } else if (r.action === picker.Action.CANCEL) resolve(null);
-      })
-      .build()
-      .setVisible(true);
-  });
-}
-
-/** A file chosen in the Picker (v1.12.0, applicants' "Attach from Google Drive"). */
-export interface PickedFile {
-  id: string;
-  name: string;
-}
-
-/**
- * Opens the Picker in file mode, for "Attach from Google Drive". The token is `drive.file` only,
- * as for folders; a token Google returns with any broader Drive scope is refused. Picking the file
- * grants the GMS's Google project access to that one file, so the person's Drive connection (the
- * same project) can copy it. The GMS receives the file id, never the token.
- */
-export async function pickDriveFile(config: PickerConfig, title: string): Promise<PickedFile | null> {
+async function openPicker(config: PickerConfig, mode: "folder" | "file", title: string): Promise<{ id: string; name: string | null } | null> {
   await Promise.all([loadScript(GAPI_SRC), loadScript(GSI_SRC)]);
   const g = window as unknown as GoogleGlobals;
   if (!g.gapi || !g.google?.accounts?.oauth2) throw new PickerError("Google's file picker did not start.");
@@ -145,18 +97,17 @@ export async function pickDriveFile(config: PickerConfig, title: string): Promis
       client_id: config.clientId,
       scope: DRIVE_FILE_SCOPE,
       callback: (r) => {
-        if (!r.access_token) return reject(new PickerError("Google did not grant access to choose a file."));
+        if (!r.access_token) return reject(new PickerError(`Google did not grant access to choose a ${mode}.`));
         // Never use a broader token than drive.file for the Picker.
-        const scopes = (r.scope ?? "").split(/\s+/).filter(Boolean);
-        if (scopes.some((sc) => sc.includes("/auth/drive") && sc !== DRIVE_FILE_SCOPE)) return reject(new PickerError("Google returned broader Drive access than the GMS allows."));
+        if ((r.scope ?? "").split(/\s+/).some((sc) => sc.includes("/auth/drive") && sc !== DRIVE_FILE_SCOPE)) return reject(new PickerError("Google returned broader Drive access than the GMS allows."));
         resolve(r.access_token);
       },
-      error_callback: (e) => reject(new PickerError(e.type === "popup_closed" ? "The Google sign-in window was closed before a file was chosen." : "The Google sign-in window could not open. Allow pop-ups for this site and try again.")),
+      error_callback: (e) => reject(new PickerError(e.type === "popup_closed" ? `The Google sign-in window was closed before a ${mode} was chosen.` : "The Google sign-in window could not open. Allow pop-ups for this site and try again.")),
     }).requestAccessToken();
   });
 
-  return new Promise<PickedFile | null>((resolve) => {
-    const view = new picker.DocsView(picker.ViewId.DOCS).setIncludeFolders(false).setSelectFolderEnabled(false);
+  return new Promise((resolve) => {
+    const view = mode === "folder" ? new picker.DocsView(picker.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes(FOLDER_MIME) : new picker.DocsView(picker.ViewId.DOCS).setIncludeFolders(false).setSelectFolderEnabled(false);
     new picker.PickerBuilder()
       .addView(view)
       .setOAuthToken(token)
@@ -166,10 +117,35 @@ export async function pickDriveFile(config: PickerConfig, title: string): Promis
       .setCallback((r) => {
         if (r.action === picker.Action.PICKED) {
           const doc = r.docs?.[0];
-          resolve(doc ? { id: doc.id, name: doc.name ?? "file" } : null);
+          resolve(doc ? { id: doc.id, name: doc.name ?? null } : null);
         } else if (r.action === picker.Action.CANCEL) resolve(null);
       })
       .build()
       .setVisible(true);
   });
+}
+
+/**
+ * Opens the Picker in folder mode. Resolves to the chosen folder, or null when the person closes
+ * the Picker without choosing.
+ */
+export async function pickDriveFolder(config: PickerConfig): Promise<PickedFolder | null> {
+  const doc = await openPicker(config, "folder", "Choose a Drive folder");
+  return doc ? { id: doc.id, name: doc.name ?? "the chosen folder" } : null;
+}
+
+/** A file chosen in the Picker (v1.12.0, applicants' "Attach from Google Drive"). */
+export interface PickedFile {
+  id: string;
+  name: string;
+}
+
+/**
+ * Opens the Picker in file mode, for "Attach from Google Drive". Picking the file grants the GMS's
+ * Google project access to that one file, so the workspace's Drive connection (the same project)
+ * can copy it. The GMS receives the file id, never the token.
+ */
+export async function pickDriveFile(config: PickerConfig, title: string): Promise<PickedFile | null> {
+  const doc = await openPicker(config, "file", title);
+  return doc ? { id: doc.id, name: doc.name ?? "file" } : null;
 }

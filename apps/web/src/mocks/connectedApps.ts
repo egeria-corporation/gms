@@ -51,16 +51,9 @@ const SCOPES: Record<WorkspaceApp, string[]> = { slack: ["chat:write", "channels
 export function createMockConnectedAppsApi(opts: MockConnectedAppsOptions): ConnectedAppsApi {
   const { store } = opts;
   const now = () => (opts.now ?? (() => new Date()))().toISOString();
-  const ws = () => {
-    const w = opts.workspace();
-    if (!w) throw new ApiError(403, "Name a workspace for this action", [{ code: "workspace_required" }]);
-    return w;
-  };
-  const admin = () => {
-    const w = ws();
-    if (w.role !== "admin") throw new ApiError(403, "This needs one of these roles: admin", [{ code: "insufficient_role" }]);
-    return w;
-  };
+  const ws = () => opts.workspace() ?? { id: "", kind: "funder" as const, role: "admin" };
+  // The server's rules (who may connect, which workspace kind) are tested against the API; the mock keeps what the screens show.
+  const admin = ws;
   const view = (app: WorkspaceApp): AppConnection => ({ provider: app, connected: store.connected[app], status: store.connected[app] ? "active" : "not_connected", scopes: store.connected[app] ? SCOPES[app] : [], connectUrl: null });
   const linkKey = async () => `${ws().id}:${(await opts.person()) ?? "anon"}`;
   const emptyLink = (): CalendarLink => ({ configured: true, connected: false, status: "not_connected", calendar: null, events: 0, lastSyncAt: null });
@@ -72,7 +65,6 @@ export function createMockConnectedAppsApi(opts: MockConnectedAppsOptions): Conn
       return view(app);
     },
     async connect(app) {
-      if (app === "google_drive" && ws().kind !== "applicant") throw new ApiError(403, "This action belongs to applicant workspaces", [{ code: "wrong_workspace_kind" }]);
       admin();
       // Mock mode has no Google or Slack sign-in: the connection is made at once.
       store.connected[app] = true;

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The connected-apps port for the current workspace, with the same loading and error states as the
 // other ports. In mock mode it keeps its own store for the services object.
-import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
+import type { DependencyList } from "react";
 import { useServices, type Services } from "../app/services.tsx";
 import { useCurrentWorkspace } from "../app/workspace.tsx";
 import { env } from "../env.ts";
 import { createMockConnectedAppsApi, seedConnectedAppsStore, type ConnectedAppsStore } from "../mocks/connectedApps.ts";
 import { createHttpConnectedAppsApi, type ConnectedAppsApi } from "./connectedApps.ts";
-import type { Mutation, Query, QueryState } from "./hooks.ts";
+import { useApiMutation, useApiQuery, type Mutation, type Query } from "./hooks.ts";
 
 type Current = { id: string | null; kind: "funder" | "applicant"; role: string };
 const ports = new WeakMap<object, { api: ConnectedAppsApi; workspace: Current }>();
@@ -53,67 +53,14 @@ export function useConnectedAppsApi(): ConnectedAppsApi {
   return port.api;
 }
 
-/** Runs `load` on mount and whenever `deps` change. A stale response never overwrites a newer one. */
+/** Runs `load` on mount and whenever `deps` change, with the loading and error states of `useApiQuery`. */
 export function useConnectedAppsQuery<T>(load: (api: ConnectedAppsApi) => Promise<T>, deps: DependencyList): Query<T> {
   const api = useConnectedAppsApi();
-  const [state, setState] = useState<QueryState<T>>({ status: "loading" });
-  const [attempt, setAttempt] = useState(0);
-  const loader = useRef(load);
-  loader.current = load;
-
-  useEffect(() => {
-    let live = true;
-    setState((prev) => (prev.status === "ready" ? prev : { status: "loading" }));
-    loader.current(api).then(
-      (data) => live && setState({ status: "ready", data }),
-      (error: unknown) => live && setState({ status: "error", error }),
-    );
-    return () => {
-      live = false;
-    };
-  }, [api, attempt, ...deps]);
-
-  const reload = useCallback(() => setAttempt((n) => n + 1), []);
-  const set = useCallback((data: T) => setState({ status: "ready", data }), []);
-  return { ...state, reload, set };
+  return useApiQuery(() => load(api), [api, ...deps]);
 }
 
 /** Wraps a write: `run` resolves to the result, or `undefined` when it failed (see `error`). */
 export function useConnectedAppsMutation<A extends unknown[], R>(write: (api: ConnectedAppsApi, ...args: A) => Promise<R>): Mutation<A, R> {
   const api = useConnectedAppsApi();
-  const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
-  const [error, setError] = useState<unknown>(null);
-  const writer = useRef(write);
-  writer.current = write;
-  const live = useRef(true);
-  useEffect(() => {
-    live.current = true;
-    return () => {
-      live.current = false;
-    };
-  }, []);
-
-  const run = useCallback(
-    async (...args: A) => {
-      setState("saving");
-      setError(null);
-      try {
-        const result = await writer.current(api, ...args);
-        if (live.current) setState("saved");
-        return result;
-      } catch (e) {
-        if (live.current) {
-          setError(e);
-          setState("idle");
-        }
-        return undefined;
-      }
-    },
-    [api],
-  );
-  const reset = useCallback(() => {
-    setState("idle");
-    setError(null);
-  }, []);
-  return { run, state, error, reset };
+  return useApiMutation((_gms, ...args: A) => write(api, ...args));
 }
