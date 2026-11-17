@@ -29,7 +29,7 @@
 --   * adds gms.referral_link_kind_ok(), a trigger function: a package link belongs to an applicant
 --     workspace, an onboarding link to a funder workspace. Reuses gms.gallery_funder_only() (0036)
 --     and gms.workspace_id_immutable() (0020) for the funder-only and never-moves rules.
--- RLS is on for all four tables; nothing is granted to anon.
+-- RLS is on for all four tables; anonymous visitors get no table access.
 
 -- ---------------------------------------------------------------------------------------------
 -- peer_invitations
