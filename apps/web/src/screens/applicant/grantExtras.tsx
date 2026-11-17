@@ -39,7 +39,7 @@ export function GrantDocuments({ award, base }: { award: AwardDetail; base: stri
                 <span className="mono">sha256 {shortHash(ag.documentSha256)}</span>
               </div>
             </div>
-            <Link to={`${base}/grants/${award.id}/offer`} className="btn btn-sm btn-ghost">
+            <Link to={`${base}/grants/${award.id}/offer`} className="btn btn-sm btn-ghost" aria-label="Open the grant agreement">
               Open
             </Link>
           </div>
@@ -55,7 +55,7 @@ export function GrantDocuments({ award, base }: { award: AwardDetail; base: stri
                 <span>The record this award was decided on</span>
               </div>
             </div>
-            <Link to={`${base}/applications/${award.applicationId}`} className="btn btn-sm btn-ghost">
+            <Link to={`${base}/applications/${award.applicationId}`} className="btn btn-sm btn-ghost" aria-label="Open the application as submitted">
               Open
             </Link>
           </div>

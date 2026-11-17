@@ -15,6 +15,7 @@ import {
   renderEmail,
   renderTemplate,
   ResendMailer,
+  emailDocument,
   MAX_ATTACHMENT_BYTES,
   base64Bytes,
   runReminders,
@@ -202,6 +203,22 @@ describe("mailer", () => {
     expect(JSON.parse(String(seen[0]!.init.body))).toMatchObject({ reply_to: "thread+thr_000001@reply.gms.example", to: ["maria@aldercreek.example"] });
     const bad = new ResendMailer("test-key", async () => new Response("maria@aldercreek.example is invalid", { status: 422 }));
     await expect(bad.send({ from: "a@b.example", to: ["x"], subject: "s", html: "h", text: "t" })).rejects.toMatchObject({ status: 422, retryable: false, message: "Resend refused the send (HTTP 422)." });
+  });
+
+  it("sends the HTML part as a document with its language and the subject as its title (WCAG 3.1.1)", async () => {
+    const seen: RequestInit[] = [];
+    const mailer = new ResendMailer("test-key", async (_url, init) => {
+      seen.push(init!);
+      return new Response(JSON.stringify({ id: "re_doc" }), { status: 200 });
+    });
+    await mailer.send({ from: "a@gms.example", to: ["b@gms.example"], subject: "Award <offer> & next steps", html: "<p>Hello,</p>", text: "Hello," });
+    const body = JSON.parse(String(seen[0]!.body)) as { html: string; text: string };
+    expect(body.html).toMatch(/^<!doctype html>\n<html lang="en" dir="ltr">/);
+    expect(body.html).toContain("<title>Award &lt;offer&gt; &amp; next steps</title>");
+    expect(body.html).toContain("<body>\n<p>Hello,</p>\n</body>");
+    expect(body.text).toBe("Hello,");
+    // A part that is already a document is sent as it is.
+    expect(emailDocument('<!DOCTYPE html><html lang="es"><body>x</body></html>', "s")).toBe('<!DOCTYPE html><html lang="es"><body>x</body></html>');
   });
 
   it("passes attachments to Resend as filename, base64 content and content_type, under the size cap", async () => {

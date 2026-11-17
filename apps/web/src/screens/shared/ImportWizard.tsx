@@ -104,7 +104,7 @@ function Totals({ totals }: { totals: ImportTotal[] }) {
       .map((t) => `${formatMinor(t!.amountMinor, t!.currency)} (${t!.rows} row${t!.rows === 1 ? "" : "s"})`)
       .join(" · ") || "—";
   return (
-    <div className="tbl-wrap">
+    <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Amounts by year, scrollable">
       <table className="tbl tbl-compact" aria-label="Amounts by year">
         <thead>
           <tr>
@@ -341,7 +341,8 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
         {progress && (
           <div className="mtr">
             <div className="lbls">
-              <span>
+              {/* The count is the announced part: a progress bar's value changes silently (WCAG 4.1.3). */}
+              <span role="status">
                 Attached <b>{progress.attached + progress.already}</b> of <b>{match?.matched.length ?? 0}</b>
               </span>
             </div>
@@ -993,7 +994,7 @@ export function ImportWizard() {
                   return (
                     <div className="mtr">
                       <div className="lbls">
-                        <span>
+                        <span role="status">
                           Imported <b>{p.written}</b> of <b>{total}</b>
                         </span>
                       </div>

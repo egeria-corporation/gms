@@ -62,7 +62,7 @@ describe("the public pages", () => {
     expect(within(table).getByText("$150,000")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "Community Health 2027" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "2027" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("link", { name: "The grant to Alder Creek Family Services" }));
+    await userEvent.click(screen.getByRole("link", { name: "View the grant to Alder Creek Family Services" }));
     expect(await screen.findByRole("heading", { level: 1, name: "Riverbend Community Foundation awarded Alder Creek Family Services a grant" })).toBeInTheDocument();
     expect(screen.getByText("Verified with OpenGrants Passport")).toBeInTheDocument();
     expect(screen.getByText("$150,000")).toBeInTheDocument();
@@ -107,7 +107,7 @@ describe("Share this award", () => {
     expect(within(p).getByRole("button", { name: "Copy the LinkedIn post" })).toBeInTheDocument();
     expect(within(p).getByRole("button", { name: "Copy the short post" })).toBeInTheDocument();
     expect(within(p).getByRole("button", { name: "Copy the newsletter paragraph" })).toBeInTheDocument();
-    expect(within(p).getByRole("button", { name: "Copy the award page link" })).toBeInTheDocument();
+    expect(within(p).getByRole("button", { name: "Copy page link" })).toBeInTheDocument();
     expect(within(p).getByRole("link", { name: "Download the card image" })).toHaveAttribute("href", expect.stringMatching(/\/og\/f\/riverbend\/awards\/alder-creek-family-services-[a-z0-9]{12}\.png$/));
     expect((within(p).getByRole("textbox", { name: "Badge code" }) as HTMLTextAreaElement).value).toMatch(/^<a href="[^"]+\/f\/riverbend\/awards\/[^"]+"><img src="[^"]+\/badge\/[^"]+\.svg" alt="Funded by Riverbend Community Foundation, verified"/);
     expect(within(p).getByRole("img", { name: "Funded by Riverbend Community Foundation · verified" }).getAttribute("src")).toMatch(/^data:image\/svg\+xml/);

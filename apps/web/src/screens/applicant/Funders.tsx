@@ -198,7 +198,7 @@ export default function Funders() {
                                       <StatusBadge kind="award" status={w.status} />
                                     </div>
                                   </div>
-                                  <Link to={`${base}/grants/${w.id}/offer`} className="btn btn-sm btn-ghost">
+                                  <Link to={`${base}/grants/${w.id}/offer`} className="btn btn-sm btn-ghost" aria-label={`Open the grant agreement for ${w.title}`}>
                                     Open
                                   </Link>
                                 </div>

@@ -86,7 +86,7 @@ export function FundSwitcher() {
   if (f.status !== "ready" || (!f.several && !f.scoped) || f.funds.length === 0) return null;
   if (f.funds.length === 1) {
     return (
-      <div className="rail-tenant" style={{ borderTop: "none", display: "flex", alignItems: "center", gap: "8px" }} aria-label="Your fund">
+      <div className="rail-tenant" style={{ borderTop: "none", display: "flex", alignItems: "center", gap: "8px" }} role="group" aria-label="Your fund">
         <FundMark fund={f.funds[0]!} />
         <div>
           <div className="sub">Your fund</div>

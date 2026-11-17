@@ -67,7 +67,7 @@ function Kit({ kit, awardId }: { kit: AwardShareKit; awardId: string }) {
           <a href={kit.links.page} className="mono" aria-describedby={id("link")} style={{ wordBreak: "break-all" }}>
             {kit.links.page}
           </a>
-          <CopyButton value={kit.links.page} what="the award page link" className="btn btn-sm btn-secondary" label="Copy link" />
+          <CopyButton value={kit.links.page} what="the award page link" className="btn btn-sm btn-secondary" label="Copy page link" />
         </div>
       </div>
       {POSTS.map((p) => (

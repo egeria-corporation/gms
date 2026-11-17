@@ -272,7 +272,7 @@ export async function createDocket(ctx: ServiceContext, competitionUuid: string,
   const ws = ctx.workspace!;
   const funder = await ctx.repos.table("workspaces").one({ id: ws.id });
   const accent = (funder?.brand as { accent?: unknown } | null)?.accent;
-  const bytes = await renderPdf({ title: model.title, header: `${model.funder} · Board docket`, footer: `${model.competition} · Confidential`, ...(typeof accent === "string" ? { accent } : {}), blocks: docketBlocks(model), createdAt: model.generatedAt });
+  const bytes = await renderPdf({ title: model.title, header: `${model.funder} · Board docket`, footer: `${model.competition} · Confidential`, ...(typeof accent === "string" ? { accent } : {}), blocks: docketBlocks(model), createdAt: model.generatedAt, lang: "en-US" });
   const sha256 = await sha256Hex(bytes);
   const docketId = crypto.randomUUID();
   await ctx.ports.exportFiles.put(docketKey(ws.id, competitionUuid, docketId), bytes, "application/pdf");

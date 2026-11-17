@@ -252,7 +252,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
           <Field id="grantee-notes" label="Notes" help="Visible to your team only. Never shared with the organization.">
             <textarea className="ta" id="grantee-notes" value={notes ?? g.notes ?? ""} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== null && notes !== (g.notes ?? "") && update({ notes: notes.trim() ? notes : null })} />
           </Field>
-          <div className="row wrap" aria-label="Tags">
+          <div className="row wrap" role="group" aria-label="Tags">
             {g.tags.map((t) => (
               <span key={t} className="tag">
                 {t}

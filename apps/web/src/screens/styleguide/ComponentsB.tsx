@@ -21,7 +21,7 @@ export default function ComponentsB() {
   return (
     <>
       <title>{"Component additions B"}</title>
-      <div
+      <main
         className="gms"
         style={{
           minHeight: "100vh",
@@ -125,7 +125,7 @@ export default function ComponentsB() {
                   </p>
                 </div>
               </div>
-              <div className="tbl-wrap" style={{ border: "0", borderRadius: "0" }}>
+              <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Component table, scrollable" style={{ border: "0", borderRadius: "0" }}>
                 <table className="tbl">
                   <thead>
                     <tr>
@@ -668,8 +668,8 @@ export default function ComponentsB() {
                     <input className="inp" id="sig-name" placeholder="Maria Elena Santos" />
                   </div>
                   <label className="cb" htmlFor="sig-att">
-                    <span className="c" id="sig-att" role="checkbox" aria-checked="false" tabIndex={0}></span>
-                    <span style={{ fontSize: "13px" }}>
+                    <span className="c" id="sig-att" role="checkbox" aria-checked="false" aria-labelledby="sig-att-l" tabIndex={0}></span>
+                    <span id="sig-att-l" style={{ fontSize: "13px" }}>
                       I am Maria Santos, Executive Director, authorized to sign for Alder Creek Family Services, and I agree to the terms of
                       this agreement.
                     </span>
@@ -856,7 +856,7 @@ export default function ComponentsB() {
             </div>
           </div>
         </div>
-      </div>
+      </main>
     </>
   );
 }

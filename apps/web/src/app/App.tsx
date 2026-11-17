@@ -4,7 +4,7 @@
 import { mockApplicantStore } from "../api/applicantHooks.ts";
 import { mockLaunchStore } from "../api/launchHooks.ts";
 import type { AwardDetail } from "../api/funder.ts";
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import { Navigate, Outlet, Route, Routes, useLocation, useParams } from "react-router";
 import { RequireAuth } from "../auth/RequireAuth.tsx";
 import { createServices, ServicesProvider, useServices, type Services } from "./services.tsx";
@@ -12,6 +12,7 @@ import { UserbackBridge } from "./UserbackBridge.tsx";
 import { useIsPhone } from "./usePhone.ts";
 import { useCurrentWorkspace, WorkspaceProvider, type WorkspaceKind } from "./workspace.tsx";
 import { NotFound } from "../components/NotFound.tsx";
+import { pageChanged, watchActions } from "../lib/announce.ts";
 
 const Landing = lazy(() => import("../screens/public/Landing.tsx"));
 const Agents = lazy(() => import("../screens/public/Agents.tsx"));
@@ -167,7 +168,7 @@ const PDF_PREVIEWS: Record<string, ReactNode> = {
 function Preview({ of }: { of: Record<string, ReactNode> }) {
   const { kind = "" } = useParams();
   const doc = of[kind];
-  return doc ? <div className="preview-frame">{doc}</div> : <NotFound />;
+  return doc ? <main className="preview-frame">{doc}</main> : <NotFound />;
 }
 
 const f = (el: ReactNode) => <Only kind="funder">{el}</Only>;
@@ -176,6 +177,8 @@ const a = (el: ReactNode) => <Only kind="applicant">{el}</Only>;
 export function App({ services }: { services?: Services }) {
   // Built once per mount; tests pass their own.
   const [resolved] = useState(() => services ?? createServices());
+  // The page's one polite live region, and when the person last acted (lib/announce.ts).
+  useEffect(() => watchActions(), []);
   // Mock mode only: lets a demo or an end-to-end test deliver what only Passport sends in
   // production (a settlement, a destination change taking effect, an outage).
   useEffect(() => {
@@ -196,14 +199,40 @@ export function App({ services }: { services?: Services }) {
   );
 }
 
+/**
+ * The first stop for the keyboard on every page: moves focus to the page's main content, past the
+ * top bar and the rail (WCAG 2.4.1). Screens render their own <main>, so the link finds it on use.
+ */
+function SkipLink() {
+  return (
+    <a
+      href="#main"
+      className="skip-link"
+      onClick={(e) => {
+        const main = document.querySelector<HTMLElement>("main, [role=main]");
+        if (!main) return;
+        e.preventDefault();
+        if (!main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
+        main.focus();
+      }}
+    >
+      Skip to main content
+    </a>
+  );
+}
+
 function AppRoutes() {
   // The design reference boards and template previews carry demo content: demo (mock) mode only.
   const { mock } = useServices();
   // The apply widget runs inside other sites' pages: no feedback widget there, and a plain frame.
-  const embedded = useLocation().pathname.startsWith("/embed/");
+  const location = useLocation();
+  const embedded = location.pathname.startsWith("/embed/");
+  // A layout effect runs before any screen's banner effects: banners on a new screen are not announced.
+  useLayoutEffect(() => pageChanged(), [location.pathname, location.search]);
   return (
     <Suspense fallback={<div className={embedded ? "gms embed" : "gms gms-frame"} aria-busy="true" />}>
       {!embedded && <UserbackBridge />}
+      {!embedded && <SkipLink />}
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/f/:handle" element={<FunderPage />} />

@@ -3,6 +3,45 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.10.0 — 2026-11-16
+
+### Added
+
+- **Accessibility conformance report.** `docs/accessibility.md` reports conformance with WCAG 2.2
+  level A and AA in the VPAT 2.5 format, criterion by criterion. It covers the web app, public
+  pages, the apply widget, emails and the PDFs the GMS makes, and says plainly what is still partial.
+  It is linked from the README and the landing page footer.
+- Every route and dialog is checked with axe at desktop and phone width in the end-to-end suite, for
+  each kind of person who can reach it. A new route without a check fails the suite.
+
+### Fixed
+
+- 75 accessibility issues across the app, each with a regression test:
+  - a skip link on every page;
+  - focus rings and form-control outlines with at least 3:1 contrast;
+  - focus never hidden behind sticky parts;
+  - nothing scrolls sideways at 320 px;
+  - required state, help and errors tied to every form field;
+  - status banners and import progress announced to screen readers;
+  - dialogs that keep focus inside, close on Escape and return focus to the button that opened them;
+  - link text that says where a link goes.
+- Emails are sent as documents with their language. The board docket and the send-to-funder package
+  PDFs carry their language and show their title.
+
+### Still partial (see `docs/accessibility.md`)
+
+- The PDFs are not tagged, because the PDF library cannot write tags. Each has a text equivalent: the
+  docket's panel screen, and `answers.txt` in the send package.
+- Award letters, agreements and their snapshots carry no PDF language, so that signed documents
+  still re-render byte for byte for their hash checks.
+- Not yet tested with screen readers or other assistive technology, and only in Chromium.
+
+### Upgrade notes
+
+- No database migrations, settings or secrets.
+- Rebuild and deploy the web app, then the front Worker with `--redirect-from`, as in
+  `docs/staging.md`.
+
 ## v1.9.0 — 2026-11-16
 
 ### Added

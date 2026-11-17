@@ -816,7 +816,7 @@ export default function SettingsMcp() {
         <main className="main">
           <PageHeader crumbs={[{ label: ws.name, to: base }, { label: "Settings" }, { label: "Agents & MCP" }]} title="Settings" meta={<span>Workspace administration · changes are written to the audit ledger</span>} />
           <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-            <div className="col" style={{ gap: "12px", position: "sticky", top: "16px" }}>
+            <div className="col stick-side" style={{ gap: "12px" }}>
               <SettingsNav base={base} active="mcp" />
               <nav className="card snav" style={{ padding: "8px" }} aria-label="On this page">
                 {[

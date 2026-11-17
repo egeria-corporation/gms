@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { MemoryRouter, useLocation } from "react-router";
@@ -53,6 +53,53 @@ describe("Dialog", () => {
     expect(within(dialog).getByRole("button", { name: "First" })).toHaveFocus();
     await userEvent.tab({ shift: true });
     expect(within(dialog).getByRole("button", { name: "Last" })).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
+});
+
+function AutoFocusHarness() {
+  const [isOpen, setOpen] = useState(false);
+  return (
+    <div className="gms">
+      <button onClick={() => setOpen(true)}>Add a funder</button>
+      {isOpen && (
+        <Dialog open onClose={() => setOpen(false)} labelledBy="af">
+          <h2 id="af">Add a funder</h2>
+          <button type="button">Close</button>
+          <input aria-label="Name" autoFocus />
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+describe("Dialog pointer cancellation (WCAG 2.5.2)", () => {
+  it("closes on a completed click outside, not on the press, and a press that ends inside closes nothing", async () => {
+    render(<Harness />);
+    await userEvent.click(screen.getByRole("button", { name: "Open" }));
+    const dialog = screen.getByRole("dialog", { name: "Title" });
+    const overlay = dialog.parentElement!;
+    fireEvent.mouseDown(overlay);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    // Pressed outside, released inside: the click lands on the overlay, but the release did not.
+    fireEvent.mouseUp(dialog);
+    fireEvent.click(overlay);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.mouseDown(overlay);
+    fireEvent.mouseUp(overlay);
+    fireEvent.click(overlay);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("Dialog with a field that focuses itself", () => {
+  it("keeps the field's focus, and gives focus back to the opener on Escape (WCAG 2.4.3)", async () => {
+    render(<AutoFocusHarness />);
+    const opener = screen.getByRole("button", { name: "Add a funder" });
+    await userEvent.click(opener);
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveFocus();
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(opener).toHaveFocus();

@@ -27,7 +27,12 @@ Payments through Passport and the assistant are switched on the API (`PAYMENTS_F
 
 ## Accessibility
 
-Target: WCAG 2.2 AA on every applicant-facing and public screen, at desktop (1440) and phone (390) widths.
+Target: WCAG 2.2 AA on every screen, at desktop (1440) and phone (390) widths. The current
+conformance report (VPAT 2.5 format), the method and the known limits are in
+[docs/accessibility.md](../../docs/accessibility.md). `e2e/a11y-every-route.spec.ts` runs axe on every
+route in the router (as each kind of person, both widths, light and dark) and on every dialog, and
+fails when a route has no entry in `e2e/a11y-routes.ts`. The sections below are the history of
+the earlier passes.
 
 ### Automated, in the test suite
 

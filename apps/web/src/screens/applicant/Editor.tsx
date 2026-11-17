@@ -27,7 +27,7 @@ import { FormView, type UploadedFile } from "../../forms/FormView.tsx";
 import { fieldLabel, patchFor, rebase, sectionFor, sectionsOf, sectionState, type Section } from "./editorSync.ts";
 import { EditorAssistant } from "./editorAssist.tsx";
 import type { DraftInvitation } from "../../api/invites.ts";
-import { INVITE_OPTION, InviteDialog, InviteOptions, InviteSentNote, TeamNote, useDraftInvites } from "./inviteDraft.tsx";
+import { InviteDialog, InviteOptions, InvitePicker, InviteSentNote, TeamNote, useDraftInvites } from "./inviteDraft.tsx";
 
 interface EditorData {
   app: Application;
@@ -343,7 +343,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               </span>
             )}
           </span>
-          <div className="pres" aria-label={`Editing now: ${[me, ...peers].map((p) => p.name).join(", ")}`}>
+          <div className="pres" role="img" aria-label={`Editing now: ${[me, ...peers].map((p) => p.name).join(", ")}`}>
             <Avatar name={me.name} note="(you)" live />
             {peers.map((p, i) => (
               <Avatar key={p.userId} name={p.name} {...(p.section ? { note: `· ${p.section}` } : {})} index={i + 1} live />
@@ -689,15 +689,15 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                       <label className="lbl" htmlFor={`own-${slug(s.label)}`} style={{ fontSize: "13px" }}>
                         {s.label}
                       </label>
-                      <select
+                      <InvitePicker
                         className="sel"
                         id={`own-${slug(s.label)}`}
                         style={{ height: "36px", fontSize: "14px" }}
                         value={formOwners[s.label] ?? ""}
                         disabled={consultant}
-                        onChange={async (e) => {
-                          if (e.target.value === INVITE_OPTION) return setInviting({ section: s.label });
-                          const r = await api.assignSections(app.id, `frm_${activeFormId}`, { [s.label]: e.target.value || null });
+                        onInvite={() => setInviting({ section: s.label })}
+                        onChoose={async (value) => {
+                          const r = await api.assignSections(app.id, `frm_${activeFormId}`, { [s.label]: value || null });
                           setOwners((prev) => ({ ...prev, [activeFormId]: r.sections }));
                         }}
                       >
@@ -709,7 +709,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                           </option>
                         ))}
                         <InviteOptions list={inviteList} match={(d) => d.section === s.label && (d.formId ?? "").replace(/^frm_/, "") === activeFormId} />
-                      </select>
+                      </InvitePicker>
                     </div>
                   ))}
                 </div>

@@ -113,7 +113,7 @@ describe("award detail", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Documents" }));
     const docs = within(await waitFor(() => card("Documents")));
     expect(docs.getByText("Award letter.pdf")).toBeInTheDocument();
-    expect(docs.getAllByRole("button", { name: "Open" }).length).toBeGreaterThan(0);
+    expect(docs.getAllByRole("button", { name: /^Open the / }).length).toBeGreaterThan(0);
   });
 
   it("explains what blocks closeout and keeps Complete disabled until it clears", async () => {

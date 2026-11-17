@@ -56,7 +56,9 @@ export default function EmailReminder() {
               width: "36px",
               height: "36px",
               borderRadius: "8px",
-              background: "rgba(255,255,255,.18)",
+              // Outlined in the header's own text color: a translucent white plate failed contrast (as .pub-hd .mark).
+              background: "transparent",
+              border: "1.5px solid currentColor",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",

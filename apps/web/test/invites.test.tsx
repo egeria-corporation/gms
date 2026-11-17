@@ -3,7 +3,7 @@
 // someone by email" on outside questions and built-in sections, the dialog and what it promises,
 // waiting invitations masked in the picker, no second email to a waiting address, the one-time
 // note, landing on the draft from the link, and the cowriter's narrower view.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
@@ -31,6 +31,23 @@ function open(path: string, setup?: (services: ReturnType<typeof createMockServi
   return { ...view, store, services, outside: mockOutsideStore(services), invites: mockInvitesStore(services) };
 }
 const NW = `/w/alder-creek/outside/${OUTSIDE_IDS.northwind}`;
+
+describe("the assignee picker's invitation choice (WCAG 3.2.2)", () => {
+  it("does not open the dialog while the keyboard moves through the closed picker; Enter opens it", async () => {
+    open(NW);
+    const q2 = await screen.findByRole("article", { name: /How will you measure success/ });
+    const picker = within(q2).getByRole("combobox", { name: "Who writes question 2" });
+    await within(picker).findByRole("option", { name: "Invite someone by email…" });
+    // Arrowing in a closed select changes its value on Windows and Linux.
+    fireEvent.keyDown(picker, { key: "ArrowDown" });
+    fireEvent.change(picker, { target: { value: "__invite__" } });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(picker).toHaveValue("__invite__");
+    expect(picker).toHaveAccessibleDescription("Press Enter to invite someone by email.");
+    fireEvent.keyDown(picker, { key: "Enter" });
+    expect(await screen.findByRole("dialog", { name: "Invite someone to help write this" })).toBeInTheDocument();
+  });
+});
 
 describe("invite someone into an outside draft", () => {
   it("offers it in the assignee picker, says what happens, sends once and lists the address masked", async () => {

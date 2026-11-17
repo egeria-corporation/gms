@@ -57,7 +57,7 @@ export function PastAwards({ awards, handle }: { awards: PastAward[]; handle: st
               <tr key={`${a.recipient}-${i}`}>
                 <td>{a.year}</td>
                 <td className="b">{a.recipient}</td>
-                <td className="num">{a.amountMinor === null ? <span aria-label="Amount not shown">—</span> : formatMinor(a.amountMinor, a.currency)}</td>
+                <td className="num">{a.amountMinor === null ? <><span aria-hidden="true">—</span><span className="sr">Amount not shown</span></> : formatMinor(a.amountMinor, a.currency)}</td>
                 <td style={{ whiteSpace: "normal" }}>{a.page ? <a href={new URL(a.page, window.location.origin).pathname}>{a.purpose}</a> : a.purpose}</td>
               </tr>
             ))}
@@ -90,7 +90,7 @@ export function Faq({ faq, contactEmail }: { faq: PublicExtras["faq"]; contactEm
 }
 
 /** The people a funder names on its public page. Renders nothing when it names nobody. */
-export function PublicContacts({ handle, name }: { handle: string; name?: string }) {
+export function PublicContacts({ handle }: { handle: string; name?: string }) {
   const q = useLaunchQuery((api) => api.publicContacts(handle), [handle]);
   const contacts = q.data ?? [];
   if (contacts.length === 0) return null;
@@ -102,7 +102,7 @@ export function PublicContacts({ handle, name }: { handle: string; name?: string
       </h2>
       <div className="card">
         <div className="card-b">
-          <dl className="kv" style={{ fontSize: "15px" }} aria-label={name ? `Contacts at ${name}` : "Contacts"}>
+          <dl className="kv" style={{ fontSize: "15px" }}>
             {contacts.map((c) => (
               <Fragment key={`${c.name}|${c.email}`}>
                 <dt>{c.title ?? "Contact"}</dt>

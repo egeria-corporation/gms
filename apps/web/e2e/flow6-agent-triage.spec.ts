@@ -46,7 +46,7 @@ test("agent triage with a human gate", async ({ app: page }) => {
     const pine = table.getByRole("row").filter({ hasText: "Pine Ridge Youth Alliance" });
     await expect(pine).toContainText("Riverbend Triage Agent proposed a decline · awaiting approval");
     await expect(pine).toContainText("Decline proposed");
-    await pine.getByRole("link", { name: "Open", exact: true }).click();
+    await pine.getByRole("link", { name: "Open the approval request" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Approvals" })).toBeVisible();
   });
 

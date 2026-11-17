@@ -144,7 +144,7 @@ function Page({ entry }: { entry: SwitchEntry }) {
             ))}
           </ul>
           {entry.price && (
-            <div className="tbl-wrap" style={{ marginTop: "24px", maxWidth: "760px" }}>
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label="Price, scrollable" style={{ marginTop: "24px", maxWidth: "760px" }}>
               <table className="tbl landing-tbl">
                 <caption className="sr">Price</caption>
                 <thead>

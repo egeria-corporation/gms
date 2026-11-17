@@ -151,7 +151,7 @@ export default function Panel() {
             }
           />
 
-          <section className="card" aria-labelledby="alloc-h" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px", position: "sticky", top: 0, zIndex: 2 }}>
+          <section className="card stick-head" aria-labelledby="alloc-h" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "12px" }}>
             <div className="row" style={{ justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
               <h2 id="alloc-h" style={{ fontSize: "16px" }}>
                 Program headroom

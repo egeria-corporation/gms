@@ -72,7 +72,7 @@ export default function ApplicationsEmpty() {
             <div className="eyebrow" style={{ marginBottom: "12px" }}>
               What happens next
             </div>
-            <div className="stp" aria-label="Setup steps">
+            <div className="stp" role="group" aria-label="Setup steps">
               <Link to={`${base}/programs`} className="s" style={{ textDecoration: "none" }}>
                 <span className="n">1</span>
                 <div>

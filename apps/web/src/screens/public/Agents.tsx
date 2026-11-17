@@ -158,7 +158,7 @@ export default function Agents() {
             <div className="wrap-c" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <h2>Tool reference</h2>
               {reference.status === "ready" ? (
-                <pre style={{ whiteSpace: "pre-wrap", maxHeight: "560px", overflow: "auto" }} tabIndex={0} aria-label="Tool reference from /llms.txt">
+                <pre style={{ whiteSpace: "pre-wrap", maxHeight: "560px", overflow: "auto" }} tabIndex={0} role="region" aria-label="Tool reference from /llms.txt">
                   {reference.text}
                 </pre>
               ) : (

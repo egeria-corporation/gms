@@ -94,7 +94,7 @@ export default function FundPage() {
                       <h3 style={{ fontSize: "18px" }}>{o.title}</h3>
                       <DeadlineBadge opp={o} />
                     </div>
-                    <Link to={`/f/${funder.handle}/o/${o.slug}`} className="btn btn-secondary">
+                    <Link to={`/f/${funder.handle}/o/${o.slug}`} className="btn btn-secondary" aria-label={`Details of ${o.title}`}>
                       Details
                     </Link>
                   </div>

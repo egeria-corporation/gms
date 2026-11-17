@@ -24,7 +24,7 @@ test("funder embeds the apply widget on its own site", async ({ app: page }) => 
     snippet = await panel.getByRole("textbox", { name: "Embed code" }).inputValue();
     expect(snippet).toMatch(/^<iframe [^>]*src="http:\/\/localhost:\d+\/embed\/f\/riverbend\/o\/community-health-2027"/);
     expect(snippet).toContain("<script>");
-    await expect(panel.getByRole("button", { name: "Copy the embed code" })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Copy embed code" })).toBeVisible();
   });
 
   await test.step("on the funder's own site, the widget offers Apply in a new tab", async () => {

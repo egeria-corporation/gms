@@ -282,7 +282,7 @@ export default function Applications() {
           {selected.length > 0 && (
             <div className="bulkbar" role="status">
               <span>{selected.length} selected</span>
-              <span style={{ opacity: ".4" }}>|</span>
+              <span aria-hidden="true" style={{ opacity: ".4" }}>|</span>
               <button type="button" className="btn" onClick={() => setDeclining(true)}>
                 Decline
               </button>
@@ -358,7 +358,7 @@ export default function Applications() {
                                 <button type="button" className="btn btn-sm btn-danger" disabled={decide.state === "saving"} onClick={async () => (await decide.run(proposal, false)) && approvals.reload()}>
                                   Reject
                                 </button>
-                                <Link to={`${base}/approvals`} className="small b">
+                                <Link to={`${base}/approvals`} className="small b" aria-label="Open the approval request">
                                   Open
                                 </Link>
                               </div>

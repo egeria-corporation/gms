@@ -12,7 +12,7 @@ You need a Supabase account, a Cloudflare account (the Workers Paid plan) and Cl
 empty folder, run:
 
 ```bash
-git clone --branch v1.9.0 https://github.com/egeria-corporation/gms.git && cd gms && pnpm install && claude "/deploy-gms"
+git clone --branch v1.10.0 https://github.com/egeria-corporation/gms.git && cd gms && pnpm install && claude "/deploy-gms"
 ```
 
 Claude asks a few questions, stops before anything that costs money or changes DNS, and finishes
@@ -67,6 +67,7 @@ Database tests (pgTAP) need a local Supabase stack: `supabase start`, then `supa
 - [CHANGELOG.md](CHANGELOG.md): releases and upgrade notes
 - [CLAUDE.md](CLAUDE.md) and [AGENTS.md](AGENTS.md): working rules for contributors and coding agents
 - [docs/decisions.md](docs/decisions.md): decisions and why
+- [docs/accessibility.md](docs/accessibility.md): accessibility conformance report (WCAG 2.2 AA, VPAT 2.5 format)
 
 ## License
 

@@ -50,6 +50,18 @@ export class MailerError extends Error {
   }
 }
 
+/**
+ * The HTML part as a whole document: the language (`lang`) lets a screen reader in the mail app
+ * read the message in the right voice, and the title is the subject. Templates build fragments
+ * (paragraphs, headings, lists, links; no images, nothing told by color alone), and every email
+ * carries a plain-text part beside this one. A part that is already a document is left alone.
+ */
+export function emailDocument(html: string, subject: string, lang = "en"): string {
+  if (/^\s*(<!doctype html|<html[\s>])/i.test(html)) return html;
+  const title = subject.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<!doctype html>\n<html lang="${lang}" dir="ltr">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${title}</title>\n</head>\n<body>\n${html}\n</body>\n</html>`;
+}
+
 export class ResendMailer implements Mailer {
   /** Passes `attachments` on to Resend (send-package.ts sends a package only through such a mailer). */
   readonly sendsAttachments = true;
@@ -76,7 +88,7 @@ export class ResendMailer implements Mailer {
         from: email.from,
         to: email.to,
         subject: email.subject,
-        html: email.html,
+        html: emailDocument(email.html, email.subject),
         text: email.text,
         ...(email.replyTo ? { reply_to: email.replyTo } : {}),
         ...(email.headers ? { headers: email.headers } : {}),

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Shared building blocks for live screens. Markup and class names come from the design canvas
 // stylesheet (theme/app.css): .crumbs, .ph, .tabs, .tbl, .empty, .rc, .bnr.
-import { useMemo, useState, type ReactNode } from "react";
+import { Children, cloneElement, isValidElement, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { Link } from "react-router";
 import { ArrowDown, ArrowUp, CircleCheck, CircleDashed, CircleX, Info, RefreshCw, TriangleExclamationPoint, type LucideIcon } from "lucide-react";
 import type { Checklist, FieldProblem } from "../api/types.ts";
 import { ApiError } from "../api/client.ts";
+import { actedRecently, announce } from "../lib/announce.ts";
 
 export interface Crumb {
   label: string;
@@ -262,10 +263,21 @@ export function ErrorBanner({ error, onRetry, title = "That did not work" }: { e
   );
 }
 
+/**
+ * A banner. When it appears because of something the person just did (a save, an upload), its
+ * words are spoken through the page's live region, since a status element that is itself new is
+ * not reliably read (WCAG 4.1.3); the banner's own region is quiet so nothing is said twice.
+ * A banner that is part of the page as it loads is read with the page, not announced.
+ */
 export function Notice({ tone = "info", title, children }: { tone?: "info" | "ok" | "warn" | "neu"; title: string; children?: ReactNode }) {
   const Icon = tone === "ok" ? CircleCheck : tone === "warn" ? TriangleExclamationPoint : Info;
+  const box = useRef<HTMLDivElement>(null);
+  const said = typeof children === "string" ? children : null;
+  useEffect(() => {
+    if (actedRecently()) announce([title, box.current?.querySelector(".d")?.textContent].filter(Boolean).join(". "));
+  }, [title, said]);
   return (
-    <div className={`bnr bnr-${tone}`} role="status">
+    <div ref={box} className={`bnr bnr-${tone}`} role="status" aria-live="off">
       <Icon className="ic" aria-hidden="true" />
       <div>
         <div className="t">{title}</div>
@@ -299,6 +311,29 @@ export function Loading({ label = "Loading" }: { label?: string }) {
 }
 
 /** A labelled form field on the design's `.fld` markup. `children` is the control; give it `id`. */
+/** The ARIA a Field's control carries: what the label's asterisk and the messages below say, in words. */
+type ControlAria = { id?: string; "aria-describedby"?: string; "aria-invalid"?: boolean | "true" | "false"; "aria-required"?: boolean | "true" | "false"; required?: boolean };
+
+/**
+ * Ties the field's control (the child whose id is the label's `htmlFor`) to what the field says
+ * about it: required (the asterisk is only visual), invalid, and the help or error text below it
+ * (WCAG 1.3.1, 3.3.1, 3.3.2). Ids the control already points at are kept, except this field's own
+ * help and error ids, which only point at text that is on the page.
+ */
+function wireControl(children: ReactNode, id: string, { required, help, error }: { required: boolean; help: boolean; error: boolean }): ReactNode {
+  return Children.map(children, (child) => {
+    if (!isValidElement<ControlAria>(child) || child.props.id !== id) return child;
+    const own = [`${id}-help`, `${id}-err`];
+    const kept = (child.props["aria-describedby"] ?? "").split(/\s+/).filter((t) => t && !own.includes(t));
+    const describedBy = [...kept, ...(error ? [`${id}-err`] : help ? [`${id}-help`] : [])].join(" ") || undefined;
+    return cloneElement(child as ReactElement<ControlAria>, {
+      "aria-describedby": describedBy,
+      ...(error ? { "aria-invalid": true } : {}),
+      ...(required && !child.props.required ? { "aria-required": true } : {}),
+    });
+  });
+}
+
 export function Field({ id, label, help, error, required = false, children }: { id: string; label: string; help?: ReactNode; error?: string | null; required?: boolean; children: ReactNode }) {
   return (
     <div className="fld">
@@ -310,7 +345,7 @@ export function Field({ id, label, help, error, required = false, children }: { 
           </span>
         )}
       </label>
-      {children}
+      {wireControl(children, id, { required, help: !!help, error: !!error })}
       {help && !error && (
         <span className="help" id={`${id}-help`}>
           {help}

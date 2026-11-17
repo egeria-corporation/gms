@@ -6,9 +6,9 @@ export function NotFound() {
   return (
     <div className="gms gms-frame" style={{ alignItems: "center", justifyContent: "center" }}>
       <title>Page not found — OpenGrants GMS</title>
-      <div className="empty">
+      <main className="empty">
         <SearchX className="ic" aria-hidden="true" />
-        <h3>Page not found</h3>
+        <h1 className="empty-h">Page not found</h1>
         <p>This page does not exist, or you do not have access to the workspace it belongs to.</p>
         <div className="acts">
           <Link to="/" className="btn btn-primary">
@@ -16,7 +16,7 @@ export function NotFound() {
           </Link>
           <Link to="/workspaces">Switch workspace</Link>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

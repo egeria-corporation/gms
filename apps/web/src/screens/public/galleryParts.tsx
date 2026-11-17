@@ -159,7 +159,7 @@ export function SnapshotPreview({ snapshot }: { snapshot: GallerySnapshot }) {
                 {criteria.length} criteri{criteria.length === 1 ? "on" : "a"}
               </span>
             </div>
-            <div className="tbl-wrap" style={{ border: 0, borderRadius: 0 }}>
+            <div className="tbl-wrap" tabIndex={0} role="region" aria-label={`${r.name} criteria, scrollable`} style={{ border: 0, borderRadius: 0 }}>
               <table className="tbl" aria-label={`${r.name} criteria`}>
                 <thead>
                   <tr>
