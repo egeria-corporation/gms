@@ -70,7 +70,7 @@ function Counts({ m }: { m: SocialPost["metrics"] }) {
   return <span className="small muted">{parts.length ? parts.join(" · ") : tr("reachPanel.noCountsFromZernioYet")}</span>;
 }
 
-export function ReachPanel({ reach, subjectType }: { reach: SocialReach; subjectType: "opportunity" | "award" }) {
+export function ReachPanel({ reach, subjectType }: { reach: SocialReach; subjectType: "opportunity" | "award" | "program" }) {
   const t = reach.totals;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>

@@ -3,6 +3,9 @@
 // workspace's accounts, keeps or drops the share card, and posts now or schedules. Before anything
 // goes out the composer shows the exact post as it will be sent: text, picture, accounts and time.
 // Only the Post button on that preview sends it, once: a retry sends the same Idempotency-Key.
+// "Meet our grantees" (v1.12.0): for a program, the person keeps or drops each grantee's line; the
+// text is written again from the lines kept. A reminder ("Two weeks left") starts the composer
+// from the reminder text; it is posted only by the same click on Post.
 import { useMemo, useRef, useState } from "react";
 import { CalendarClock, CircleCheck, ExternalLink, Eye, ImageIcon, PenLine, Send } from "lucide-react";
 import { lengthCheck, type Platform } from "@gms/social";
@@ -34,6 +37,15 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
   const accounts: SocialAccount[] = settings.accounts;
   const [suggestion, setSuggestion] = useState(0);
   const [text, setText] = useState(draft.suggestions[0]?.text ?? "");
+  // "Meet our grantees": every listed grantee to start with; the text follows the lines kept.
+  const grantees = draft.grantees ?? [];
+  const [kept, setKept] = useState<string[]>(() => grantees.map((g) => g.awardId));
+  const meetText = (ids: string[]) => (draft.parts ? [draft.parts.intro, "", ...grantees.filter((g) => ids.includes(g.awardId)).map((g) => g.line), "", draft.parts.outro].join("\n") : text);
+  const toggleGrantee = (id: string, on: boolean) => {
+    const next = on ? [...kept, id] : kept.filter((x) => x !== id);
+    setKept(next);
+    setText(meetText(next));
+  };
   const [chosen, setChosen] = useState<string[]>(() => accounts.map((a) => a.id));
   const [includeImage, setIncludeImage] = useState(!!draft.imageUrl);
   const [mode, setMode] = useState<"now" | "later">("now");
@@ -105,6 +117,25 @@ export function PostComposer({ open, onClose, draft, settings, onPosted }: { ope
                   <span>{s.label}</span>
                 </label>
               ))}
+            </fieldset>
+          )}
+          {grantees.length > 0 && (
+            <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "6px" }}>
+              <legend className="lbl" style={{ marginBottom: "6px" }}>
+                {t("postComposer.granteesToIntroduce")}
+              </legend>
+              {grantees.map((g) => (
+                <label key={g.awardId} className="cb" htmlFor={`grantee-${g.awardId}`}>
+                  <input type="checkbox" id={`grantee-${g.awardId}`} checked={kept.includes(g.awardId)} onChange={(e) => toggleGrantee(g.awardId, e.target.checked)} />
+                  <span>
+                    {g.name}
+                    {g.tag ? ` · ${t("postComposer.taggedAs", { tag: g.tag })}` : ""}
+                  </span>
+                </label>
+              ))}
+              <p className="small muted" style={{ margin: 0 }}>
+                {t("postComposer.onlyListedGrantees")}
+              </p>
             </fieldset>
           )}
           <div>

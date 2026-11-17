@@ -3,6 +3,7 @@
 // Award sharing (v1.9.0), one scenario on two backends: the web HTTP client (api/awardSharing.ts)
 // against the real API Worker in-process, and the in-browser mock. The same assertions run on both,
 // on the fields the screens read, so the e2e flow in mock mode proves what a real install does.
+// v1.12.0: the federal share statement, the press release's credit, the carousel and the pages to tag.
 import { beforeAll, describe, expect, it } from "vitest";
 import { ApiError } from "../src/api/client.ts";
 import { createHttpAwardSharingApi, type AwardSharingApi } from "../src/api/awardSharing.ts";
@@ -117,6 +118,47 @@ describe.each([
     expect((await b.funder.settings()).counts).toMatchObject({ listed: 0, confidential: 1 });
     await b.funder.setConfidential(b.funderAwardId, false);
     expect((await b.anon.funderAwards("riverbend")).awards).toHaveLength(1);
+  });
+
+  it("adds the federal statement only with both numbers, credits the funder, and tags only with consent (v1.12.0)", async () => {
+    const statement = "This project is supported with federal funds as part of a financial assistance award totaling $80,000, with 62.5 percent of the project's total costs funded with federal money. The contents are those of the authors and do not necessarily represent the official views of, nor an endorsement by, the U.S. Government.";
+    let panel = await b.funder.setFederalFunding(b.funderAwardId, { federallyFunded: true, amount: "80000" });
+    expect(panel.federal).toMatchObject({ funded: true, amount: "80000.00", percent: null, statement: null, canChange: true });
+    expect(panel.kit!.federalStatement).toBeNull();
+    panel = await b.funder.setFederalFunding(b.funderAwardId, { federallyFunded: true, percent: 62.5 });
+    expect(panel.federal.statement).toBe(statement);
+    const g = await b.grantee.sharing(b.granteeAwardId, "grantee");
+    expect(g.federal).toMatchObject({ funded: true, statement, canChange: false });
+    expect(g.kit!.federalStatement).toBe(statement);
+    expect(g.kit!.pressRelease).toContain(statement);
+    expect(await status(b.grantee.setFederalFunding(b.granteeAwardId, { federallyFunded: false }))).toBe(403);
+
+    const kit = (await b.funder.sharing(b.funderAwardId, "funder")).kit!;
+    expect(kit.creditLine).toBe("Funded by Riverbend Community Foundation");
+    expect(kit.pressRelease.split("\n\n").slice(0, 2)).toEqual(["Riverbend Community Foundation awards a grant to Alder Creek Family Services", "FOR IMMEDIATE RELEASE"]);
+    expect(kit.pressRelease).toContain("The project is funded by Riverbend Community Foundation.");
+    expect(kit.pressRelease).not.toMatch(/sponsor/i);
+    // Cover, what it funds, the grantee, the amount, the funder, the federal share, thanks, learn more.
+    expect(kit.carousel.pages).toHaveLength(8);
+    expect(kit.carousel.pages[5]).toEqual({ heading: "The federal share of costs", alt: `Slide 6 of 8: The federal share of costs. ${statement}` });
+    const pdf = new TextDecoder("latin1").decode(new Uint8Array(await (await b.funder.carouselPdf(kit.carousel.path)).arrayBuffer()));
+    expect([...pdf.matchAll(/\/Type \/Page\b[\s\S]*?\/MediaBox \[ ?0 0 1080 1350 ?\]/g)]).toHaveLength(8);
+    expect(kit.portrait).toMatchObject({ funder: "Riverbend Community Foundation", recipient: "Alder Creek Family Services", amount: { amount: "150000.00", currency: "USD" } });
+
+    // The funder chooses "supported by"; the grantee shares its page, then agrees to be tagged.
+    expect(await b.funder.updateShareProfile({ creditWording: "supported_by" })).toMatchObject({ creditWording: "supported_by", canChange: true });
+    expect((await b.funder.sharing(b.funderAwardId, "funder")).kit!.pressRelease).toContain("The project is supported by Riverbend Community Foundation.");
+    expect(await b.grantee.updateShareProfile({ pageUrl: "https://linkedin.com/company/alder-creek-family-services" })).toMatchObject({ pageUrl: "https://www.linkedin.com/company/alder-creek-family-services", tagConsent: false });
+    expect((await b.funder.sharing(b.funderAwardId, "funder")).kit!.tags.grantee).toBeNull();
+    await b.grantee.updateShareProfile({ tagConsent: true });
+    expect((await b.funder.sharing(b.funderAwardId, "funder")).kit!.tags.grantee).toEqual({ name: "Alder Creek Family Services", url: "https://www.linkedin.com/company/alder-creek-family-services", platform: "linkedin", handle: "@alder-creek-family-services" });
+    expect(await status(b.grantee.updateShareProfile({ pageUrl: "https://linkedin.com/in/a-person" }))).toBe(422);
+    expect(await status(b.grantee.updateShareProfile({ creditWording: "supported_by" }))).toBe(422);
+
+    // Unmarking clears the numbers.
+    panel = await b.funder.setFederalFunding(b.funderAwardId, { federallyFunded: false });
+    expect(panel.federal).toMatchObject({ funded: false, amount: null, percent: null, source: null, statement: null });
+    await b.funder.updateShareProfile({ creditWording: "funded_by" });
   });
 
   it("keeps each side to its own switch", async () => {
