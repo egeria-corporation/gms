@@ -4,7 +4,7 @@
 suffix from before the address moved on 2026-11-11, and the API Worker is the `[env.staging]` block
 of `apps/api/wrangler.toml`. There is no separate staging environment: every deploy reaches real users.
 
-**Last deployed:** v1.8.0 on 2026-11-17, with database migrations 0001–0036.
+**Last deployed:** v1.9.0 on 2026-11-17, with database migrations 0001–0042.
 
 | Piece | Where |
 |---|---|
