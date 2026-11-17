@@ -3,6 +3,104 @@
 Each release has a section headed `## vX.Y.Z`. The deploy tool shows the matching section before an
 upgrade, and the release workflow uses it as the GitHub Release notes.
 
+## v1.13.0 — 2026-11-17
+
+### Added
+
+- **Live co-editing with presence** in the application editor and an outside application's
+  questions: who is in the draft now (initials at the top), a "{name} is editing" chip at the
+  section and question each person is in, the question someone types in read-only for the others
+  ("Being edited by {name}") until they leave it, stop typing for a minute or leave the draft, and
+  teammates' saved answers within seconds without reloading. Where both changed the same question,
+  "{name} changed this" keeps your words and shows theirs on request. Without the live connection
+  the editors work as before and say live updates are paused.
+- **QuickBooks Online sync** (Settings › Accounting), through Composio and **record-keeping only**:
+  a workspace admin connects QuickBooks (accounting scope only); admins and finance staff choose once
+  the expense account, the bank account in QuickBooks' chart of accounts that payments leave from, a
+  class or location per program, and how grantees become vendors (matched by name, or created with
+  the organization's name only), then turn the sync on. From then on each payment recorded in the
+  GMS (paid elsewhere, or disbursed through Passport) becomes one QuickBooks expense, once. Edits and
+  voids afterward are marked "needs attention"; the GMS never changes the books and never moves
+  money. A read-only reconciliation view sets the GMS's payments next to their QuickBooks entries,
+  with "Compare with QuickBooks", and settled payments show "In QuickBooks" in the Payments center
+  and on each award.
+- **Growth measures for OpenGrants' operators** at `/operator/measures`: nine numbers from the GMS's
+  own database over the last 30 days, each with its 90-day target and a status in words (funders
+  with an open call, active applicant workspaces, new applicant workspaces per published call,
+  funders who joined from an applicant's link, funders who imported their history and opened a call
+  within 14 days, awards shared with the share kit and their clicks, organic visits, invited
+  teammates who join, deals lost by reason). Counts only: no person or organization is named, and no
+  third-party tracker. Record a deal lost by its stated reason, from a fixed list (only the reason
+  and the day are kept). **Google Search Console** for operators, read only through Composio:
+  connect, choose the GMS's property, and see clicks and impressions for the GMS's public pages by
+  kind of page; it feeds organic visits.
+- **Share-kit downloads count as uses of the kit:** a person's carousel download, and the press
+  release copied or the portrait card saved, are counted (the award, the part and the day, never
+  who) and included in the operators' "awards shared with the share kit".
+- API: `POST /gms/presence/passes`; `/gms/accounting`, `/gms/accounting/options`,
+  `/gms/accounting/settings`, `/gms/accounting/vendors`, `/gms/accounting/entries`,
+  `/gms/accounting/entries/{id}/handled` and `…/retry`, and `POST`/`DELETE /gms/connectors/quickbooks`;
+  `/gms/operator/me`, `/gms/operator/measures`, `/gms/operator/lost-deals` and
+  `/gms/operator/search-console/*`; `POST /gms/awards/{id}/sharing/uses` and
+  `POST /gms/my/awards/{id}/sharing/uses` (`docs/api-surface.md`). MCP: `get_accounting_sync`, read
+  only. The jobs Worker posts recorded payments to QuickBooks every 15 minutes (`accounting-sync`)
+  and removes expired live-channel passes nightly at 02:45 UTC (`presence-sweep`).
+
+### Changed
+
+- The editors' live channel is private (Supabase Realtime Authorization): only the applicant's team
+  and the consultants or cowriters a draft names join it; funders and reviewers never see an
+  applicant's presence. It carries who is where and "saved" notices, never an answer. The editor's
+  old public presence channel is removed, and a test keeps every Realtime channel private.
+- An editor leaves a draft's live channel as soon as an API call for that draft is refused (403 or
+  404), instead of waiting for Realtime's next check.
+- `docs/sso.md` says why single sign-on is SAML 2.0 only: Supabase's enterprise SSO does not offer
+  OIDC, and its custom OIDC providers cannot be held to a workspace's domain.
+- Against v1.12.0 the first page shrinks by 0.2 KB gzipped and everything an English visitor can
+  download grows by 25.4 KB (the new screens, the presence pieces and their words, each loaded when
+  shown). The API Worker is 6,301 KiB (1,358 KiB gzipped), the jobs Worker 3,288 KiB (710 KiB) and
+  the front Worker 9,047 KiB (3,199 KiB) with the web app it serves.
+
+### Fixed
+
+- **Single sign-on and email addresses (security).** A SAML identity provider can assert any email
+  address. A single sign-on session is now accepted only when its address's domain is an active
+  domain registered for the identity provider it came through; any other is refused on every route
+  (`sso_domain_mismatch`, in the person's language, and the sign-in page offers to sign out). Email
+  entries of `GALLERY_MODERATORS`, `DIRECTORY_MODERATORS` and `OPERATORS` never match a single
+  sign-on session (user ids always do), and Sign in with Passport never finds, adopts or links an
+  account made through single sign-on by its address (migration `0053`). No provider, domain or SSO
+  account existed in production, so nothing was exposed.
+- The co-editing database checks no longer fail where Supabase runs without Realtime: they skip the
+  Realtime half with a reason.
+
+### Upgrade notes
+
+- **Run migrations `0050` to `0054`, in order, before deploying the API:** `0050_co_editing`,
+  `0051_accounting`, `0052_operator_measures`, `0053_sso_email_lookups`, `0054_share_kit_uses`. They
+  add tables, policies and functions, widen one check (`connector_accounts` accepts `quickbooks`) and
+  replace three functions with the same signatures; no existing row is changed or removed.
+- **Then, in Supabase › Realtime › Settings, turn off "Allow public access"** (keep Realtime
+  enabled), so only the drafts' private channels can be joined. Optional: a JWT expiry of 15
+  minutes or less (Authentication › Sessions), so a removed person's open channel is refused sooner.
+- **Register no SAML identity provider before v1.13.0 is deployed** (`docs/sso.md`).
+- **New secrets, all optional; each feature stays hidden until its own are set** (Wrangler secrets,
+  never `[vars]` entries):
+  - `COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID` on the **API and jobs Workers**, with `COMPOSIO_API_KEY` on
+    both: until set, Settings › Accounting, the "In QuickBooks" status and the `/gms/accounting`
+    routes stay hidden (503 `connector_not_configured`) and nothing is sent to QuickBooks. Its
+    Composio auth config is on the `quickbooks` toolkit, on your own Intuit app, with the scope
+    `com.intuit.quickbooks.accounting` only (`docs/accounting.md`);
+  - `OPERATORS` on the API Worker (user ids or email addresses): until set, `GALLERY_MODERATORS`
+    are the operators who read `/operator/measures`;
+  - `COMPOSIO_SEARCH_CONSOLE_AUTH_CONFIG_ID` on the API Worker: until set, the measures screen hides
+    Google Search Console and shows organic visits as not set up. Its auth config is on the
+    `google_search_console` toolkit with `webmasters.readonly` only (`docs/measures.md`).
+  - Live co-editing needs no secret: without Realtime or the 0050 policies the editors say live
+    updates are paused and work as before.
+- Deploy the API and jobs Workers together, then rebuild and deploy the web app, then the front
+  Worker with `--redirect-from`, as in `docs/staging.md`.
+
 ## v1.12.0 — 2026-11-17
 
 ### Added
