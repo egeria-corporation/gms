@@ -7,6 +7,7 @@ import { ApiError } from "../lib/errors.ts";
 import { apiId } from "../lib/ids.ts";
 import { unprocessable } from "../lib/input.ts";
 import { audit, authorize, required, type ServiceContext } from "./context.ts";
+import { hasOtherLanguage, personPublishesTranslations } from "./opportunities.ts";
 import type { PageRequest } from "./programs.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -212,6 +213,7 @@ export async function publishFormVersion(ctx: ServiceContext, id: string) {
   const ws = await authorize(ctx, { scope: "forms:write", kind: "funder" });
   const current = required(latestOf(await ctx.repos.table("forms").find({ id, workspace_id: ws.id }, { orderBy: "version" })), "Form");
   if (current.published_at) throw new ApiError(409, "form_published", `Version ${current.version} is already published`);
+  if (hasOtherLanguage(translationsOf(current))) personPublishesTranslations(ctx, "Publishing a form in two languages");
   let published: FormDefinition;
   try {
     published = publishForm(toDefinition(current), ctx.now());

@@ -6,6 +6,7 @@ import { isPlainObject, validateOpportunityTranslations, type OpportunityTransla
 import { ProjectionError, projectOpportunity, type FunderRow, type OpportunityBase, type OpportunityRow } from "@gms/protocol";
 import { parseRules, type Rule } from "@gms/rules";
 import { z } from "zod";
+import { forbidden } from "../auth/verify.ts";
 import { apiId } from "../lib/ids.ts";
 import { unprocessable } from "../lib/input.ts";
 import { audit, authorize, changeStatus, guardWrite, required, type ServiceContext } from "./context.ts";
@@ -82,6 +83,20 @@ export const opportunityTranslationsOf = (o: Pick<Opp, "custom_fields">): Opport
   const value = isPlainObject(f) ? f.value : undefined;
   return isPlainObject(value) ? (value as OpportunityTranslations) : null;
 };
+
+/** Whether translations hold any text in a language besides the funder's own. */
+export const hasOtherLanguage = (t: unknown): boolean => isPlainObject(t) && Object.entries(t).some(([k, v]) => k !== "source" && isPlainObject(v) && Object.values(v).some((x) => x !== undefined && x !== null && !(isPlainObject(x) && !Object.keys(x).length)));
+
+/**
+ * Text in a second language reaches the public only when a signed-in person puts it there: an
+ * agent may ask the assistant for drafts (which saves nothing), but publishing a call or a form
+ * that carries another language, or changing the other language of a call that is already public,
+ * is a person's, never an agent's or an API client's (403 human_only). One constant to relax.
+ */
+export const TRANSLATIONS_PUBLISHED_BY_A_PERSON = true;
+export function personPublishesTranslations(ctx: Pick<ServiceContext, "actor">, what: string): void {
+  if (TRANSLATIONS_PUBLISHED_BY_A_PERSON && ctx.actor.kind !== "user") throw forbidden("human_only", `${what} is a human gate: it must be done by a signed-in person in the GMS, never by an agent or API client`);
+}
 
 /** The labels of an opportunity's eligibility rules, each once: the texts a funder translates. */
 export function eligibilityLabelsOf(rules: unknown): string[] {
@@ -247,6 +262,8 @@ export async function createOpportunity(ctx: ServiceContext, input: z.output<typ
 export async function updateOpportunity(ctx: ServiceContext, id: string, input: z.output<typeof opportunityPatch>) {
   const ws = await authorize(ctx, { scope: "opportunities:write", kind: "funder" });
   const current = required(await ctx.repos.table("opportunities").one({ id, workspace_id: ws.id }), "Opportunity");
+  // A public call's other language is public as soon as it is saved.
+  if (current.published_at && input.translations !== undefined && (hasOtherLanguage(input.translations) || hasOtherLanguage(opportunityTranslationsOf(current)))) personPublishesTranslations(ctx, "Changing the other language of a published call");
   if (input.eligibilityRules !== undefined) assertRules(input.eligibilityRules);
   assertNoTranslationsField(input.customFields);
   await assertProgram(ctx, ws.id, input.programId);
@@ -278,6 +295,7 @@ export async function previewOpportunity(ctx: ServiceContext, id: string) {
 export async function publishOpportunity(ctx: ServiceContext, id: string, input: z.output<typeof publishInput> = {}) {
   const ws = await authorize(ctx, { scope: "opportunities:write", kind: "funder" });
   const opp = required(await ctx.repos.table("opportunities").one({ id, workspace_id: ws.id }), "Opportunity");
+  if (hasOtherLanguage(opportunityTranslationsOf(opp))) personPublishesTranslations(ctx, "Publishing a call in two languages");
   const funder = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
   const to = input.status ?? "open";
   const at = ctx.now().toISOString();
