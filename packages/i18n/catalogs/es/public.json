@@ -71,6 +71,7 @@
   "applicantOnboarding.account": "Cuenta: {email}",
   "applicantOnboarding.welcome": "Le damos la bienvenida, {displayName}",
   "applicantOnboarding.setUpYourOrganization": "Configure su organización",
+  "applicantOnboarding.joiningThrough": "Se está uniendo a través de {name}.",
   "applicantOnboarding.linkYourPassportRecordOr": "Vincule su registro de Passport o configure su organización con algunos datos propios. De cualquier forma podrá presentar solicitudes.",
   "applicantOnboarding.tellUsAboutYourOrganization": "Cuéntenos sobre su organización y podrá empezar a presentar solicitudes.",
   "applicantOnboarding.onboardingSteps": "Pasos de configuración",

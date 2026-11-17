@@ -17,6 +17,7 @@ import { slugify } from "../../lib/format.ts";
 import { safeNext } from "../../lib/passportSignIn.ts";
 import { ErrorBanner, errorMessage, Loading } from "../../components/ui.tsx";
 import { ConnectApps, InviteTeammates } from "./onboardingExtras.tsx";
+import { pendingReferral } from "../../api/loops.ts";
 
 import { translator } from "../../i18n/index.tsx";
 import { readinessWords } from "../../lib/readinessText.ts";
@@ -75,6 +76,11 @@ export default function ApplicantOnboarding() {
   const startWithEmail = params.get("start") === "email";
   const presetName = (params.get("name") ?? "").slice(0, 200);
   const returnNext = safeNext(params.get("next"));
+  // Arriving from an intermediary's onboarding link (/join/{token}): name it while the person sets up.
+  const [joiningThrough] = useState(() => {
+    const r = pendingReferral();
+    return r?.source === "onboarding" && r.name ? r.name : null;
+  });
 
   const memberships = meState.status === "ready" ? meState.me.workspaces.filter((w) => w.kind === "applicant") : [];
   const workspace = memberships.find((w) => w.handle === linkedHandle) ?? memberships[0] ?? null;
@@ -207,6 +213,7 @@ export default function ApplicantOnboarding() {
               </div>
             </div>
           </div>
+          {joiningThrough && <p className="notice">{t("applicantOnboarding.joiningThrough", { name: joiningThrough })}</p>}
 
           <div className="card" style={{ padding: "16px 24px" }}>
             <ol className="stp" aria-label={t("applicantOnboarding.onboardingSteps")} style={{ flexWrap: "wrap", rowGap: "8px" }}>

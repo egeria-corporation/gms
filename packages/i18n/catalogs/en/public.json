@@ -71,6 +71,7 @@
   "applicantOnboarding.account": "Account: {email}",
   "applicantOnboarding.welcome": "Welcome, {displayName}",
   "applicantOnboarding.setUpYourOrganization": "Set up your organization",
+  "applicantOnboarding.joiningThrough": "You’re joining through {name}.",
   "applicantOnboarding.linkYourPassportRecordOr": "Link your Passport record, or set up with a few details of your own. Either way you can apply.",
   "applicantOnboarding.tellUsAboutYourOrganization": "Tell us about your organization and you are ready to apply.",
   "applicantOnboarding.onboardingSteps": "Onboarding steps",

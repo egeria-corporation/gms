@@ -161,6 +161,33 @@ describe("intermediaries", () => {
   });
 });
 
+describe("joining through an intermediary", () => {
+  it("names the intermediary in the applicant sign-up when the person came from its onboarding link", async () => {
+    const services = createMockServices({ session: demoSession() });
+    const store = mockLoopsStore(services);
+    store.partners["w1"] = { name: "Riverbend Community Foundation", handle: "riverbend", funds: ["River Health Fund", "Youth Arts Fund"] };
+    store.links["w1"] = { token: "jointoken00000000001", logo: null, joined: 0, createdAt: "2026-11-16T10:00:00Z" };
+    const join = open("/join/jointoken00000000001", services);
+    await screen.findByRole("heading", { level: 1, name: "Riverbend Community Foundation invites you to join" });
+    await userEvent.click(screen.getByRole("button", { name: "Set up my organization" }));
+    expect(await screen.findByText("You’re joining through Riverbend Community Foundation.")).toBeInTheDocument();
+    await settled();
+    expect(await seriousViolations()).toEqual([]);
+    join.unmount();
+  });
+
+  it("says nothing of the kind without such a link, or for a funder's invitation", async () => {
+    const plain = open("/onboarding/applicant");
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByText(/joining through/)).not.toBeInTheDocument();
+    plain.unmount();
+    window.localStorage.setItem("gms.referral", JSON.stringify({ source: "invite", token: "invitetoken000000001", name: "Northwind Fund", at: Date.now() }));
+    open("/onboarding/applicant");
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.queryByText(/joining through/)).not.toBeInTheDocument();
+  });
+});
+
 describe("the reusable profile", () => {
   it("tells an applicant every funder here sees their Passport record, and nothing else", async () => {
     open("/w/alder-creek");
