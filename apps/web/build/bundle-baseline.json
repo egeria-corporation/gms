@@ -1,5 +1,5 @@
 {
-  "about": "Gzipped bytes of the built web app before internationalization (commit 03bb798, default build: mock mode), measured by build/bundle-size.ts. test/bundle-size.test.ts holds the English bundle's growth from i18n under 15 KB. Re-measure only when a change that is not i18n moves these numbers, and say so in the commit.",
-  "initial": 254423,
-  "total": 913912
+  "about": "Gzipped bytes of the built web app before internationalization (commit 03bb798, default build: mock mode), measured by build/bundle-size.ts, plus what later features that are not i18n added (v1.12.0 award kit: +1,324 initial, +16,692 total, measured against v1.11.0 6c5d633). test/bundle-size.test.ts holds the English bundle's growth from i18n under its budgets. Re-measure only when a change that is not i18n moves these numbers, and say so in the commit.",
+  "initial": 255747,
+  "total": 930604
 }
