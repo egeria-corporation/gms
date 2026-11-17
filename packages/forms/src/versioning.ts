@@ -5,6 +5,7 @@ import { validateMappings } from "./mapping.ts";
 import { clone, formatPointer, isPlainObject } from "./pointer.ts";
 import { computeResponseStatus } from "./response.ts";
 import { checkSchemaSubset, resolveRef } from "./schema-subset.ts";
+import { unreviewedDrafts, validateTranslations } from "./translations.ts";
 import type { DefinitionError, FormDefinition, FormSchema, JsonObject, Provenance, ResponseStatus, ValidationError } from "./types.ts";
 import { validateUiSchema } from "./ui-schema.ts";
 import { validateResponse } from "./validate.ts";
@@ -18,13 +19,14 @@ export class FormDefinitionError extends Error {
   }
 }
 
-/** Everything checked at save time: schema subset, UI schema, mappings. */
-export function validateFormDefinition(form: Pick<FormDefinition, "jsonSchema" | "uiSchema" | "mappingFromCommonGrants" | "mappingToCommonGrants">): DefinitionError[] {
+/** Everything checked at save time: schema subset, UI schema, mappings, the shape of the translations. */
+export function validateFormDefinition(form: Pick<FormDefinition, "jsonSchema" | "uiSchema" | "mappingFromCommonGrants" | "mappingToCommonGrants" | "translations">): DefinitionError[] {
   const schemaErrors = checkSchemaSubset(form.jsonSchema).map((e) => ({ ...e, path: `jsonSchema${e.path.replace(/^#/, "")}` }));
   if (schemaErrors.length) return schemaErrors;
   return [
     ...validateUiSchema(form.uiSchema, form.jsonSchema).map((e) => ({ ...e, path: `uiSchema${e.path.replace(/^#/, "")}` })),
     ...validateMappings(form),
+    ...validateTranslations(form.translations),
   ];
 }
 
@@ -37,14 +39,22 @@ export function assertEditable(form: Pick<FormDefinition, "id" | "version" | "pu
   }
 }
 
+/**
+ * Publishes a draft. Its translations are published with it; one the assistant drafted must have
+ * been reviewed by a person first (a stale one is kept and flagged, and readers get the source text).
+ */
 export function publishForm<T extends FormDefinition>(form: T, now: Date = new Date()): T {
   assertEditable(form);
-  const errors = validateFormDefinition(form);
+  const errors = [...validateFormDefinition(form), ...unreviewedDrafts(form)];
   if (errors.length) throw new FormDefinitionError(`form ${form.id} v${form.version} cannot be published`, errors);
   return { ...clone(form), publishedAt: now.toISOString() };
 }
 
-/** The editable draft that follows a published version. */
+/**
+ * The editable draft that follows a published version. Translations come along as they are: each
+ * keeps the source text it was made from, so one whose source the new draft changes is flagged as
+ * needing an update (`translationStatus`) and the others carry over untouched.
+ */
 export function nextDraft<T extends FormDefinition>(published: T): T {
   if (!isPublished(published)) throw new FormDefinitionError(`form ${published.id} v${published.version} is still a draft; edit it directly`);
   return { ...clone(published), version: published.version + 1, publishedAt: null, supersedesFormVersion: published.version };
