@@ -102,6 +102,10 @@ describe("form", () => {
     expect(cg.customFields?.translations).toMatchObject({ name: "translations", fieldType: "object", value: translations });
     expect(projectForm({ ...loiForm, translations: {} }).customFields?.translations).toBeUndefined();
     expect(projectForm({ ...loiForm, translations: { source: "en" } }).customFields?.translations).toBeUndefined();
+    // A form the funder wrote in Spanish says so, even with no other language yet.
+    const spanishSource = projectForm({ ...loiForm, translations: { source: "es" } });
+    expect(FormBaseSchema.safeParse(spanishSource).success).toBe(true);
+    expect(spanishSource.customFields?.translations).toMatchObject({ name: "translations", value: { source: "es" } });
   });
 
   it("rejects a mapping leaf that is not a mapping function", () => {

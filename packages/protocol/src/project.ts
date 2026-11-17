@@ -99,7 +99,11 @@ const TRANSLATION_LANGUAGES = new Set(["en", "es"]);
  * and the other languages travel here only (absent when there are none).
  */
 function translationsField(value: unknown): CustomField | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value) || !Object.keys(value).some((k) => TRANSLATION_LANGUAGES.has(k))) return undefined;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  // A form written in Spanish says so even before another language is added: the canonical fields
+  // are then in Spanish, and a reader of the record would otherwise take them for English.
+  const source = (value as { source?: unknown }).source;
+  if (!Object.keys(value).some((k) => TRANSLATION_LANGUAGES.has(k)) && !(typeof source === "string" && source !== "en" && TRANSLATION_LANGUAGES.has(source))) return undefined;
   return { name: "translations", fieldType: "object", value, description: "The funder's text in other languages, by language code; each text keeps the source it translates. Canonical fields are in `source` (English when absent)." };
 }
 
