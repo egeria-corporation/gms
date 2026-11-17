@@ -1446,6 +1446,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/awards/{id}/federal-funding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Mark an award federally funded, with the federal amount and percentage (and, optionally, the agency); or unmark it. Funder admins and program officers, signed in (403 `human_only` for tokens). The statement appears in the kit only once both numbers are entered. */
+        put: operations["AwardKitRoutes_setFederalFunding"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/awards/{id}/invitation/resend": {
         parameters: {
             query?: never;
@@ -1560,6 +1577,23 @@ export interface paths {
         };
         /** @description The funder's "Share this award" panel: whether the award is public and why not, and the share kit while it is. */
         get: operations["AwardSharingRoutes_funderSharing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/awards/{id}/sharing/carousel.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The carousel PDF for a public award, from the funder's side. 409 `not_public` for an award that is not listed publicly. */
+        get: operations["AwardKitRoutes_funderCarousel"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4010,6 +4044,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/my/awards/{id}/sharing/carousel.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The carousel PDF for a public award, from the grantee's side. */
+        get: operations["AwardKitRoutes_granteeCarousel"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/my/awards/{id}/signatures": {
         parameters: {
             query?: never;
@@ -6145,6 +6196,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/share-kit/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The workspace's share-kit settings: its social page, consent to be tagged, and a funder's credit wording and description. Any staff member who reads awards. */
+        get: operations["AwardKitRoutes_shareKitProfile"];
+        /** @description Change the share-kit settings. A workspace admin, signed in (403 `human_only` for tokens). 422 `page_url_invalid`, `consent_needs_page`, `funder_only_setting`. */
+        put: operations["AwardKitRoutes_updateShareKitProfile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/social": {
         parameters: {
             query?: never;
@@ -6186,7 +6255,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The composer's starting text, link and share card for an opportunity or an award. A read: agents may use it to help write. */
+        /** @description The composer's starting text, link and share card for an opportunity, an award or (v1.12.0, "Meet our grantees") a funder's program. A read: agents may use it to help write. */
         get: operations["Social_compose"];
         put?: never;
         post?: never;
@@ -6259,6 +6328,23 @@ export interface paths {
         put?: never;
         /** @description The exact post as it will be sent, each platform's length, and a token for Post. A signed-in admin or editor only. 409 `not_shareable`; 422 `account_not_connected`. */
         post: operations["Social_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/social/reminders/{id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Dismiss a call's "Two weeks left" prompt, for the workspace. A funder admin, signed in (403 `human_only` for tokens). 404 when social posting is not set up. */
+        post: operations["SocialReminders_dismissReminder"];
         delete?: never;
         options?: never;
         head?: never;
@@ -12809,6 +12895,22 @@ export interface components {
             at: string;
             href: string | null;
         };
+        "Models.AwardFederalFunding": {
+            funded: boolean;
+            /** @description Federal dollars, e.g. `80000.00`. */
+            amount: string | null;
+            /**
+             * Format: double
+             * @description The federal share of the project's total costs, in percent (above 0, at most 100, two decimals). Never computed.
+             */
+            percent: number | null;
+            /** @description The federal agency, as the funder named it. */
+            source: string | null;
+            /** @description The statement of the federal share of costs, in the request's language; null until both the amount and the percentage are entered. */
+            statement: string | null;
+            /** @description Funder admins and program officers, signed in. */
+            canChange: boolean;
+        };
         "Models.AwardFromApplicationRequest": {
             applicationId: components["schemas"]["Models.GmsId"];
             /** Format: int64 */
@@ -12907,6 +13009,38 @@ export interface components {
         "Models.AwardInvitationTokenInput": {
             token: string;
         };
+        /** @description The kit's extras (v1.12.0), built from the award's public fields and what the funder entered for them. */
+        "Models.AwardKitExtras": {
+            /** @description "Funded by {Funder}" or "Supported by {Funder}", the funder's choice. */
+            creditLine: string;
+            /** @description To edit before sending: bracketed parts are for the person to fill in. */
+            pressRelease: string;
+            /** @description The statement of the federal share of costs, or null until the funder entered both numbers. */
+            federalStatement: string | null;
+            carousel: {
+                /** @description 6 to 10 pages of 1080 × 1350, in order. */
+                pages: components["schemas"]["Models.CarouselPageInfo"][];
+                /** @description Download it here (signed in). */
+                path: string;
+                fileName: string;
+            };
+            /** @description What the 1080 × 1350 portrait card shows. `amount` is null when the funder hides amounts; the panel hides it until asked. */
+            portrait: {
+                funder: string;
+                recipient: string;
+                program: string | null;
+                purpose: string;
+                /** Format: int32 */
+                year: number;
+                amount: components["schemas"]["CommonGrants.Fields.Money"] | null;
+                verified: boolean;
+            };
+            /** @description The other side's page, only when that side gave the link and agreed to be tagged. */
+            tags: {
+                funder: components["schemas"]["Models.SocialTag"] | null;
+                grantee: components["schemas"]["Models.SocialTag"] | null;
+            };
+        };
         "Models.AwardListingSettings": {
             /** @description "List awards on my public page". Off by default. */
             listAwards: boolean;
@@ -12963,8 +13097,37 @@ export interface components {
             status: components["schemas"]["Models.RequirementStatus"];
             releasesTrancheId: (string & components["schemas"]["Models.PrefixedId"]) | null;
         };
-        /** @description Ready-to-edit posts and the links that go with them. Nothing is posted from the GMS. */
+        /** @description Ready-to-edit posts and the links that go with them, and (v1.12.0) the extras in award-kit.tsp. Nothing is posted from the GMS. */
         "Models.AwardShareKit": {
+            /** @description "Funded by {Funder}" or "Supported by {Funder}", the funder's choice. */
+            creditLine: string;
+            /** @description To edit before sending: bracketed parts are for the person to fill in. */
+            pressRelease: string;
+            /** @description The statement of the federal share of costs, or null until the funder entered both numbers. */
+            federalStatement: string | null;
+            carousel: {
+                /** @description 6 to 10 pages of 1080 × 1350, in order. */
+                pages: components["schemas"]["Models.CarouselPageInfo"][];
+                /** @description Download it here (signed in). */
+                path: string;
+                fileName: string;
+            };
+            /** @description What the 1080 × 1350 portrait card shows. `amount` is null when the funder hides amounts; the panel hides it until asked. */
+            portrait: {
+                funder: string;
+                recipient: string;
+                program: string | null;
+                purpose: string;
+                /** Format: int32 */
+                year: number;
+                amount: components["schemas"]["CommonGrants.Fields.Money"] | null;
+                verified: boolean;
+            };
+            /** @description The other side's page, only when that side gave the link and agreed to be tagged. */
+            tags: {
+                funder: components["schemas"]["Models.SocialTag"] | null;
+                grantee: components["schemas"]["Models.SocialTag"] | null;
+            };
             posts: {
                 /** @description LinkedIn length. */
                 linkedin: string;
@@ -13016,6 +13179,8 @@ export interface components {
             awardsPage: string | null;
             /** @description Null while the award is not public. */
             kit: components["schemas"]["Models.AwardShareKit"] | null;
+            /** @description The federal share (v1.12.0), shown to both sides; only funder staff may change it. */
+            federal: components["schemas"]["Models.AwardFederalFunding"];
         };
         /** @enum {string} */
         "Models.AwardStatus": "offered" | "accepted" | "active" | "suspended" | "completed" | "cancelled";
@@ -13333,6 +13498,11 @@ export interface components {
             createdAt: string | null;
             /** Format: date-time */
             rotatedAt: string | null;
+        };
+        "Models.CarouselPageInfo": {
+            heading: string;
+            /** @description What a screen reader user is told the page shows. */
+            alt: string;
         };
         /** @description Dynamic client registration request (RFC 7591). Public clients; PKCE S256 required. */
         "Models.ClientRegistrationRequest": {
@@ -13663,6 +13833,8 @@ export interface components {
         };
         /** @enum {string} */
         "Models.ContentDigestKey": "new_matches" | "deadlines" | "funder_activity";
+        /** @enum {string} */
+        "Models.CreditWording": "funded_by" | "supported_by";
         "Models.CsvImportInput": {
             csv: string;
             /** @description Which CSV column feeds each field: recipientName, recipientEin, title, awardedAmount, awardDate, startDate, endDate, status, programName */
@@ -14447,6 +14619,30 @@ export interface components {
             tranche: components["schemas"]["Models.PaymentTranche"];
             code?: string;
             message?: string;
+        };
+        /** @description An award's federal share, as the funder entered it. */
+        "Models.FederalFunding": {
+            funded: boolean;
+            /** @description Federal dollars, e.g. `80000.00`. */
+            amount: string | null;
+            /**
+             * Format: double
+             * @description The federal share of the project's total costs, in percent (above 0, at most 100, two decimals). Never computed.
+             */
+            percent: number | null;
+            /** @description The federal agency, as the funder named it. */
+            source: string | null;
+            /** @description The statement of the federal share of costs, in the request's language; null until both the amount and the percentage are entered. */
+            statement: string | null;
+        };
+        /** @description `PUT /gms/awards/{id}/federal-funding`. Unmarking clears the numbers. */
+        "Models.FederalFundingInput": {
+            federallyFunded: boolean;
+            /** @description Dollars, digits with up to two decimals, more than zero. */
+            amount?: string | null;
+            /** Format: double */
+            percent?: number | null;
+            source?: string | null;
         };
         /** @description Fluxx: your instance's address, and the id and secret of the OAuth application you created at its /oauth/applications page. */
         "Models.FluxxConnectInput": {
@@ -16655,7 +16851,7 @@ export interface components {
             id: components["schemas"]["CommonGrants.Types.uuid"];
             type: string;
             /** @enum {string} */
-            category: "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent" | "report";
+            category: "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent" | "report" | "social_reminder";
             /** @description What happened, in English. */
             title: string;
             /**
@@ -19848,6 +20044,31 @@ export interface components {
         };
         /** @description A SHA-256 digest, lower-case hex. */
         "Models.Sha256": string;
+        /** @description A workspace's share-kit settings (`share_kit_profiles`). */
+        "Models.ShareKitProfile": {
+            /** Format: uri */
+            pageUrl: string | null;
+            page: components["schemas"]["Models.SocialPage"] | null;
+            /** @description The other side may tag this page. Without it the page is never tagged. A new link needs it again. */
+            tagConsent: boolean;
+            /** Format: date-time */
+            consentedAt: string | null;
+            /** @description A funder's press-release wording. `funded_by` by default; "sponsored" is not a choice. */
+            creditWording: components["schemas"]["Models.CreditWording"];
+            /** @description A funder's standard description, for the press release. */
+            standardDescription: string | null;
+            /** @description A workspace admin, signed in. */
+            canChange: boolean;
+        };
+        "Models.ShareKitProfileInput": {
+            /** @description The https address of the organization's page on LinkedIn (company, school or showcase page), Facebook, Instagram, X, Bluesky or Threads; null removes it (and the consent). */
+            pageUrl?: string | null;
+            tagConsent?: boolean;
+            /** @description A funder only (422 `funder_only_setting`). */
+            creditWording?: components["schemas"]["Models.CreditWording"];
+            /** @description A funder only. */
+            standardDescription?: string | null;
+        };
         "Models.ShareSubmissionInput": {
             funderWorkspaceId?: components["schemas"]["CommonGrants.Types.uuid"];
             funderHandle?: string;
@@ -19986,6 +20207,32 @@ export interface components {
             link: string | null;
             /** @description The share card attached when the person keeps it. */
             imageUrl: string | null;
+            /** @description A call's "Two weeks left" prompt while it waits (v1.12.0): the first suggestion is then the reminder. */
+            reminder?: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                /** Format: date */
+                deadline: string;
+            } | null;
+            /** @description An award's program, for the funder's "Meet our grantees" (funder side only). */
+            program?: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+                name: string;
+            } | null;
+            /** @description "Meet our grantees": the program's awards that may be public, newest first, at most 10. */
+            grantees?: components["schemas"]["Models.SocialDraftGrantee"][];
+            /** @description "Meet our grantees": the opening and closing lines around the grantees' lines. */
+            parts?: {
+                intro: string;
+                outro: string;
+            } | null;
+        };
+        /** @description One of a program's awards in a "Meet our grantees" post. */
+        "Models.SocialDraftGrantee": {
+            awardId: components["schemas"]["Models.GmsId"];
+            name: string;
+            /** @description The grantee's page handle, only with its consent. */
+            tag: string | null;
+            line: string;
         };
         "Models.SocialDraftSubject": {
             type: components["schemas"]["Models.SocialSubjectType"];
@@ -20020,6 +20267,16 @@ export interface components {
              */
             asOf: string | null;
         };
+        /** @description An organization's page, read from the link it gave. */
+        "Models.SocialPage": {
+            /** Format: uri */
+            url: string;
+            platform: components["schemas"]["Models.SocialPagePlatform"];
+            /** @description What a post writes to tag the page, e.g. `@alder-creek-family-services`. */
+            handle: string;
+        };
+        /** @enum {string} */
+        "Models.SocialPagePlatform": "linkedin" | "facebook" | "instagram" | "x" | "bluesky" | "threads";
         /**
          * @description Zernio's platform names; X is `twitter`.
          * @enum {string}
@@ -20121,6 +20378,12 @@ export interface components {
              */
             applicationsFromSocial: number | null;
         };
+        "Models.SocialReminderDismissed": {
+            id: components["schemas"]["CommonGrants.Types.uuid"];
+            opportunityId: components["schemas"]["CommonGrants.Types.uuid"];
+            /** @enum {boolean} */
+            dismissed: true;
+        };
         "Models.SocialSchedule": {
             /** @description Wall-clock time in `timezone`: `YYYY-MM-DDTHH:mm`. */
             scheduledFor: string;
@@ -20143,10 +20406,24 @@ export interface components {
             id: components["schemas"]["CommonGrants.Types.uuid"];
         };
         /** @enum {string} */
-        "Models.SocialSubjectType": "opportunity" | "award";
+        "Models.SocialSubjectType": "opportunity" | "award" | "program";
         "Models.SocialSuggestion": {
             label: string;
             text: string;
+            /**
+             * @description `reminder`: the "Two weeks left" text; `meet`: "Meet our grantees".
+             * @enum {string}
+             */
+            kind?: "reminder" | "meet";
+        };
+        "Models.SocialTag": {
+            /** Format: uri */
+            url: string;
+            platform: components["schemas"]["Models.SocialPagePlatform"];
+            /** @description What a post writes to tag the page, e.g. `@alder-creek-family-services`. */
+            handle: string;
+            /** @description Whose page it is. */
+            name: string;
         };
         "Models.SocialTotals": {
             /** Format: int32 */
@@ -25832,6 +26109,71 @@ export interface operations {
             };
         };
     };
+    AwardKitRoutes_setFederalFunding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.FederalFundingInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.AwardSharing"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Awards_resendInvitation: {
         parameters: {
             query?: never;
@@ -26464,6 +26806,65 @@ export interface operations {
             };
             /** @description The server cannot find the requested resource. */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    AwardKitRoutes_funderCarousel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The carousel PDF, saved by the person under its name. */
+            200: {
+                headers: {
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -36661,6 +37062,65 @@ export interface operations {
             };
         };
     };
+    AwardKitRoutes_granteeCarousel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["Models.GmsId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The carousel PDF, saved by the person under its name. */
+            200: {
+                headers: {
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Launch_myAwardSignatures: {
         parameters: {
             query?: never;
@@ -45460,6 +45920,110 @@ export interface operations {
             };
         };
     };
+    AwardKitRoutes_shareKitProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ShareKitProfile"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    AwardKitRoutes_updateShareKitProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.ShareKitProfileInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.ShareKitProfile"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
     Social_settings: {
         parameters: {
             query?: never;
@@ -46057,6 +46621,58 @@ export interface operations {
             };
             /** @description Client error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    SocialReminders_dismissReminder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["schemas"]["CommonGrants.Types.uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SocialReminderDismissed"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

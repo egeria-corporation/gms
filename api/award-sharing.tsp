@@ -108,8 +108,10 @@ namespace GMS.Models {
     };
   }
 
-  /** Ready-to-edit posts and the links that go with them. Nothing is posted from the GMS. */
+  /** Ready-to-edit posts and the links that go with them, and (v1.12.0) the extras in award-kit.tsp. Nothing is posted from the GMS. */
   model AwardShareKit {
+    ...AwardKitExtras;
+
     posts: {
       /** LinkedIn length. */
       linkedin: string;
@@ -166,6 +168,9 @@ namespace GMS.Models {
 
     /** Null while the award is not public. */
     kit: AwardShareKit | null;
+
+    /** The federal share (v1.12.0), shown to both sides; only funder staff may change it. */
+    federal: AwardFederalFunding;
   }
 
   model AwardListingSettings {
