@@ -194,6 +194,16 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/account/agents": [one("/account/agents", "funder-admin")],
   "/gallery/moderation": [one("/gallery/moderation", "funder-admin")],
   "/partners/moderation": [one("/partners/moderation", "funder-admin")],
+  // F3: the operators' growth measures (the demo person is an operator in mock mode), and with
+  // Search Console connected and a property chosen.
+  "/operator/measures": [
+    one("/operator/measures", "funder-admin"),
+    one("/operator/measures", "funder-admin", async (page) => {
+      await page.getByRole("button", { name: /^(Connect Google Search Console|Conectar Google Search Console)$/ }).click();
+      await page.getByRole("button", { name: /^(Use this property|Usar esta propiedad)$/ }).click();
+      await page.getByRole("table", { name: /^(Clicks and impressions by kind of page|Clics e impresiones por tipo de página)$/ }).waitFor();
+    }),
+  ],
   "/review/assignments": [one("/review/assignments", "funder-reviewer"), one("/", "guest-reviewer", asGuest("gms_inv_mock_guest_reviewer", async (page) => {
     await page.getByRole("button", { name: /Start reviewing|Empezar a revisar/ }).click();
     await page.waitForURL(/\/review\/assignments/);

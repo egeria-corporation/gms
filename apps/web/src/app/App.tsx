@@ -88,6 +88,8 @@ const FCommunications = lazy(() => import("../screens/funder/Communications.tsx"
 const ConnectorReturn = lazy(() => import("../screens/funder/GoogleWorkspace.tsx").then((m) => ({ default: m.ConnectorReturn })));
 // Connected apps (v1.12.0): Slack alerts, Google Calendar, Google Drive, Salesforce.
 const ConnectedApps = lazy(() => import("../screens/shared/ConnectedApps.tsx"));
+// F3: the operators' growth measures (its words are in the extras catalog).
+const OperatorMeasures = lazy(() => import("../screens/operator/Measures.tsx"));
 const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
 const FSettingsPublicPage = lazy(() => import("../screens/funder/SettingsPublicPage.tsx"));
 const FSettingsSecurity = lazy(() => import("../screens/funder/SettingsSecurity.tsx"));
@@ -312,6 +314,8 @@ function AppRoutes() {
           <Route path="/account/agents" element={<AccountSettings />} />
           <Route path="/gallery/moderation" element={<GalleryModeration />} />
           <Route path="/partners/moderation" element={<PartnersModeration />} />
+          {/* F3: operators only (OPERATORS); everyone else is told so. */}
+          <Route path="/operator/measures" element={<OperatorMeasures />} />
 
           {/* Reviewer portal: external reviewers have no workspace rail. */}
           <Route path="/review/assignments" element={<FReviewerAssignments />} />
