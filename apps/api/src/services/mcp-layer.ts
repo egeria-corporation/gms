@@ -17,6 +17,7 @@ import * as awards from "./awards.ts";
 import * as awardSharing from "./award-sharing.ts";
 import * as collab from "./collaboration.ts";
 import * as alerts from "./connector-alerts.ts";
+import * as accounting from "./accounting.ts";
 import * as digests from "./content-digests.ts";
 import * as decisions from "./decisions.ts";
 import * as directAwards from "./direct-awards.ts";
@@ -325,6 +326,8 @@ const IMPLEMENTED: Impl = {
   getDigestPreview: (ctx, i) => digests.previewDigest(ctx, { digest: i.digest }),
   // Connected apps (v1.12.0): agents read the Slack alert settings; changing them is a person's (no tool).
   getSlackAlerts: (ctx) => alerts.getAlerts(ctx),
+  // QuickBooks sync (v1.13.0): agents read the setting; changing it is a person's (no tool).
+  getAccountingSync: (ctx) => accounting.getAccounting(ctx),
   alertOnNextCycle: async (ctx, i) => (await team.nextCycleAlert(ctx, oa(i.outsideApplicationId))).alert,
   // Send to the funder (C4): the package described, never emailed by an agent.
   getSendPackage: (ctx, i) => sendPackage.packageSummary(ctx, oa(i.outsideApplicationId)),

@@ -4,7 +4,8 @@
 // connectors, and the import sources connected through Composio (Google Sheets, Airtable). Every secret is shown once at creation or stored as ciphertext; none is returned.
 // Connected apps (v1.12.0, docs/connectors.md): Slack, Google Drive and Salesforce connect here like
 // the import sources; Drive also copies a picked file for an upload and saves an as-submitted PDF.
-// Slack alerts are in ./connector-alerts.ts, Google Calendar in ./calendar-sync.ts.
+// Slack alerts are in ./connector-alerts.ts, Google Calendar in ./calendar-sync.ts. QuickBooks (v1.13.0)
+// connects here too; its mapping, sync switch and entries are in ./accounting.ts.
 import { APP_SCOPE_NAMES, ConnectorAuthError, ConnectorScopeError, ConnectorScopeUnverifiedError, ConnectorUnavailableError, DRIVE_FILE_ID, DriveFileRefusedError, isRegistrableMcpUrl, type Connection, type TabularConnection, type TabularProvider } from "@gms/connectors";
 import { printValue, renderApplicationSnapshot, type SnapshotForm } from "@gms/documents";
 import { decryptSecret, encryptSecret } from "@gms/passport-client";
@@ -239,7 +240,7 @@ export async function removeMcpServer(ctx: ServiceContext, id: string) {
 
 // ------------------------------------------------------------------------------------ connectors
 
-export const PROVIDERS = ["mercury", "google_workspace", "google_sheets", "airtable", "slack", "google_drive", "salesforce"] as const;
+export const PROVIDERS = ["mercury", "google_workspace", "google_sheets", "airtable", "slack", "google_drive", "salesforce", "quickbooks"] as const;
 export type Provider = (typeof PROVIDERS)[number];
 export const connectorInput = z
   .object({
@@ -254,18 +255,18 @@ export const connectorInput = z
  * Sheets, Airtable, Salesforce), Slack for alerts and an applicant's Google Drive. A workspace
  * admin connects them, signed in; the GMS stores no credential.
  */
-type ComposioProvider = TabularProvider | "slack" | "google_drive" | "salesforce";
-const COMPOSIO_SOURCES: readonly Provider[] = ["google_sheets", "airtable", "slack", "google_drive", "salesforce"];
+type ComposioProvider = TabularProvider | "slack" | "google_drive" | "salesforce" | "quickbooks";
+const COMPOSIO_SOURCES: readonly Provider[] = ["google_sheets", "airtable", "slack", "google_drive", "salesforce", "quickbooks"];
 const isImportSource = (p: Provider): p is ComposioProvider => COMPOSIO_SOURCES.includes(p);
 /** What the connector_accounts row records for each: the scope names only, never a credential. */
-const IMPORT_SCOPES: Record<ComposioProvider, string[]> = { google_sheets: ["spreadsheets.readonly"], airtable: ["data.records:read", "schema.bases:read"], slack: APP_SCOPE_NAMES.slack, google_drive: APP_SCOPE_NAMES.google_drive, salesforce: APP_SCOPE_NAMES.salesforce };
+const IMPORT_SCOPES: Record<ComposioProvider, string[]> = { google_sheets: ["spreadsheets.readonly"], airtable: ["data.records:read", "schema.bases:read"], slack: APP_SCOPE_NAMES.slack, google_drive: APP_SCOPE_NAMES.google_drive, salesforce: APP_SCOPE_NAMES.salesforce, quickbooks: APP_SCOPE_NAMES.quickbooks };
 export const importSourcePort = (ctx: Pick<ServiceContext, "ports">, p: ComposioProvider): TabularConnection | Connection | undefined =>
-  ({ google_sheets: ctx.ports.sheets, airtable: ctx.ports.airtable, slack: ctx.ports.slack, google_drive: ctx.ports.drive, salesforce: ctx.ports.salesforce })[p];
-const IMPORT_LABEL: Record<ComposioProvider, string> = { google_sheets: "Google Sheets", airtable: "Airtable", slack: "Slack", google_drive: "Google Drive", salesforce: "Salesforce" };
+  ({ google_sheets: ctx.ports.sheets, airtable: ctx.ports.airtable, slack: ctx.ports.slack, google_drive: ctx.ports.drive, salesforce: ctx.ports.salesforce, quickbooks: ctx.ports.quickbooks })[p];
+const IMPORT_LABEL: Record<ComposioProvider, string> = { google_sheets: "Google Sheets", airtable: "Airtable", slack: "Slack", google_drive: "Google Drive", salesforce: "Salesforce", quickbooks: "QuickBooks" };
 /** Google Drive is the applicant's (a funder connects Google Workspace instead). */
-const KIND_OF: Partial<Record<ComposioProvider, "funder" | "applicant">> = { google_drive: "applicant" };
+const KIND_OF: Partial<Record<ComposioProvider, "funder" | "applicant">> = { google_drive: "applicant", quickbooks: "funder" };
 /** The connected apps return to their settings page; the import sources to the import page. */
-const HOME_OF: Record<ComposioProvider, string> = { google_sheets: "import", airtable: "import", salesforce: "import", slack: "settings/apps", google_drive: "settings/apps" };
+const HOME_OF: Record<ComposioProvider, string> = { google_sheets: "import", airtable: "import", salesforce: "import", slack: "settings/apps", google_drive: "settings/apps", quickbooks: "settings/accounting" };
 
 /** A path in this workspace's pages, or the provider's own page when the one given is not. */
 function importReturnTo(handle: string, returnTo: string | undefined, home = "import"): string {
@@ -348,13 +349,15 @@ export async function connect(ctx: ServiceContext, provider: Provider, input: z.
 
 export async function disconnect(ctx: ServiceContext, provider: Provider) {
   const ws = await authorize(ctx, { scope: "workspace:admin", kind: isImportSource(provider) ? KIND_OF[provider] : "funder", roles: ["admin"], person: true });
-  if (provider === "slack" || provider === "google_drive" || provider === "salesforce") humanOnly(ctx);
+  if (provider === "slack" || provider === "google_drive" || provider === "salesforce" || provider === "quickbooks") humanOnly(ctx);
   const a = await account(ctx, ws.id, provider);
   if (!a) throw notFound("Connector");
   // An import source's connection lives at Composio too: removed there first, then the row is marked.
   if (isImportSource(provider)) await importSourcePort(ctx, provider)?.disconnect(ws.id).catch(googleWorkspaceError);
   // Without Slack there is nowhere to post: the alert settings go with the connection, at once.
   if (provider === "slack") await ctx.repos.table("alert_subscriptions").remove({ workspace_id: ws.id });
+  // Without QuickBooks the sync is off, and stays off until a person turns it on again (services/accounting.ts).
+  if (provider === "quickbooks") await ctx.repos.table("accounting_links").update({ workspace_id: ws.id, provider: "quickbooks" }, { sync_enabled: false });
   // Google's credential lives at Composio, so the connection is removed there before the row is marked.
   if (provider === "google_workspace" && ctx.ports.workspaceApps?.disconnect) await ctx.ports.workspaceApps.disconnect(ws.id).catch(googleWorkspaceError);
   await ctx.repos.table("connector_accounts").update({ id: a.id }, { status: "revoked", secret_enc: null });
@@ -384,7 +387,7 @@ async function getImportSource(ctx: ServiceContext, provider: ComposioProvider) 
 async function connectImportSource(ctx: ServiceContext, provider: ComposioProvider, input: z.output<typeof connectorInput>) {
   const ws = await authorize(ctx, { scope: "workspace:admin", kind: KIND_OF[provider], roles: ["admin"], person: true });
   // Connecting an account is a person's act in the GMS: never an agent's or an API client's.
-  if (provider === "slack" || provider === "google_drive" || provider === "salesforce") humanOnly(ctx);
+  if (provider === "slack" || provider === "google_drive" || provider === "salesforce" || provider === "quickbooks") humanOnly(ctx);
   if (input.token) throw new ApiError(422, "token_not_accepted", `${IMPORT_LABEL[provider]} is connected by signing in, not with a token`);
   const port = importSourcePort(ctx, provider);
   if (!port) throw new ApiError(503, "connector_not_configured", `${IMPORT_LABEL[provider]} through Composio is not configured on this server`);

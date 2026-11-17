@@ -55,6 +55,8 @@ export interface Env {
   COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID?: string;
   /** Salesforce import, read only: a Composio auth config on the salesforce toolkit with the api scope (SOQL SELECT only). */
   COMPOSIO_SALESFORCE_AUTH_CONFIG_ID?: string;
+  /** QuickBooks sync (record-keeping only): a Composio auth config on the quickbooks toolkit with com.intuit.quickbooks.accounting only. */
+  COMPOSIO_QUICKBOOKS_AUTH_CONFIG_ID?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   RESEND_INBOUND_SECRET?: string;
