@@ -6068,6 +6068,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/presence/passes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description A pass to a draft's live channel, for the signed-in person's own session. Issued by the check
+         *     that opens the draft: the applicant's team and the consultants or cowriters the draft names.
+         *     404 for anyone else (another workspace, the funder and its reviewers: a draft is the
+         *     applicant's until submitted); 409 `not_a_draft` once a built-in application is submitted;
+         *     403 `person_required` for agents and API clients, which never hold presence; 403
+         *     `session_required` for a sign-in without a session. Renewing updates the same pass.
+         */
+        post: operations["Presence_pass"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/programs": {
         parameters: {
             query?: never;
@@ -20069,6 +20093,30 @@ export interface components {
          * @example awd_0192f0c1-7a3e-7b2c-9a41-5d2f6c1e8b90
          */
         "Models.PrefixedId": string;
+        /** @enum {string} */
+        "Models.PresenceDraftKind": "application" | "outside_application";
+        /** @description The draft to write in: a built-in application (`app_…`) or an outside application (its id). */
+        "Models.PresenceDraftRef": {
+            kind: components["schemas"]["Models.PresenceDraftKind"];
+            id: string;
+        };
+        /** @description A pass for the signed-in person's session to the draft's private Realtime channel. */
+        "Models.PresencePass": {
+            /** @description The channel to join, private: `draft:application:<uuid>` or `draft:outside:<uuid>`. */
+            topic: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /**
+             * Format: int32
+             * @description Ask again after this many seconds while the editor stays open; each renewal runs the access check again.
+             */
+            renewAfterSeconds: number;
+            /** @description The session may write answers here, so it may send soft locks and saved nudges; otherwise it is shown as present only. */
+            canWrite: boolean;
+        };
+        "Models.PresencePassRequest": {
+            draft: components["schemas"]["Models.PresenceDraftRef"];
+        };
         /**
          * @description Where an organization's profile comes from. `self_declared` is the organization's own word and is never verified.
          * @enum {string}
@@ -47348,6 +47396,78 @@ export interface operations {
             };
             /** @description Access is forbidden. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    Presence_pass: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.PresencePassRequest"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.PresencePass"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

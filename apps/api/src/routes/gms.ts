@@ -51,6 +51,8 @@ import { publicPages } from "./public.ts";
 // Syndication (E2): the public open-call feeds and the "Share this call" panel (docs/syndication.md).
 import { feedRoutes } from "./feeds.ts";
 import { syndicationRoutes } from "./gms/syndication.ts";
+// F1: live co-editing, the pass to a draft's live channel (docs/co-editing.md).
+import { presenceRoutes } from "./gms/presence.ts";
 
 export const gms = new Hono<AppEnv>();
 
@@ -206,6 +208,8 @@ gms.route("/", syndicationRoutes);
 gms.route("/", loopRoutes);
 // Bilingual forms and opportunity text: the assistant's translation drafts (E6, docs/forms.md).
 gms.route("/", translationRoutes);
+// F1: live co-editing.
+gms.route("/", presenceRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);
