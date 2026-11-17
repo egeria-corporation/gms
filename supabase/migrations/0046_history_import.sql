@@ -39,10 +39,12 @@
 --     value is still allowed. import_runs_adapter_target_check now allows an adapter on any funder
 --     target (grant history and the three above), not only grant history; every existing row
 --     still passes (all have target 'award_history' or no adapter).
+--   * report_views.data_set: the check gains 'history' (the report builder's "Imported history"
+--     data set). Every existing value is still allowed; no saved view is touched.
 --   * gms.import_target_workspace() (0031) is replaced: the three new targets belong to funder
 --     workspaces, as grant history does. Existing targets keep their rule.
 -- No existing row is changed or removed. No backfill. If another migration after 0042 changes
--- import_runs_adapter_check or the target checks, keep both lists.
+-- import_runs_adapter_check, the target checks or report_views_data_set_check, keep both lists.
 
 -- ---------------------------------------------------------------------------------------------
 -- Import framework: the new targets, entities and adapter
@@ -72,6 +74,11 @@ alter table public.import_runs drop constraint import_runs_adapter_target_check;
 alter table public.import_runs add constraint import_runs_adapter_target_check
   -- Adapters map to a funder's targets: grant history and imported history.
   check (adapter is null or target in ('award_history', 'history_applications', 'history_reviews', 'history_reports'));
+
+-- The report builder's data sets (0034), with imported history.
+alter table public.report_views drop constraint report_views_data_set_check;
+alter table public.report_views add constraint report_views_data_set_check
+  check (data_set in ('applications', 'awards', 'payments', 'requirements', 'organizations', 'history'));
 
 -- Each target belongs to one kind of workspace (0031's rule, with the history targets).
 create or replace function gms.import_target_workspace()

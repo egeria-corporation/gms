@@ -160,6 +160,10 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   // 0041: opt-in content digests (all off until a person turns one on) and what was sent.
   digest_subscriptions: () => ({ new_matches: false, deadlines: false, funder_activity: false, prompt_dismissed_at: null }),
   digest_sends: () => ({ item_keys: [], message_id: null }),
+  // 0046: imported history (past applications, reviews and reports), written by the import only.
+  history_applications: () => ({ organization_workspace_id: null, award_id: null, program_id: null, program_name: null, call_title: null, submitted_on: null, outcome_label: null, currency: "USD", requested_amount_minor: null, awarded_amount_minor: null, answers: [], source_key: null, source_system: null, import_run_id: null }),
+  history_reviews: () => ({ application_id: null, application_key: null, application_title: null, organization_name: null, reviewer_name: null, scores: [], total_score: null, recommendation: null, comment: null, reviewed_on: null, source_key: null, source_system: null, import_run_id: null }),
+  history_reports: () => ({ award_id: null, organization_workspace_id: null, award_title: null, organization_name: null, due_on: null, submitted_on: null, report_state_label: null, source_key: null, source_system: null, import_run_id: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -252,6 +256,10 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   package_sends: { outside_application_id: "outside_applications" },
   // 0041 checks this one with its own trigger (gms.digest_subscription_check), with the person too.
   digest_subscriptions: { member_id: "workspace_members" },
+  // 0046 checks these with its own trigger (gms.history_same_workspace), with the funder kind too.
+  history_applications: { award_id: "awards", program_id: "programs", import_run_id: "import_runs" },
+  history_reviews: { application_id: "history_applications", import_run_id: "import_runs" },
+  history_reports: { award_id: "awards", import_run_id: "import_runs" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */

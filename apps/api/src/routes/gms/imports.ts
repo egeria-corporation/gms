@@ -16,7 +16,7 @@ for (const p of ["/imports/sources", "/imports/read", "/imports/preview", "/impo
 
 const targetQuery = (value: string | undefined) => {
   const r = imports.targetInput.safeParse(value);
-  if (!r.success) throw new ApiError(400, "bad_request", "target must be outside_applications or award_history", [{ code: "invalid_parameter", field: "target" }]);
+  if (!r.success) throw new ApiError(400, "bad_request", "target must be outside_applications, award_history, history_applications, history_reviews or history_reports", [{ code: "invalid_parameter", field: "target" }]);
   return r.data;
 };
 

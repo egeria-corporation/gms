@@ -38,6 +38,7 @@ import { galleryRoutes } from "./gallery.ts";
 import { socialRoutes } from "./gms/social.ts";
 import { sendPackageRoutes } from "./gms/send-package.ts";
 import { guestReviewRoutes } from "./gms/guest-review.ts";
+import { historyRoutes } from "./gms/history.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
@@ -161,6 +162,8 @@ gms.route("/", reviewParityRoutes);
 gms.route("/", moneyRoutes);
 gms.route("/", importRoutes);
 gms.route("/", importAdapterRoutes);
+// Imported history (v1.12.0): past applications, reviews and reports, read-only.
+gms.route("/", historyRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
 // The switch pages' free migration request: no token needed, never an API or agent token.
