@@ -275,6 +275,18 @@ function searchConsoleProblem(e: unknown): "reconnect" | "too_broad" | "unreacha
 
 const notConfigured = () => new ApiError(404, "search_console_unavailable", "Search Console is not set up on this server");
 
+/** A Search Console call, with a connection problem as the API's own error, never Composio's or Google's text. */
+async function scCall<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (e) {
+    const problem = searchConsoleProblem(e);
+    if (problem === "unreachable") throw new ApiError(503, "search_console_unreachable", "Search Console did not answer. Try again in a few minutes");
+    if (problem) throw new ApiError(409, "search_console_reconnect", "Connect Search Console again");
+    throw e;
+  }
+}
+
 /** Whether Search Console is set up, connected, and which property it reads; the properties that cover the GMS's host. */
 export async function searchConsoleState(ctx: ServiceContext) {
   const port = ctx.ports.searchConsole;
@@ -298,7 +310,9 @@ export async function searchConsoleState(ctx: ServiceContext) {
 export async function connectSearchConsole(ctx: ServiceContext) {
   const port = ctx.ports.searchConsole;
   if (!port) throw notConfigured();
-  const r = await port.status({ link: true, returnTo: MEASURES_PAGE });
+  const link = () => port.status({ link: true, returnTo: MEASURES_PAGE });
+  // A connection holding more than read-only access was just deleted at Composio: start afresh.
+  const r = await scCall(() => link().catch((e: unknown) => (e instanceof ConnectorScopeError ? link() : Promise.reject(e))));
   if (!r.connected) await audit(ctx, "operator.search_console_connect_started", "operator", ctx.actor.userId!, {});
   return r;
 }
@@ -307,7 +321,7 @@ export async function connectSearchConsole(ctx: ServiceContext) {
 export async function disconnectSearchConsole(ctx: ServiceContext) {
   const port = ctx.ports.searchConsole;
   if (!port) throw notConfigured();
-  await port.disconnect();
+  await scCall(() => port.disconnect());
   if (await settings(ctx)) await ctx.repos.table("operator_settings").update({ id: true }, { search_console_site: null, updated_by: ctx.actor.userId });
   await audit(ctx, "operator.search_console_disconnected", "operator", ctx.actor.userId!, {});
   return { connected: false, site: null };
@@ -321,7 +335,7 @@ export async function chooseSearchConsoleSite(ctx: ServiceContext, input: z.outp
   if (!port) throw notConfigured();
   const host = gmsHost(ctx.config.webBaseUrl);
   if (!siteCoversHost(input.siteUrl, host)) throw new ApiError(422, "site_not_gms", `Choose the property for ${host}`, [{ code: "invalid", field: "siteUrl", detail: `Choose the property for ${host}` }]);
-  const sites = await port.listSites();
+  const sites = await scCall(() => port.listSites());
   if (!sites.some((s) => s.siteUrl === input.siteUrl && s.permissionLevel !== "siteUnverifiedUser")) throw new ApiError(422, "site_not_found", "The connected Google account cannot read that property", [{ code: "invalid", field: "siteUrl" }]);
   const existing = await settings(ctx);
   if (existing) await ctx.repos.table("operator_settings").update({ id: true }, { search_console_site: input.siteUrl, updated_by: ctx.actor.userId });
@@ -336,14 +350,7 @@ export async function getSearchConsoleReport(ctx: ServiceContext) {
   if (!port) throw notConfigured();
   const site = (await settings(ctx))?.search_console_site ?? null;
   if (!site) throw new ApiError(409, "search_console_site_required", "Choose the GMS's property in Search Console first");
-  try {
-    return await searchConsoleReport(ctx, port, site);
-  } catch (e) {
-    const problem = searchConsoleProblem(e);
-    if (problem === "unreachable") throw new ApiError(503, "search_console_unreachable", "Search Console did not answer. Try again in a few minutes");
-    if (problem) throw new ApiError(409, "search_console_reconnect", "Connect Search Console again");
-    throw e;
-  }
+  return scCall(() => searchConsoleReport(ctx, port, site));
 }
 
 // ------------------------------------------------------------------------------------ the measures

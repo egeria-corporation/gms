@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { SignJWT } from "jose";
 import { beforeEach, describe, expect, it } from "vitest";
-import { FixtureSearchConsole, ConnectorUnavailableError, type SearchAnalyticsQuery, type SearchAnalyticsRow } from "@gms/connectors";
+import { ConnectorScopeError, ConnectorScopeUnverifiedError, ConnectorUnavailableError, FixtureSearchConsole, type SearchAnalyticsQuery, type SearchAnalyticsRow } from "@gms/connectors";
 import {
   LOST_DEAL_REASONS,
   MEASURES_PAGE,
@@ -354,6 +354,24 @@ describe("Search Console", () => {
     expect((await call(op, "GET", "/gms/operator/search-console/report")).code).toBe("search_console_unreachable");
     gsc.connected = false;
     expect((await call(op, "GET", "/gms/operator/measures")).data.organicVisits?.source).toBe("not_connected");
+  });
+
+  it("starts afresh when the connection held more than read-only access, and asks to reconnect when it cannot be read", async () => {
+    const op = await session(OPERATOR);
+    let asked = 0;
+    gsc.status = async () => {
+      asked++;
+      // The first look deletes a connection that held the full webmasters scope (the connector does this).
+      if (asked === 1) throw new ConnectorScopeError(["https://www.googleapis.com/auth/webmasters"]);
+      return { connected: false, connectUrl: "https://composio.invalid/connect/google_search_console" };
+    };
+    expect((await call(op, "POST", "/gms/operator/search-console/connect", {})).data).toEqual({ connected: false, connectUrl: "https://composio.invalid/connect/google_search_console" });
+    gsc.status = async () => ({ connected: true, connectUrl: null });
+    gsc.listSites = async () => {
+      throw new ConnectorScopeUnverifiedError();
+    };
+    expect((await call(op, "GET", "/gms/operator/search-console")).data).toMatchObject({ connected: false, problem: "reconnect", sites: [] });
+    expect((await call(op, "PUT", "/gms/operator/search-console/site", { siteUrl: "sc-domain:gms.test" })).code).toBe("search_console_reconnect");
   });
 
   it("disconnects at Composio and forgets the property", async () => {
