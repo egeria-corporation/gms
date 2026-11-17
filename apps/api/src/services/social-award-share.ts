@@ -3,8 +3,10 @@
 // offered for posting only when award sharing's one public rule says it may be public (not
 // confidential, to an organization, accepted or later, the funder lists awards, the grantee has not
 // hidden it), and its posts, link and card come from award sharing's share kit, built from the
-// award's public fields only. Social posting calls nothing else of award sharing's.
+// award's public fields only. Social posting calls nothing else of award sharing's. "Meet our
+// grantees" (v1.12.0) lists a program's awards through the same rule (`meetOurGrantees`).
 import { awardIsPubliclyListable, shareKit as awardShareKit } from "./award-sharing.ts";
+export { meetOurGrantees } from "./award-sharing.ts";
 import type { ServiceContext } from "./context.ts";
 import type { Row } from "./repos/types.ts";
 

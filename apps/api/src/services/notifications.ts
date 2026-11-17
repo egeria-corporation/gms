@@ -11,6 +11,7 @@ import { scopeToFunds } from "./fund-scope.ts";
 import type { Row } from "./repos/types.ts";
 import { DEFAULT_LOCALE, type Locale } from "@gms/i18n";
 import { notificationTitle } from "./notification-titles.ts";
+import { reminderNotices } from "./social.ts";
 
 const WINDOW = 200;
 const MAX_READ_IDS = 500;
@@ -20,7 +21,8 @@ const MAX_READ_IDS = 500;
 // an outside award's report and condition reminders and a declined application's next-cycle reminder; no ledger event maps to them.
 // `report` (v1.8.0): a scheduled report sent to the person; its email and the bell entry (recipients only, from report_files).
 // The template gallery's decisions on an item reach the author's team under `decision`.
-export const CATEGORIES = ["application", "decision", "award", "agreement", "payment", "requirement", "submission", "organization", "approval", "review", "agent", "outside_deadline", "document_expiring", "outside_obligation_due", "outside_next_cycle", "report"] as const;
+// `social_reminder` (v1.12.0): "Two weeks left" before a call's deadline, for funder admins (services/social.ts).
+export const CATEGORIES = ["application", "decision", "award", "agreement", "payment", "requirement", "submission", "organization", "approval", "review", "agent", "outside_deadline", "document_expiring", "outside_obligation_due", "outside_next_cycle", "report", "social_reminder"] as const;
 export type Category = (typeof CATEGORIES)[number];
 const CATEGORY_OF: Record<string, Category> = {
   application: "application", decision: "decision", award: "award", agreement: "agreement", amendment: "award",
@@ -100,6 +102,8 @@ async function derive(ctx: ServiceContext, ws: ServiceWorkspace, locale: Locale 
       out.push({ id: f.id, type: "report.ready", category: "report", ...titles("report.ready", name), subjectType: "report_file", subjectId: f.id, message: null, at: f.sent_at! });
     }
   }
+  // "Two weeks left: post a reminder?" for the call's funder admins (v1.12.0, services/social.ts).
+  for (const r of await reminderNotices(ctx, ws)) out.push({ id: r.id, type: "social.reminder_prompt", category: "social_reminder", ...titles("social.reminder_prompt", r.title), subjectType: "opportunity", subjectId: r.opportunityId, message: null, at: r.promptedAt });
   if (ws.kind === "applicant") {
     let apps = await ctx.repos.table("applications").find({ applicant_workspace_id: ws.id }, { limit: WINDOW });
     if (ws.role === "consultant") apps = apps.filter((a) => ((ws.memberScope?.applicationIds as string[] | undefined) ?? []).includes(a.id));

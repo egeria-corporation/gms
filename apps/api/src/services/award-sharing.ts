@@ -681,7 +681,7 @@ export async function getShareProfile(ctx: ServiceContext): Promise<ShareProfile
   return profileView(row, ctx.actor.kind === "user" && ws.role !== null && SHARE_PROFILE_ROLES.includes(ws.role) && ctx.scopes.includes("workspace:admin"));
 }
 
-const invalid = (field: string, message: string) => new ApiError(422, "validation_failed", message, [{ code: "invalid", field, detail: message }]);
+const invalid = (code: string, field: string, message: string) => new ApiError(422, code, message, [{ code: "invalid", field, detail: message }]);
 
 /**
  * Change the share-kit settings: a workspace admin, in person. Consent to be tagged is the
@@ -690,18 +690,18 @@ const invalid = (field: string, message: string) => new ApiError(422, "validatio
 export async function updateShareProfile(ctx: ServiceContext, input: z.output<typeof shareProfileInput>): Promise<ShareProfile> {
   const ws = await authorize(ctx, { scope: "workspace:admin", roles: SHARE_PROFILE_ROLES, person: true });
   if (ctx.actor.kind !== "user") throw humanOnly("Changing your share-kit settings");
-  if (ws.kind !== "funder" && (input.creditWording !== undefined || input.standardDescription !== undefined)) throw invalid("creditWording", "Only a funder sets the press release's credit wording and description");
+  if (ws.kind !== "funder" && (input.creditWording !== undefined || input.standardDescription !== undefined)) throw invalid("funder_only_setting", "creditWording", "Only a funder sets the press release's credit wording and description");
   const before = await ctx.repos.table("share_kit_profiles").one({ workspace_id: ws.id });
   let pageUrl = input.pageUrl === undefined ? (before?.page_url ?? null) : input.pageUrl || null;
   if (pageUrl !== null) {
     const page = socialPageOf(pageUrl);
-    if (!page) throw invalid("pageUrl", "Give the https address of your organization's page on LinkedIn, Facebook, Instagram, X, Bluesky or Threads");
+    if (!page) throw invalid("page_url_invalid", "pageUrl", "Give the https address of your organization's page on LinkedIn, Facebook, Instagram, X, Bluesky or Threads");
     pageUrl = page.url;
   }
   // Consent follows the link: a new link needs consent again, and no link means no consent.
   const linkChanged = pageUrl !== (before?.page_url ?? null);
   const wanted = input.tagConsent ?? (linkChanged ? false : before?.tag_consent === true);
-  if (wanted && !pageUrl) throw invalid("tagConsent", "Give your page's link before you agree to be tagged");
+  if (wanted && !pageUrl) throw invalid("consent_needs_page", "tagConsent", "Give your page's link before you agree to be tagged");
   const keepConsent = wanted && before?.tag_consent === true && !linkChanged;
   const description = input.standardDescription === undefined ? (before?.standard_description ?? null) : input.standardDescription || null;
   const next = {

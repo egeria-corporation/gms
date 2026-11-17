@@ -347,5 +347,10 @@
   "code.recipient_not_allowed": "A report can be sent only to members of this workspace who can read it",
   "code.sensitive_document": "Bank and tax paperwork is never kept in the document vault",
   "code.source_not_readable": "The source could not be read. Nothing was imported",
-  "code.unprocessable": "Some of what was entered is not valid"
+  "code.unprocessable": "Some of what was entered is not valid",
+  "code.not_public": "This award is not listed publicly, so it has no carousel.",
+  "code.page_url_invalid": "Give the https address of your organization's page on LinkedIn, Facebook, Instagram, X, Bluesky or Threads.",
+  "code.consent_needs_page": "Give your page's link before you agree to be tagged.",
+  "code.funder_only_setting": "Only a funder sets the press release's credit wording and description.",
+  "notFound.reminder": "Reminder not found."
 }

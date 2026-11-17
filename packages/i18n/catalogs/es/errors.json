@@ -347,5 +347,10 @@
   "code.recipient_not_allowed": "Un informe solo se puede enviar a miembros de este espacio de trabajo que puedan leerlo",
   "code.sensitive_document": "Los documentos bancarios y fiscales nunca se guardan en el archivo de documentos",
   "code.source_not_readable": "No se pudo leer el origen. No se importó nada",
-  "code.unprocessable": "Algunos de los datos ingresados no son válidos"
+  "code.unprocessable": "Algunos de los datos ingresados no son válidos",
+  "code.not_public": "Esta subvención otorgada no se publica, así que no tiene carrusel.",
+  "code.page_url_invalid": "Indique la dirección https de la página de su organización en LinkedIn, Facebook, Instagram, X, Bluesky o Threads.",
+  "code.consent_needs_page": "Indique el enlace de su página antes de aceptar que la etiqueten.",
+  "code.funder_only_setting": "Solo un financiador define la mención del comunicado de prensa y su descripción.",
+  "notFound.reminder": "No se encontró el recordatorio."
 }
