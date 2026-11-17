@@ -27,14 +27,19 @@ const SUPABASE = "https://abcdefghijklmnopqrst.supabase.co";
 
 let h: Harness;
 
-/** A Supabase session for `userId` with the given address and, for an SSO sign-in, its `amr` entry. */
-async function session(userId: string, opts: { email?: string; provider?: string | null; mfaFirst?: boolean } = {}) {
+/**
+ * A Supabase session for `userId` with the given address and, for an SSO sign-in, its `amr` entry.
+ * `oidc` makes it a sign-in through a Supabase custom OIDC provider (`custom:<name>`): Supabase
+ * writes `{ method: "oauth" }` and the provider in `app_metadata` (docs/sso.md, "OpenID Connect").
+ */
+async function session(userId: string, opts: { email?: string; provider?: string | null; mfaFirst?: boolean; oidc?: string } = {}) {
   const iat = Math.floor(h.clock.now.getTime() / 1000);
   const amr = [
     ...(opts.mfaFirst ? [{ method: "totp", timestamp: iat }] : []),
-    opts.provider ? { method: "sso/saml", timestamp: iat - 5, provider: opts.provider } : { method: "otp", timestamp: iat - 5 },
+    opts.oidc ? { method: "oauth", timestamp: iat - 5, provider: opts.oidc } : opts.provider ? { method: "sso/saml", timestamp: iat - 5, provider: opts.provider } : { method: "otp", timestamp: iat - 5 },
   ];
-  return new SignJWT({ aal: "aal2", email: opts.email ?? `person@${DOMAIN}`, role: "authenticated", amr })
+  const appMetadata = opts.oidc ? { app_metadata: { provider: opts.oidc, providers: [opts.oidc] } } : {};
+  return new SignJWT({ aal: "aal2", email: opts.email ?? `person@${DOMAIN}`, role: "authenticated", amr, ...appMetadata })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(userId)
     .setAudience("authenticated")
@@ -292,6 +297,21 @@ describe("session claims", () => {
     const user = await verifySupabaseSession(await session(USER_ADMIN, { provider: PROVIDER }), { jwtSecret: SESSION_SECRET }, h.clock.now);
     expect(user.ssoProviderIds).toEqual([PROVIDER]);
     expect((await verifySupabaseSession(await session(USER_ADMIN), { jwtSecret: SESSION_SECRET }, h.clock.now)).ssoProviderIds).toBeUndefined();
+  });
+
+  it("never counts an OIDC sign-in (a Supabase custom OAuth/OIDC provider) as single sign-on", async () => {
+    // Supabase's enterprise SSO is SAML 2.0 only (docs/sso.md, "OpenID Connect"). A custom OIDC
+    // provider is a project-wide OAuth sign-in: amr says "oauth", whatever it names, and the
+    // account may have been linked by email. It satisfies no requirement and joins no workspace.
+    const oidc = `custom:${DOMAIN.replace(/\./g, "-")}`;
+    expect(ssoProvidersOf([{ method: "oauth", timestamp: 1, provider: PROVIDER }])).toEqual([]);
+    expect(ssoProvidersOf([{ method: "oauth", timestamp: 1, provider: oidc }])).toEqual([]);
+    expect(ssoProvidersOf([{ method: "sso/oidc", timestamp: 1, provider: PROVIDER }])).toEqual([]);
+    const token = await session(USER_OFFICER, { oidc });
+    expect((await verifySupabaseSession(token, { jwtSecret: SESSION_SECRET }, h.clock.now)).ssoProviderIds).toBeUndefined();
+    await activeDomain(WS_FUNDER, DOMAIN, { required: true });
+    expect((await call(token, "GET", "/gms/whoami", { ws: WS_FUNDER })).code).toBe("sso_required");
+    expect((await call(await session(SSO_ADMIN, { oidc }), "POST", "/gms/sso/join")).code).toBe("sso_session_required");
   });
 
   it("derives addresses and domains", () => {

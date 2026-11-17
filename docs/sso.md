@@ -107,6 +107,60 @@ project the deployment uses.
 **Verdict: feasible.** SAML SSO works on this project's setup once the project is on Pro or above
 and SAML 2.0 is switched on. The rest of this page describes what the GMS adds on top.
 
+## OpenID Connect (checked 2026-11-17 against Supabase's own documentation and source)
+
+**Finding: Supabase Auth's enterprise single sign-on is SAML 2.0 only, so the GMS does not offer
+OIDC single sign-on.** An organization connects its identity provider through SAML 2.0, which
+Okta, Google Workspace, JumpCloud, OneLogin, Ping Identity, Keycloak, Authentik and most others
+offer as a standard application type.
+
+Sources, read on 2026-11-17:
+
+- "Enterprise Single Sign-On" (`supabase.com/docs/guides/auth/enterprise-sso`): "Supabase Auth
+  supports building enterprise applications that require Single Sign-On (SSO) authentication with
+  SAML 2.0." Its only guide is the SAML 2.0 one (`/enterprise-sso/auth-sso-saml`).
+- The Management API's "Create a sso provider" (`/docs/reference/api/v1-create-a-sso-provider`): the
+  provider it returns has a `saml` object and nothing for OIDC.
+- The JWT claims reference (`/docs/guides/auth/jwt-fields`): the `amr.method` values are `oauth`,
+  `password`, `otp`, `totp`, `recovery`, `invite`, `sso/saml`, `magiclink`, `email/signup`,
+  `email_change`, `token_refresh` and `anonymous`. `sso/saml` is the only single sign-on method.
+
+Supabase does have three OIDC features. None of them is single sign-on for a workspace's own
+identity provider under this page's rules:
+
+1. **Custom OAuth/OIDC providers** (`/docs/guides/auth/custom-oauth-providers`): a project-wide
+   `custom:<name>` sign-in provider (issuer, client id and secret), started with
+   `signInWithOAuth({ provider: "custom:<name>" })`, like "Sign in with Google". It breaks three of
+   the rules below:
+   - **Domain.** A custom provider has no list of email domains, and `signInWithSSO({ domain })` does
+     not route to it, so it cannot be tied to a domain the workspace proved through DNS.
+   - **Which identity provider.** An OAuth sign-in is recorded in `amr` as `{ method: "oauth" }`
+     with no provider. Supabase Auth's own source (`internal/models/sessions.go`,
+     `CalculateAALAndAMR`, in `github.com/supabase/auth`) fills in `amr.provider` only for `sso/saml`.
+     So a session cannot show that it came through the workspace's identity provider, and the
+     requirement and the lockout rule cannot be enforced.
+   - **Accounts kept apart.** "Identity Linking" (`/docs/guides/auth/auth-identity-linking`): "When a
+     new user signs in with OAuth, Supabase Auth will attempt to look for an existing user that uses
+     the same email address. If a match is found, the new identity is linked to the user." Only
+     SAML SSO users are left out of linking. An organization's identity provider can assert any
+     address, so a custom provider registered for one workspace would let that organization's IT
+     sign in as any existing account with a verified address, including another funder's admin or an
+     OpenGrants operator.
+2. **Third-party auth with a custom OIDC issuer** (`/docs/guides/auth/third-party/custom-oidc`): the
+   project accepts another issuer's own JWTs (with a `role` claim) instead of Supabase sessions. That
+   replaces Supabase Auth rather than signing in to it. The GMS's sessions, two-step verification and
+   rules all read Supabase sessions.
+3. **OAuth 2.1 server** (`/docs/guides/auth/oauth-server`): it makes the Supabase project an OpenID
+   Connect identity provider for other applications. That is the opposite direction.
+
+**What this means for operators.** Never add a custom OAuth/OIDC provider to the GMS's Supabase
+project for a workspace. Automatic linking would let that provider's administrators take over
+accounts. The GMS never counts an OAuth sign-in as single sign-on: only an `amr` entry `sso/saml`
+with a provider id does (`ssoProvidersOf` in `apps/api/src/auth/session.ts`, tested in
+`apps/api/test/sso.test.ts`, "never counts an OIDC sign-in"). If Supabase later adds OIDC to
+enterprise SSO, with domains, `amr` provider ids and no automatic linking, add it next to SAML
+under the same rules.
+
 ## What a workspace admin does
 
 Settings → Security · Single sign-on (`/w/<handle>/settings/security`, admins of funder workspaces):
