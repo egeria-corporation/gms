@@ -337,7 +337,12 @@ describe("Salesforce import", () => {
     expect(read.mapping).toMatchObject({ title: "Grant name", funderName: "Funder", askAmount: "Ask" });
     expect(salesforce.queries[0]).toMatch(/^SELECT Id, Name, Account\.Name, .* FROM Opportunity WHERE RecordType\.Name LIKE '%Grant%' ORDER BY CloseDate DESC LIMIT 5001$/);
 
-    const contacts = await data<{ columns: { name: string }[]; dropped: { column: string }[] }>(applicant, "POST", "/gms/imports/read", { target: "outside_applications", source: { kind: "salesforce", query: `SELECT Id, Name, ${BORN}, ${BANK} FROM Contact` } });
+    // A query that names such a field is refused before anything is sent, so the value never leaves Salesforce.
+    for (const field of [BORN, BANK]) {
+      expect(code(await call(applicant, "POST", "/gms/imports/read", { target: "outside_applications", source: { kind: "salesforce", query: `SELECT Id, Name, ${field} FROM Contact` } }))).toBe("invalid_query");
+    }
+    // Whatever comes back still goes through the screen (this fake answers with every field it holds).
+    const contacts = await data<{ columns: { name: string }[]; dropped: { column: string }[] }>(applicant, "POST", "/gms/imports/read", { target: "outside_applications", source: { kind: "salesforce", query: "SELECT Id, Name FROM Contact" } });
     expect(contacts.columns.map((c) => c.name)).toEqual(["Id", "Name"]);
     expect(contacts.dropped.map((d) => d.column).sort()).toEqual([BANK, BORN].sort());
 

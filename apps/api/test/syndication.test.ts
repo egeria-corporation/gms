@@ -225,6 +225,45 @@ describe("open-call feeds", () => {
   });
 });
 
+// v1.12.0 integration: a call whose public page is off is unlisted everywhere public, the
+// CommonGrants protocol list and search included, and stays readable by its id.
+describe("unlisted calls on the CommonGrants routes", () => {
+  it("leaves a call with publicPage false out of GET /common-grants/opportunities, with the totals to match", async () => {
+    const r = await call("GET", "/common-grants/opportunities?pageSize=100");
+    expect(r.status).toBe(200);
+    const listed = (r.body.items as { id: string }[]).map((i) => i.id);
+    expect(listed).not.toContain(OPP_NOPAGE);
+    expect(listed).toEqual(expect.arrayContaining([OPP_OPEN, OPP_FORECAST, OPP_OPTOUT, OPP_CLOSED, OPP_NOINDEX]));
+    expect(listed).not.toContain(OPP_DRAFT);
+    expect(r.body.paginationInfo?.totalItems).toBe(listed.length);
+    // Pages are cut after the unlisted call is left out, so none comes up short or repeats.
+    const first = (await call("GET", "/common-grants/opportunities?page=1&pageSize=2")).body;
+    const second = (await call("GET", "/common-grants/opportunities?page=2&pageSize=2")).body;
+    const paged = [...(first.items as { id: string }[]), ...(second.items as { id: string }[])].map((i) => i.id);
+    expect(paged).toEqual(listed.slice(0, 4));
+    expect(first.paginationInfo?.totalItems).toBe(listed.length);
+    // By status too.
+    const open = (await call("GET", "/common-grants/opportunities?status=open")).body.items as { id: string }[];
+    expect(open.map((i) => i.id)).not.toContain(OPP_NOPAGE);
+  });
+
+  it("leaves it out of POST /common-grants/opportunities/search, even searched for by its own words", async () => {
+    const all = await call("POST", "/common-grants/opportunities/search", json({}), {});
+    expect(all.status).toBe(200);
+    expect((all.body.items as { id: string }[]).map((i) => i.id)).not.toContain(OPP_NOPAGE);
+    const byTitle = await call("POST", "/common-grants/opportunities/search", json({}), { search: "No page call" });
+    expect(byTitle.body.items).toEqual([]);
+    const byStatus = await call("POST", "/common-grants/opportunities/search", json({}), { filters: { status: { operator: "in", value: ["open"] } } });
+    expect((byStatus.body.items as { id: string }[]).map((i) => i.id)).not.toContain(OPP_NOPAGE);
+  });
+
+  it("keeps it readable by its id, like an unlisted link", async () => {
+    const r = await call("GET", `/common-grants/opportunities/${OPP_NOPAGE}`);
+    expect(r.status).toBe(200);
+    expect((r.body.data as { id: string }).id).toBe(OPP_NOPAGE);
+  });
+});
+
 describe("the OpenGrants index feed", () => {
   it("lists published calls with the index and their page on, closed ones included, as valid CommonGrants records", async () => {
     const r = await call("GET", "/gms/public/feeds/opengrants.json");

@@ -49,13 +49,22 @@ async function competitionInputs(ctx: PublicContext, comps: Comp[]) {
   return out;
 }
 
-/** Published opportunities, newest first, as CommonGrants `OpportunityBase`. */
+/** The most published opportunities one protocol list reads before it leaves out the unlisted ones. */
+export const CG_LIST_WINDOW = 5000;
+
+/**
+ * Published opportunities, newest first, as CommonGrants `OpportunityBase`. A call whose public
+ * page is off (`publish.publicPage: false`) is unlisted: it is left out of the list and of search
+ * (services/search.ts reads this list), and stays readable by its id, like an unlisted link.
+ */
 export async function cgListOpportunities(ctx: PublicContext, q: { status?: string; limit?: number; offset?: number } = {}) {
   const where = q.status ? { status: q.status } : {};
-  const [rows, total] = await Promise.all([
-    ctx.repos.table("opportunities").find(where, { notNull: ["published_at"], orderBy: "published_at", ascending: false, limit: q.limit, offset: q.offset }),
-    ctx.repos.table("opportunities").count(where, { notNull: ["published_at"] }),
-  ]);
+  // The switch lives in a JSON column the repositories cannot filter on, so the published set is
+  // read in one window and paged here.
+  const listed = (await ctx.repos.table("opportunities").find(where, { notNull: ["published_at"], orderBy: "published_at", ascending: false, limit: CG_LIST_WINDOW })).filter((o) => publishFlag(o, "publicPage"));
+  const offset = q.offset ?? 0;
+  const rows = listed.slice(offset, q.limit === undefined ? undefined : offset + q.limit);
+  const total = listed.length;
   const byId = await funders(ctx, rows.map((r) => r.workspace_id));
   const items = rows.map((r) => projectOpportunity({ opportunity: r as unknown as OpportunityRow, funder: byId.has(r.workspace_id) ? funderOf(byId.get(r.workspace_id)!) : null }, opts(ctx)));
   return { items, total };
@@ -169,15 +178,17 @@ function publicFunder(w: Row<"workspaces">) {
   return { contactEmail, contacts, handle: w.handle, ...namesOf(w), brand: brandOf(w), mission: typeof org.mission === "string" ? org.mission : null, website: typeof org.socials?.website === "string" ? org.socials.website : null, verificationLevel: verification.level, verification, poweredBy: poweredByOf(w) };
 }
 
-const publishFlag = (o: Opp, flag: "publicPage" | "sitemap" | "openGrantsIndex") => (o.publish as Record<string, unknown> | null)?.[flag] !== false;
+/** A publish switch: on unless the funder turned it off (absent = on). Also read by services/syndication.ts. */
+export const publishFlag = (o: Pick<Opp, "publish">, flag: "publicPage" | "sitemap" | "openGrantsIndex" | "feeds") => (o.publish as Record<string, unknown> | null)?.[flag] !== false;
 
 /**
  * Whether an opportunity takes applications now: it is published as open and one of its
  * competitions is open. The rule the opportunity page applies before it offers Apply.
  */
-const acceptingApplications = (o: Opp, comps: Pick<Comp, "opportunity_id" | "status">[]) => o.status === "open" && comps.some((c) => c.opportunity_id === o.id && c.status === "open");
+export const acceptingApplications = (o: Opp, comps: Pick<Comp, "opportunity_id" | "status">[]) => o.status === "open" && comps.some((c) => c.opportunity_id === o.id && c.status === "open");
 
-const card = (o: Opp, accepting: boolean) => ({ id: o.id, slug: o.slug, title: o.title, description: o.description, status: o.status, funding: o.funding, keyDates: o.key_dates, acceptedApplicantTypes: o.accepted_applicant_types, acceptingApplications: accepting });
+/** An opportunity as the public pages show it (and the feeds and PND, services/syndication.ts). */
+export const card = (o: Opp, accepting: boolean) => ({ id: o.id, slug: o.slug, title: o.title, description: o.description, status: o.status, funding: o.funding, keyDates: o.key_dates, acceptedApplicantTypes: o.accepted_applicant_types, acceptingApplications: accepting });
 
 /** Competitions of these opportunities, read in batches so a long list never makes one huge query. */
 async function competitionsOf(ctx: PublicContext, oppIds: string[], where: { status?: string } = {}): Promise<Comp[]> {
@@ -262,7 +273,7 @@ const pageExtras = (o: Opp) => {
  * An "any" group reads as one line: in English "a or b" as always, in another language as that
  * language lists alternatives.
  */
-function ruleLabels(rule: Rule | null, text: (label: string) => string = (l) => l, locale: Locale = DEFAULT_LOCALE): string[] {
+export function ruleLabels(rule: Rule | null, text: (label: string) => string = (l) => l, locale: Locale = DEFAULT_LOCALE): string[] {
   if (!rule) return [];
   if ("all" in rule) return rule.all.flatMap((r) => ruleLabels(r, text, locale));
   if ("any" in rule) {

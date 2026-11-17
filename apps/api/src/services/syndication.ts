@@ -21,7 +21,7 @@ import { formatCurrency, formatDateTimeIn, formatList } from "@gms/i18n";
 import { toCsv } from "@gms/importers";
 import { cleanLine, emailT, escapeHtml, fromWithName, type EmailKey } from "@gms/notify";
 import { ProjectionError, projectOpportunity, type OpportunityBase, type OpportunityRow } from "@gms/protocol";
-import { parseRules, type Rule } from "@gms/rules";
+import { parseRules } from "@gms/rules";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
 import { forbidden } from "../auth/verify.ts";
@@ -32,7 +32,7 @@ import { publicFundsOf } from "./funds.ts";
 import { funderOf } from "./opportunities.ts";
 import { sha256Hex } from "./ports.ts";
 import { namesOf, orgFacts, verificationOf } from "./profile.ts";
-import type { PublicContext } from "./public.ts";
+import { acceptingApplications, card, publishFlag, ruleLabels, type PublicContext } from "./public.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 
 type Opp = Row<"opportunities">;
@@ -101,20 +101,11 @@ export interface PublicCall {
 }
 
 const publishOf = (o: Pick<Opp, "publish">): Record<string, unknown> => (o.publish as Record<string, unknown> | null) ?? {};
-const flagOn = (o: Pick<Opp, "publish">, flag: string) => publishOf(o)[flag] !== false;
 /** In the open-call feeds unless the funder took it out (`publish.feeds: false`). */
-export const feedsOn = (o: Pick<Opp, "publish">) => flagOn(o, "feeds");
+export const feedsOn = (o: Pick<Opp, "publish">) => publishFlag(o, "feeds");
 const liveFunder = (w: Ws | undefined): w is Ws => !!w && w.kind === "funder" && w.status === "active";
 /** Published, with its public page on, under an active funder: the page anyone can open. */
-const pageLive = (o: Opp, w: Ws | undefined): w is Ws => o.published_at !== null && flagOn(o, "publicPage") && liveFunder(w);
-
-/** The rule labels the public page lists (services/public.ts `ruleLabels`). */
-function ruleLabels(rule: Rule | null): string[] {
-  if (!rule) return [];
-  if ("all" in rule) return rule.all.flatMap(ruleLabels);
-  if ("any" in rule) return [rule.any.flatMap(ruleLabels).join(" or ")].filter(Boolean);
-  return rule.label ? [rule.label] : [];
-}
+const pageLive = (o: Opp, w: Ws | undefined): w is Ws => o.published_at !== null && publishFlag(o, "publicPage") && liveFunder(w);
 
 async function competitionsOf(ctx: PublicContext, oppIds: string[]): Promise<Comp[]> {
   const out: Comp[] = [];
@@ -138,18 +129,12 @@ async function publicCalls(ctx: PublicContext, opps: Opp[]): Promise<PublicCall[
     const w = funders.get(o.workspace_id)!;
     const mine = comps.filter((c) => c.opportunity_id === o.id);
     const parsed = parseRules(o.eligibility_rules);
+    // The public page's card and rule labels (services/public.ts), in the call's own language: the
+    // funder's words as written, whatever language a reader picks on the page.
     return {
       funder: { name: namesOf(w).name, handle: w.handle },
       opportunity: {
-        id: o.id,
-        slug: o.slug,
-        title: o.title,
-        description: o.description,
-        status: o.status,
-        funding: o.funding,
-        keyDates: o.key_dates,
-        acceptedApplicantTypes: o.accepted_applicant_types,
-        acceptingApplications: o.status === "open" && mine.some((c) => c.status === "open"),
+        ...card(o, acceptingApplications(o, mine)),
         publishedAt: o.published_at,
         eligibility: ruleLabels(parsed.ok ? parsed.rules : null),
         fund: fundOf.get(o.id) ?? null,
@@ -438,7 +423,7 @@ export const openGrantsFeedQuery = z
  * does not list a record OpenGrants holds means it is gone.
  */
 export async function openGrantsIndexFeed(ctx: PublicContext, q: z.output<typeof openGrantsFeedQuery>): Promise<{ items: OpportunityBase[]; total: number }> {
-  const opps = (await ctx.repos.table("opportunities").find({ status: ["open", "forecasted", "closed"] }, { notNull: ["published_at"], orderBy: "updated_at", ascending: true, limit: 10_000 })).filter((o) => flagOn(o, "openGrantsIndex") && (!q.modifiedSince || Date.parse(o.updated_at) > Date.parse(q.modifiedSince)));
+  const opps = (await ctx.repos.table("opportunities").find({ status: ["open", "forecasted", "closed"] }, { notNull: ["published_at"], orderBy: "updated_at", ascending: true, limit: 10_000 })).filter((o) => publishFlag(o, "openGrantsIndex") && (!q.modifiedSince || Date.parse(o.updated_at) > Date.parse(q.modifiedSince)));
   const wsIds = [...new Set(opps.map((o) => o.workspace_id))];
   const funders = new Map((wsIds.length ? await ctx.repos.table("workspaces").find({ id: wsIds }) : []).map((w) => [w.id, w]));
   const listed = opps.filter((o) => pageLive(o, funders.get(o.workspace_id))).sort((a, b) => a.updated_at.localeCompare(b.updated_at) || a.id.localeCompare(b.id));
@@ -766,7 +751,7 @@ export async function syndicationOf(ctx: ServiceContext, oppId: string) {
       urls: { json: feedUrl(ctx, "json", byFunder), csv: feedUrl(ctx, "csv", byFunder), rss: feedUrl(ctx, "rss", byFunder) },
       allUrl: feedUrl(ctx, "rss"),
     },
-    openGrants: { on: flagOn(l.opp, "openGrantsIndex"), inFeed: listed && flagOn(l.opp, "openGrantsIndex"), feedUrl: openGrantsFeedUrl(ctx), pulling: OPENGRANTS_PULLS_FEED },
+    openGrants: { on: publishFlag(l.opp, "openGrantsIndex"), inFeed: listed && publishFlag(l.opp, "openGrantsIndex"), feedUrl: openGrantsFeedUrl(ctx), pulling: OPENGRANTS_PULLS_FEED },
     pnd: {
       name: PND.name,
       address: PND.address,
