@@ -51,7 +51,9 @@ test("funder lists its awards and the grantee copies the share kit", async ({ ap
     await expect(page.getByRole("region", { name: "Grants awarded" })).toBeVisible();
     await switchWorkspace(page, "Alder Creek Family Services");
     await rail(page, "Awarded funding").click();
-    await page.getByRole("link", { name: "Mobile Health Navigation for Rural Families" }).first().click();
+    // The award's link in Awarded funding's own table: the page left behind (the dashboard) has a link
+    // with the same name, to the application, until the new page has drawn.
+    await page.getByRole("table", { name: "Grants" }).getByRole("link", { name: "Mobile Health Navigation for Rural Families" }).first().click();
     await page.getByRole("link", { name: "Payments and schedule" }).click();
     const kit = page.getByRole("region", { name: "Share this award" });
     await expect(kit.getByText("Listed publicly")).toBeVisible();

@@ -101,7 +101,9 @@ test("funder posts a call's reminder, builds the award kit with the federal stat
   await test.step("a grantee that chooses not to be listed is not introduced", async () => {
     await switchWorkspace(page, "Alder Creek Family Services");
     await rail(page, "Awarded funding").click();
-    await page.getByRole("link", { name: "Mobile Health Navigation for Rural Families" }).first().click();
+    // The award's link in Awarded funding's own table: the page left behind (the dashboard) has a link
+    // with the same name, to the application, until the new page has drawn.
+    await page.getByRole("table", { name: "Grants" }).getByRole("link", { name: "Mobile Health Navigation for Rural Families" }).first().click();
     await page.getByRole("link", { name: "Payments and schedule" }).click();
     await share.getByRole("switch", { name: "Don’t list us publicly" }).click();
     await expect(share.getByText("You chose not to be listed publicly.")).toBeVisible();
