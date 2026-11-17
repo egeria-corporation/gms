@@ -109,6 +109,14 @@ const claimLink = async (page: Page) => {
 
 const one = (path: string, who: Who, steps?: RouteCase["steps"]): RouteCase => ({ path, who, ...(steps ? { steps } : {}) });
 
+/** E4: an address and a note typed, then the invitation's preview open. Names in either language. */
+const previewInvitation = async (page: Page) => {
+  await page.getByLabel(/Their email address|Su dirección de correo electrónico/).fill("peer@northwind.example");
+  await page.getByLabel(/A note from you|Una nota suya/).fill("We moved our whole cycle here.");
+  await page.getByRole("button", { name: /^(Preview the email|Ver la vista previa del correo)$/ }).click();
+  await page.getByRole("dialog", { name: /^(Check the invitation|Revise la invitación)$/ }).waitFor();
+};
+
 /** Keyed by the route pattern exactly as App.tsx builds it (children of /w/:ws prefixed). */
 export const ROUTES: Record<string, RouteCase[]> = {
   "/": [one("/", "signed-out")],
@@ -147,6 +155,11 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/templates": [one("/templates", "signed-out")],
   "/templates/:slug": [one("/templates/small-grants-program-kit", "signed-out")],
   "/digests/unsubscribe": [one("/digests/unsubscribe#token=mock_unsubscribe_new_matches", "signed-out"), one("/digests/unsubscribe#token=v1.forged", "signed-out")],
+  // E4: funder loops. The package link's page with and without a count, funder setup in place, the
+  // directory, and a live and a turned-off co-branded page (mocks/loops.ts seeds High Desert).
+  "/for-funders": [one("/for-funders", "signed-out"), one("/for-funders?ref=mockpkgoregon0000001", "signed-out"), one("/for-funders?ref=mockpkgmontana000002&setup=1", "funder-admin")],
+  "/partners": [one("/partners", "signed-out")],
+  "/join/:token": [one("/join/mockjoinhighdesert01", "signed-out"), one("/join/mockjoinhighdesert01?setup=1", "funder-admin"), one("/join/notalivelink00000000", "signed-out")],
 
   "/onboarding/funder": [one("/onboarding/funder", "funder-admin")],
   "/onboarding/funder/:step": ["organization", "brand", "team", "payments", "program"].map((s) => one(`/onboarding/funder/${s}`, "funder-admin")),
@@ -158,6 +171,7 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/account": [one("/account", "funder-admin")],
   "/account/agents": [one("/account/agents", "funder-admin")],
   "/gallery/moderation": [one("/gallery/moderation", "funder-admin")],
+  "/partners/moderation": [one("/partners/moderation", "funder-admin")],
   "/review/assignments": [one("/review/assignments", "funder-reviewer"), one("/", "guest-reviewer", asGuest("gms_inv_mock_guest_reviewer", async (page) => {
     await page.getByRole("button", { name: /Start reviewing|Empezar a revisar/ }).click();
     await page.waitForURL(/\/review\/assignments/);
@@ -207,6 +221,9 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/w/:ws/settings/security": [one(`${F}/settings/security`, "funder-admin")],
   "/w/:ws/settings/social": [one(`${F}/settings/social`, "funder-admin"), one(`${A}/settings/social`, "applicant-admin")],
   "/w/:ws/settings/funds": [one(`${F}/settings/funds`, "funder-admin")],
+  // E4: the invitation's preview is reached by typing an address first, so it is a step, not a dialog case.
+  "/w/:ws/settings/invite-funders": [one(`${F}/settings/invite-funders`, "funder-admin"), one(`${F}/settings/invite-funders`, "funder-admin", previewInvitation)],
+  "/w/:ws/settings/partners": [one(`${F}/settings/partners`, "funder-admin")],
   "/w/:ws/settings/connectors": [one(`${F}/settings/connectors`, "funder-admin")],
   "/w/:ws/import": [one(`${F}/import`, "funder-admin"), one(`${A}/import`, "applicant-admin")],
   "/w/:ws/approvals": [one(`${F}/approvals`, "funder-admin")],

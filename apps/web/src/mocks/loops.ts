@@ -43,11 +43,13 @@ export interface LoopsStore {
 }
 
 export const MOCK_PACKAGE_TOKENS = { oregon: "mockpkgoregon0000001", montana: "mockpkgmontana000002" } as const;
+/** A demo intermediary, listed and with an onboarding link, so the directory and the co-branded page have something to show. */
+export const MOCK_PARTNER = { id: "mock-partner-high-desert", token: "mockjoinhighdesert01" } as const;
 export const seedLoopsStore = (): LoopsStore => ({
   invitations: {},
-  links: {},
-  listings: {},
-  partners: {},
+  links: { [MOCK_PARTNER.id]: { token: MOCK_PARTNER.token, logo: null, joined: 3, createdAt: "2026-10-01T16:00:00.000Z" } },
+  listings: { [MOCK_PARTNER.id]: { id: "mock-listing-high-desert", workspaceId: MOCK_PARTNER.id, status: "approved", region: "Central Oregon", submittedAt: "2026-10-01T16:00:00.000Z", decidedAt: "2026-10-02T16:00:00.000Z", decisionReason: null, withdrawnAt: null } },
+  partners: { [MOCK_PARTNER.id]: { name: "High Desert Community Fund", handle: "high-desert", funds: ["Rural Arts Fund", "Wildfire Recovery Fund", "Youth Futures Fund"] } },
   packages: { [MOCK_PACKAGE_TOKENS.oregon]: { region: "Oregon", organizations: 14 }, [MOCK_PACKAGE_TOKENS.montana]: { region: "Montana", organizations: 6 } },
   claims: [],
   moderatorEmails: [],
