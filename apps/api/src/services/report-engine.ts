@@ -56,7 +56,7 @@ export interface DataSetDef {
   columns: readonly ColumnDef[];
 }
 
-export const DATA_SET_KEYS = ["applications", "awards", "payments", "requirements", "organizations"] as const;
+export const DATA_SET_KEYS = ["applications", "awards", "payments", "requirements", "organizations", "history"] as const;
 export type DataSetKey = (typeof DATA_SET_KEYS)[number];
 
 const COLUMN_KEY = /^[a-z][a-zA-Z0-9]{0,39}$/;

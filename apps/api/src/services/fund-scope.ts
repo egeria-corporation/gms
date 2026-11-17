@@ -87,6 +87,10 @@ const RULES: { [T in TableName]: Rule } = {
   bank_transactions: parent("matched_tranche_id", "tranches", "Payment"),
   budgets: { kind: "check", allowed: async (r, v) => (r.award_id ? has(v, "awards", r.award_id) : has(v, "applications", r.application_id)) },
   calendar_feeds: OPEN,
+  // 0044: Slack alert settings and log are an admin's; a calendar link is its person's own.
+  alert_subscriptions: OPEN,
+  alert_deliveries: OPEN,
+  calendar_links: OPEN,
   // 0033: a competition's conflict-of-interest policy and its reviewers' signatures are that competition's.
   coi_policies: parent("competition_id", "competitions", "Competition"),
   coi_signatures: parent("competition_id", "competitions", "Competition"),
@@ -110,6 +114,18 @@ const RULES: { [T in TableName]: Rule } = {
   gallery_items: OPEN,
   gallery_submissions: OPEN,
   grantee_records: parent("applicant_workspace_id", "grantees", "Grantee"),
+  // 0046 (imported history): a past application or report is its award's, else its program's (an
+  // application only); a review is its application's. One linked to neither is the whole
+  // workspace's and never a fund advisor's. Their files (history_*_file subjects) are outside every fund.
+  history_applications: { kind: "check", allowed: async (r, v) => (r.award_id ? has(v, "awards", r.award_id) : has(v, "programs", r.program_id)) },
+  history_reports: { kind: "check", allowed: async (r, v) => has(v, "awards", r.award_id) },
+  history_reviews: {
+    kind: "check",
+    allowed: async (r, v) => {
+      const a = typeof r.application_id === "string" ? await v.base.table("history_applications").one({ id: r.application_id }) : null;
+      return !!a && (a.award_id ? has(v, "awards", a.award_id) : has(v, "programs", a.program_id));
+    },
+  },
   import_mappings: CLOSED,
   import_rows: CLOSED,
   import_runs: CLOSED,
@@ -133,6 +149,12 @@ const RULES: { [T in TableName]: Rule } = {
   outside_questions: OPEN,
   // 0040: an applicant's own sends of its outside applications (funder workspaces have none).
   package_sends: OPEN,
+  // 0047: funder loops (E4). Invitations, links and the directory listing are an admin's (no fund
+  // advisor reaches them); a join is read by the API alone.
+  peer_invitations: OPEN,
+  referral_links: OPEN,
+  referral_joins: OPEN,
+  directory_listings: OPEN,
   passport_account_links: OPEN,
   passport_link_requests: OPEN,
   passport_links: OPEN,
@@ -153,9 +175,14 @@ const RULES: { [T in TableName]: Rule } = {
   // 0038: connected accounts and the Zernio profile are the workspace's (connecting is an admin's);
   // a post is its subject's (an opportunity or an award).
   social_accounts: OPEN,
+  // 0048: share-kit settings are the workspace's own; a reminder prompt is its call's.
+  share_kit_profiles: OPEN,
+  social_reminder_prompts: parent("opportunity_id", "opportunities", "Opportunity"),
   social_posts: SUBJECT,
   social_profiles: OPEN,
   submissions: parent("award_id", "awards", "Award"),
+  // 0045: a call's submission to a listing service is its call's.
+  syndication_sends: parent("opportunity_id", "opportunities", "Opportunity"),
   tasks: SUBJECT,
   templates: OPEN,
   threads: { kind: "check", allowed: SUBJECT.allowed, inWorkspace: async (r, v) => r.workspace_id === v.workspaceId || r.funder_workspace_id === v.workspaceId },

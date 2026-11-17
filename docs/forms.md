@@ -115,6 +115,76 @@ A published version is immutable (`assertEditable`). `publishForm` validates the
 pinned version on an open competition calls `migrateResponses(target, responses)`, which drops values
 for removed fields, re-validates, and returns the new status and errors per response.
 
+## Languages
+
+A funder writes a form in one language (its **source**: English unless `translations.source` says
+`"es"`) and may give the same text in the other one. Translations are part of a form version
+(`FormDefinition.translations`, the `forms.translations` column, migration 0049): saved with the
+draft, published with it, immutable once published, copied into the next draft.
+
+```json
+{
+  "es": {
+    "title": { "text": "Carta de intención", "source": "Letter of intent" },
+    "sections": { "/elements/0": { "text": "Proyecto", "source": "Project" } },
+    "fields": {
+      "/projectType": {
+        "label": { "text": "Tipo de proyecto", "source": "Project type" },
+        "help": { "text": "Elija una.", "source": "Pick one." },
+        "options": { "Direct service": { "text": "Servicio directo", "source": "Direct service" } }
+      }
+    }
+  }
+}
+```
+
+- **What is translated:** the form title, section titles (a `Group` or `Category` label, keyed by the
+  layout's place in the UI schema), field labels, help text, and option labels (a select's or
+  multi-select's options and a budget table's categories, keyed by the stored value).
+  `translatableTexts(form)` lists them in reading order.
+- **Each text keeps its source.** `textState(entry, source)` is `done` (current and reviewed),
+  `missing`, `stale` (the source changed since it was translated) or `draft` (the assistant's,
+  not reviewed). `translationStatus(form, language)` counts them; `complete` means every text is done.
+- **Readers.** `formText(form, language)` gives each text in the reader's language when its
+  translation is done, and otherwise the source text (`coverage`: `full`, `partial` or `none`).
+  A stale or drafted translation is never shown to an applicant; the funder's own preview passes
+  `{ drafts: true }`.
+- **Answers are stored once.** A choice is always stored as its source value, whatever label the
+  applicant read; validation is the same in every language, and its messages come from the catalogs
+  (`form.error.*`), naming the field as the reader reads it.
+- **Versions.** `nextDraft` copies the translations unchanged. A text the new draft rewords becomes
+  `stale` and is flagged in the builder ("Needs updating", with the text it was translated from and
+  "Still correct"); the others carry over. A stale translation does not block publishing; readers
+  get the source text for it until it is updated.
+- **The assistant** (`POST /gms/translations/forms/{formId}/draft`, `{ language }`) drafts the
+  texts of the current draft version that are missing or stale, in one model call against the
+  workspace's monthly quota (logged as `translate` in `assist_calls`). It saves nothing: the builder
+  marks each draft, and `publishForm` refuses a version that still holds one (`unreviewedDrafts`).
+- **Checks.** `validateTranslations` checks the shape at save (the API) and at publish;
+  `normalizeTranslations` drops texts the form no longer has (a removed field, option or section)
+  and keeps stale ones so they can be flagged.
+- **CommonGrants.** The canonical `FormBase` fields keep the source language; the translations
+  travel only in `customFields.translations` (`{ name, fieldType: "object", value }`), validated
+  with the rest of the record (`projectForm` in `@gms/protocol`). Applicants read a form through
+  `/common-grants/forms/{formId}`, which is how the Spanish reaches them.
+
+**Where people see it.** The form builder's "Add Spanish" opens a Translate view: each text beside
+its translation, a completeness indicator (icon and label), and "Draft with the assistant" when the
+assistant is on; "Preview as applicant" can show either language. The renderer (`FormView`) shows
+an applicant the form in their language where the funder gave it, otherwise as written with a note
+("This form is in English, as the funder wrote it."), and marks a text in another language with its
+`lang`. Reviewers and staff read the questions in their own language with a switch to the other.
+
+**Opportunities.** The opportunity builder takes the title, summary and eligibility rule labels in
+the other language the same way (`OpportunityTranslations`, stored as the opportunity's
+`customFields.translations` custom field, so the CommonGrants `OpportunityBase` carries them in
+`customFields` only). An assistant draft is reviewed in the builder before saving: the API refuses
+one, because a published opportunity's text is public as soon as it is saved. The public page
+(`GET /gms/public/funders/{handle}/opportunities/{slug}`) answers in the reader's language (`?lang=`,
+the `gms_lang` cookie, Accept-Language; it varies on them), says which in `opportunity.language`,
+and returns the reviewed text of each other language in `opportunity.translations`, from which the
+front Worker draws the page's meta and share card on `?lang=es`.
+
 ## Test-fill
 
 `testFill(form, { seed, includeOptional })` generates a valid, fictional response, deterministic per

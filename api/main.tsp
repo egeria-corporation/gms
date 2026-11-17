@@ -20,6 +20,13 @@ import "./send-package.tsp";
 import "./guest-review.tsp";
 import "./digests.tsp";
 import "./importer-adapters.tsp";
+import "./connectors.tsp";
+import "./syndication.tsp";
+import "./history.tsp";
+// E4: funder loops.
+import "./loops.tsp";
+import "./award-kit.tsp";
+import "./translations.tsp";
 
 using TypeSpec.Http;
 

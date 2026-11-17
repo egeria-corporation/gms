@@ -54,6 +54,90 @@ export type Database = {
         };
         Relationships: [];
       };
+      alert_deliveries: {
+        Row: {
+          attempts: number;
+          created_at: string;
+          event: string;
+          event_key: string;
+          id: string;
+          slack_ts: string | null;
+          status: string;
+          subscription_id: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          attempts?: number;
+          created_at?: string;
+          event: string;
+          event_key: string;
+          id?: string;
+          slack_ts?: string | null;
+          status?: string;
+          subscription_id: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          attempts?: number;
+          created_at?: string;
+          event?: string;
+          event_key?: string;
+          id?: string;
+          slack_ts?: string | null;
+          status?: string;
+          subscription_id?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      alert_subscriptions: {
+        Row: {
+          alerts_from: string;
+          channel_id: string;
+          channel_name: string;
+          created_at: string;
+          created_by: string | null;
+          enabled: boolean;
+          events: string[];
+          id: string;
+          locale: string;
+          provider: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          alerts_from?: string;
+          channel_id: string;
+          channel_name: string;
+          created_at?: string;
+          created_by?: string | null;
+          enabled?: boolean;
+          events?: string[];
+          id?: string;
+          locale?: string;
+          provider?: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          alerts_from?: string;
+          channel_id?: string;
+          channel_name?: string;
+          created_at?: string;
+          created_by?: string | null;
+          enabled?: boolean;
+          events?: string[];
+          id?: string;
+          locale?: string;
+          provider?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       amendments: {
         Row: {
           award_id: string;
@@ -557,6 +641,10 @@ export type Database = {
           created_at: string;
           description: string | null;
           disbursed_at: string | null;
+          federal_amount: number | null;
+          federal_percent: number | null;
+          federal_source: string | null;
+          federally_funded: boolean;
           funding: Json;
           id: string;
           key_dates: Json;
@@ -584,6 +672,10 @@ export type Database = {
           created_at?: string;
           description?: string | null;
           disbursed_at?: string | null;
+          federal_amount?: number | null;
+          federal_percent?: number | null;
+          federal_source?: string | null;
+          federally_funded?: boolean;
           funding?: Json;
           id?: string;
           key_dates?: Json;
@@ -611,6 +703,10 @@ export type Database = {
           created_at?: string;
           description?: string | null;
           disbursed_at?: string | null;
+          federal_amount?: number | null;
+          federal_percent?: number | null;
+          federal_source?: string | null;
+          federally_funded?: boolean;
           funding?: Json;
           id?: string;
           key_dates?: Json;
@@ -755,6 +851,48 @@ export type Database = {
           rotated_at?: string | null;
           token_sha256?: string;
           updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      calendar_links: {
+        Row: {
+          calendar_id: string | null;
+          calendar_name: string | null;
+          composio_connection_id: string;
+          created_at: string;
+          event_map: Json;
+          id: string;
+          last_sync_at: string | null;
+          status: string;
+          updated_at: string;
+          user_id: string;
+          workspace_id: string;
+        };
+        Insert: {
+          calendar_id?: string | null;
+          calendar_name?: string | null;
+          composio_connection_id: string;
+          created_at?: string;
+          event_map?: Json;
+          id?: string;
+          last_sync_at?: string | null;
+          status?: string;
+          updated_at?: string;
+          user_id: string;
+          workspace_id: string;
+        };
+        Update: {
+          calendar_id?: string | null;
+          calendar_name?: string | null;
+          composio_connection_id?: string;
+          created_at?: string;
+          event_map?: Json;
+          id?: string;
+          last_sync_at?: string | null;
+          status?: string;
+          updated_at?: string;
+          user_id?: string;
           workspace_id?: string;
         };
         Relationships: [];
@@ -1185,6 +1323,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      directory_listings: {
+        Row: {
+          created_at: string;
+          decided_at: string | null;
+          decided_by: string | null;
+          decision_reason: string | null;
+          id: string;
+          region: string;
+          status: string;
+          submitted_at: string;
+          submitted_by: string;
+          updated_at: string;
+          withdrawn_at: string | null;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          decision_reason?: string | null;
+          id?: string;
+          region: string;
+          status?: string;
+          submitted_at?: string;
+          submitted_by: string;
+          updated_at?: string;
+          withdrawn_at?: string | null;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          decision_reason?: string | null;
+          id?: string;
+          region?: string;
+          status?: string;
+          submitted_at?: string;
+          submitted_by?: string;
+          updated_at?: string;
+          withdrawn_at?: string | null;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       discover_saved: {
         Row: {
           created_at: string;
@@ -1358,6 +1541,7 @@ export type Database = {
           purpose: string;
           supersedes_form_version: number | null;
           title: string;
+          translations: Json;
           ui_schema: Json;
           updated_at: string;
           version: number;
@@ -1376,6 +1560,7 @@ export type Database = {
           purpose?: string;
           supersedes_form_version?: number | null;
           title: string;
+          translations?: Json;
           ui_schema?: Json;
           updated_at?: string;
           version?: number;
@@ -1394,6 +1579,7 @@ export type Database = {
           purpose?: string;
           supersedes_form_version?: number | null;
           title?: string;
+          translations?: Json;
           ui_schema?: Json;
           updated_at?: string;
           version?: number;
@@ -1642,6 +1828,195 @@ export type Database = {
           owner_user_id?: string | null;
           pending_org_changes?: Json;
           tags?: string[];
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      history_applications: {
+        Row: {
+          answers: Json;
+          award_id: string | null;
+          awarded_amount_minor: number | null;
+          call_title: string | null;
+          created_at: string;
+          currency: string;
+          id: string;
+          import_run_id: string | null;
+          organization_name: string;
+          organization_workspace_id: string | null;
+          outcome: string;
+          outcome_label: string | null;
+          program_id: string | null;
+          program_name: string | null;
+          requested_amount_minor: number | null;
+          source_key: string | null;
+          source_system: string | null;
+          submitted_on: string | null;
+          title: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          answers?: Json;
+          award_id?: string | null;
+          awarded_amount_minor?: number | null;
+          call_title?: string | null;
+          created_at?: string;
+          currency?: string;
+          id?: string;
+          import_run_id?: string | null;
+          organization_name: string;
+          organization_workspace_id?: string | null;
+          outcome: string;
+          outcome_label?: string | null;
+          program_id?: string | null;
+          program_name?: string | null;
+          requested_amount_minor?: number | null;
+          source_key?: string | null;
+          source_system?: string | null;
+          submitted_on?: string | null;
+          title: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          answers?: Json;
+          award_id?: string | null;
+          awarded_amount_minor?: number | null;
+          call_title?: string | null;
+          created_at?: string;
+          currency?: string;
+          id?: string;
+          import_run_id?: string | null;
+          organization_name?: string;
+          organization_workspace_id?: string | null;
+          outcome?: string;
+          outcome_label?: string | null;
+          program_id?: string | null;
+          program_name?: string | null;
+          requested_amount_minor?: number | null;
+          source_key?: string | null;
+          source_system?: string | null;
+          submitted_on?: string | null;
+          title?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      history_reports: {
+        Row: {
+          award_id: string | null;
+          award_title: string | null;
+          created_at: string;
+          due_on: string | null;
+          id: string;
+          import_run_id: string | null;
+          organization_name: string | null;
+          organization_workspace_id: string | null;
+          report_state: string;
+          report_state_label: string | null;
+          source_key: string | null;
+          source_system: string | null;
+          submitted_on: string | null;
+          title: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          award_id?: string | null;
+          award_title?: string | null;
+          created_at?: string;
+          due_on?: string | null;
+          id?: string;
+          import_run_id?: string | null;
+          organization_name?: string | null;
+          organization_workspace_id?: string | null;
+          report_state: string;
+          report_state_label?: string | null;
+          source_key?: string | null;
+          source_system?: string | null;
+          submitted_on?: string | null;
+          title: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          award_id?: string | null;
+          award_title?: string | null;
+          created_at?: string;
+          due_on?: string | null;
+          id?: string;
+          import_run_id?: string | null;
+          organization_name?: string | null;
+          organization_workspace_id?: string | null;
+          report_state?: string;
+          report_state_label?: string | null;
+          source_key?: string | null;
+          source_system?: string | null;
+          submitted_on?: string | null;
+          title?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      history_reviews: {
+        Row: {
+          application_id: string | null;
+          application_key: string | null;
+          application_title: string | null;
+          comment: string | null;
+          created_at: string;
+          id: string;
+          import_run_id: string | null;
+          organization_name: string | null;
+          recommendation: string | null;
+          reviewed_on: string | null;
+          reviewer_name: string | null;
+          scores: Json;
+          source_key: string | null;
+          source_system: string | null;
+          total_score: number | null;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          application_id?: string | null;
+          application_key?: string | null;
+          application_title?: string | null;
+          comment?: string | null;
+          created_at?: string;
+          id?: string;
+          import_run_id?: string | null;
+          organization_name?: string | null;
+          recommendation?: string | null;
+          reviewed_on?: string | null;
+          reviewer_name?: string | null;
+          scores?: Json;
+          source_key?: string | null;
+          source_system?: string | null;
+          total_score?: number | null;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          application_id?: string | null;
+          application_key?: string | null;
+          application_title?: string | null;
+          comment?: string | null;
+          created_at?: string;
+          id?: string;
+          import_run_id?: string | null;
+          organization_name?: string | null;
+          recommendation?: string | null;
+          reviewed_on?: string | null;
+          reviewer_name?: string | null;
+          scores?: Json;
+          source_key?: string | null;
+          source_system?: string | null;
+          total_score?: number | null;
           updated_at?: string;
           workspace_id?: string;
         };
@@ -2892,6 +3267,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      peer_invitations: {
+        Row: {
+          created_at: string;
+          email_hash: string;
+          email_masked: string;
+          first_joined_at: string | null;
+          id: string;
+          invited_by: string;
+          joined_count: number;
+          sent_at: string | null;
+          slot: number;
+          status: string;
+          token_hash: string;
+          updated_at: string;
+          week_start: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          email_hash: string;
+          email_masked: string;
+          first_joined_at?: string | null;
+          id?: string;
+          invited_by: string;
+          joined_count?: number;
+          sent_at?: string | null;
+          slot: number;
+          status?: string;
+          token_hash: string;
+          updated_at?: string;
+          week_start: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          email_hash?: string;
+          email_masked?: string;
+          first_joined_at?: string | null;
+          id?: string;
+          invited_by?: string;
+          joined_count?: number;
+          sent_at?: string | null;
+          slot?: number;
+          status?: string;
+          token_hash?: string;
+          updated_at?: string;
+          week_start?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       programs: {
         Row: {
           awards_confidential: boolean;
@@ -2935,6 +3361,93 @@ export type Database = {
           id?: string;
           name?: string;
           owner_user_id?: string | null;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      referral_joins: {
+        Row: {
+          created_at: string;
+          id: string;
+          joined_by: string;
+          joined_kind: string;
+          joined_workspace_id: string;
+          peer_invitation_id: string | null;
+          referral_link_id: string | null;
+          source: string;
+          source_workspace_id: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          joined_by: string;
+          joined_kind: string;
+          joined_workspace_id: string;
+          peer_invitation_id?: string | null;
+          referral_link_id?: string | null;
+          source: string;
+          source_workspace_id?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          joined_by?: string;
+          joined_kind?: string;
+          joined_workspace_id?: string;
+          peer_invitation_id?: string | null;
+          referral_link_id?: string | null;
+          source?: string;
+          source_workspace_id?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      referral_links: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          kind: string;
+          logo_alt: string | null;
+          logo_mime: string | null;
+          logo_path: string | null;
+          logo_sha256: string | null;
+          logo_storage: string | null;
+          revoked_at: string | null;
+          token: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          kind: string;
+          logo_alt?: string | null;
+          logo_mime?: string | null;
+          logo_path?: string | null;
+          logo_sha256?: string | null;
+          logo_storage?: string | null;
+          revoked_at?: string | null;
+          token: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          kind?: string;
+          logo_alt?: string | null;
+          logo_mime?: string | null;
+          logo_path?: string | null;
+          logo_sha256?: string | null;
+          logo_storage?: string | null;
+          revoked_at?: string | null;
+          token?: string;
           updated_at?: string;
           workspace_id?: string;
         };
@@ -3294,6 +3807,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      share_kit_profiles: {
+        Row: {
+          consented_at: string | null;
+          consented_by: string | null;
+          created_at: string;
+          credit_wording: string;
+          page_url: string | null;
+          standard_description: string | null;
+          tag_consent: boolean;
+          updated_at: string;
+          updated_by: string | null;
+          workspace_id: string;
+        };
+        Insert: {
+          consented_at?: string | null;
+          consented_by?: string | null;
+          created_at?: string;
+          credit_wording?: string;
+          page_url?: string | null;
+          standard_description?: string | null;
+          tag_consent?: boolean;
+          updated_at?: string;
+          updated_by?: string | null;
+          workspace_id: string;
+        };
+        Update: {
+          consented_at?: string | null;
+          consented_by?: string | null;
+          created_at?: string;
+          credit_wording?: string;
+          page_url?: string | null;
+          standard_description?: string | null;
+          tag_consent?: boolean;
+          updated_at?: string;
+          updated_by?: string | null;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       social_accounts: {
         Row: {
           connected_at: string;
@@ -3429,6 +3981,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      social_reminder_prompts: {
+        Row: {
+          created_at: string;
+          deadline: string;
+          dismissed_at: string | null;
+          dismissed_by: string | null;
+          id: string;
+          opportunity_id: string;
+          prompted_at: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          deadline: string;
+          dismissed_at?: string | null;
+          dismissed_by?: string | null;
+          id?: string;
+          opportunity_id: string;
+          prompted_at?: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          deadline?: string;
+          dismissed_at?: string | null;
+          dismissed_by?: string | null;
+          id?: string;
+          opportunity_id?: string;
+          prompted_at?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       submissions: {
         Row: {
           award_id: string | null;
@@ -3472,6 +4060,51 @@ export type Database = {
           status?: string;
           submitted_at?: string | null;
           submitted_by?: string | null;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      syndication_sends: {
+        Row: {
+          created_at: string;
+          digest: string;
+          id: string;
+          message_id: string | null;
+          opportunity_id: string;
+          reply_to_masked: string;
+          sent_at: string | null;
+          sent_by: string;
+          target: string;
+          to_address: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          digest: string;
+          id?: string;
+          message_id?: string | null;
+          opportunity_id: string;
+          reply_to_masked: string;
+          sent_at?: string | null;
+          sent_by: string;
+          target: string;
+          to_address: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          digest?: string;
+          id?: string;
+          message_id?: string | null;
+          opportunity_id?: string;
+          reply_to_masked?: string;
+          sent_at?: string | null;
+          sent_by?: string;
+          target?: string;
+          to_address?: string;
           updated_at?: string;
           workspace_id?: string;
         };
@@ -3983,4 +4616,4 @@ export type Tables<T extends TableName> = PublicTables[T]["Row"];
 export type TablesInsert<T extends TableName> = PublicTables[T]["Insert"];
 export type TablesUpdate<T extends TableName> = PublicTables[T]["Update"];
 
-export const TABLE_NAMES = ["agreements","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","coi_policies","coi_signatures","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","digest_sends","digest_subscriptions","discover_saved","documents","form_responses","forms","funder_records","funds","gallery_items","gallery_submissions","grantee_records","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","package_sends","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","programs","reminder_sends","report_files","report_schedules","report_views","requirements","review_assignments","reviews","rubrics","social_accounts","social_posts","social_profiles","submissions","tasks","templates","threads","tranches","user_preferences","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspace_sso_domains","workspaces"] as const satisfies readonly TableName[];
+export const TABLE_NAMES = ["agreements","alert_deliveries","alert_subscriptions","amendments","answers","api_clients","application_events","application_summaries","applications","approvals","assist_calls","award_invitation_sends","award_invitations","awards","bank_transactions","budgets","calendar_feeds","calendar_links","coi_policies","coi_signatures","competitions","connector_accounts","consents","consulting_requests","custom_mcp_servers","decisions","digest_sends","digest_subscriptions","directory_listings","discover_saved","documents","form_responses","forms","funder_records","funds","gallery_items","gallery_submissions","grantee_records","history_applications","history_reports","history_reviews","import_mappings","import_rows","import_runs","inbound_events","invitations","ledger_archives","ledger_events","mcp_connections","messages","oauth_clients_dynamic","oauth_codes","oauth_grants","oauth_refresh_tokens","opportunities","org_change_inbox","outside_answers","outside_applications","outside_obligation_series","outside_obligations","outside_questions","package_sends","passport_account_links","passport_link_requests","passport_links","passport_second_steps","payment_schedules","peer_invitations","programs","referral_joins","referral_links","reminder_sends","report_files","report_schedules","report_views","requirements","review_assignments","reviews","rubrics","share_kit_profiles","social_accounts","social_posts","social_profiles","social_reminder_prompts","submissions","syndication_sends","tasks","templates","threads","tranches","user_preferences","webhook_deliveries","webhook_subscriptions","workspace_creation_counts","workspace_members","workspace_sso_domains","workspaces"] as const satisfies readonly TableName[];

@@ -35,6 +35,7 @@ identity or contact data (`NOT_REPORTABLE`), so one cannot be added by mistake.
 | Payments | Tranches | payment (n of N), award, program, recipient, amount, currency, due, status, how it is paid, recorded paid elsewhere, paid on |
 | Reports and requirements | Requirements of awards | requirement, type, award, program, recipient, due, status, days overdue |
 | Organizations | Organizations that submitted an application here or hold an award from here | organization, verified, location, state or region, applications submitted, awards, total awarded, currency |
+| Imported history (v1.12.0) | One row per past application, review and report imported from the funder's previous system (read-only history, never live records) | record, title, organization, call, program, fund, outcome, requested, awarded, currency, submitted on, year submitted, reviews, score, reviewed on, award, due on, imported from. No reviewer and no contact column |
 
 Amounts are integer minor units as recorded in the GMS:
 

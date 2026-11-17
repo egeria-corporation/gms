@@ -3,17 +3,21 @@
 // source; its keys are the type of every key (a missing key is a type error), and the Spanish files
 // must hold the same keys (test/catalogs.test.ts). The English `shared` namespace ships with the
 // web app's first page, in a chunk of its own; every other catalog, `public` and all of Spanish
-// included, is a chunk of its own loaded on demand, with the screens of its area.
+// included, is a chunk of its own loaded on demand, with the screens of its area. `extras` holds
+// the parts both kinds of workspace use that no first page needs (connected apps, the Google Drive
+// attach, the Salesforce source, the award kit's extras, v1.12.0): it loads with the screens and
+// panels that show them.
 import type { MessageFormatElement } from "@formatjs/icu-messageformat-parser";
 import type { Locale } from "./locales.ts";
 import type enPublic from "../catalogs/en/public.json";
 import enShared from "../catalogs/en/shared.json";
 import type enApplicant from "../catalogs/en/applicant.json";
 import type enFunder from "../catalogs/en/funder.json";
+import type enExtras from "../catalogs/en/extras.json";
 import type enEmail from "../catalogs/en/email.json";
 import type enErrors from "../catalogs/en/errors.json";
 
-export const NAMESPACES = ["public", "shared", "applicant", "funder", "email", "errors"] as const;
+export const NAMESPACES = ["public", "shared", "applicant", "funder", "extras", "email", "errors"] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 
 /** The English source of each namespace: the shape every other language follows. */
@@ -22,6 +26,7 @@ export interface Catalogs {
   shared: typeof enShared;
   applicant: typeof enApplicant;
   funder: typeof enFunder;
+  extras: typeof enExtras;
   email: typeof enEmail;
   errors: typeof enErrors;
 }
@@ -45,6 +50,7 @@ const LOADERS: Record<Locale, Record<Namespace, Loader>> = {
     shared: () => Promise.resolve({ default: enShared }),
     applicant: () => import("../catalogs/en/applicant.json"),
     funder: () => import("../catalogs/en/funder.json"),
+    extras: () => import("../catalogs/en/extras.json"),
     email: () => import("../catalogs/en/email.json"),
     errors: () => import("../catalogs/en/errors.json"),
   },
@@ -53,6 +59,7 @@ const LOADERS: Record<Locale, Record<Namespace, Loader>> = {
     shared: () => import("../catalogs/es/shared.json"),
     applicant: () => import("../catalogs/es/applicant.json"),
     funder: () => import("../catalogs/es/funder.json"),
+    extras: () => import("../catalogs/es/extras.json"),
     email: () => import("../catalogs/es/email.json"),
     errors: () => import("../catalogs/es/errors.json"),
   },

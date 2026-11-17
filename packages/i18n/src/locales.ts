@@ -20,7 +20,7 @@ export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 export const INTL_LOCALE: Record<Locale, string> = { en: "en-US", es: "es-US" };
 
 /** The name of each language in itself, for the switcher. Spanish is marked beta until a native speaker has reviewed the catalog. */
-export const LANGUAGE_NAMES: Record<Locale, string> = { en: "English", es: "Español (beta)" };
+export const LANGUAGE_NAMES: Record<Locale, string> = { en: "English", es: "Español" };
 
 export const isLocale = (value: unknown): value is Locale => typeof value === "string" && (LOCALES as readonly string[]).includes(value);
 

@@ -16,6 +16,7 @@ import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader, SaveNote }
 import { formatDate, formatMinor } from "../../lib/format.ts";
 import { dateTime, usePeople } from "./shared.tsx";
 import { t, useFunderMessages } from "./i18n.ts";
+import { ImportedHistory } from "./ImportedHistory.tsx";
 
 /** Payee status in words and shape, never color alone. Bank name and last four digits only. */
 function PayeeChip({ payee }: { payee: GranteeSummary["payee"] }) {
@@ -341,6 +342,7 @@ function Record({ workspaceId, base, onChanged }: { workspaceId: string; base: s
         </div>
       </section>
       <GranteeReports awardIds={g.awardList.map((a) => String(a.id))} base={base} />
+      <ImportedHistory query={{ organization: workspaceId }} />
       {proposing && (
         <ProposeDialog
           grantee={g}

@@ -25,6 +25,12 @@
 // mapping; the rows it says were never awarded are set aside. Fluxx and Zengine are read through
 // their APIs with the funder's own credentials (./import-pullers.ts), 5,000 rows a run, resuming
 // where the last run stopped. The screen still runs first on every table, whatever the adapter.
+// Salesforce (v1.12.0) is read through Composio, read only: a preset or a SOQL SELECT of the
+// person's own, checked first (@gms/importers, sources/salesforce.ts).
+//
+// Imported history (v1.12.0, ./history.ts): a funder's past applications, reviews and reports are
+// three more funder targets with the same steps; their rows are written by ./history.ts into
+// tables of their own, never as live applications, reviews, decisions or requirements.
 import { airtableRefFrom, ConnectorAuthError, ConnectorScopeError, ConnectorScopeUnverifiedError, ConnectorUnavailableError, isAirtableTableId, SourceReadError, spreadsheetIdFrom } from "@gms/connectors";
 import {
   ADAPTER_KEYS,
@@ -36,10 +42,21 @@ import {
   detectAdapter,
   DROP_REASON_TEXT,
   FILE_ADAPTERS,
+  isPastTarget,
   setAsideNotAwarded,
   tableFromJson,
   MAX_IMPORT_ROWS,
+  MAX_SOQL_LENGTH,
   planImport,
+  presetSoql,
+  checkSoql,
+  SALESFORCE_PRESET_DEFS,
+  SALESFORCE_PRESETS,
+  salesforcePresetsFor,
+  soqlObject,
+  SoqlRefusedError,
+  tableFromSalesforce,
+  type SalesforcePreset,
   screenColumns,
   SourceTableError,
   suggestMapping,
@@ -70,12 +87,13 @@ import { apiId } from "../lib/ids.ts";
 import { awardImportContext, importedAwardRow, type AwardImportContext } from "./analytics.ts";
 import { audit, authorize, guardWrite, importsArePeoples, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { deleteCredentials, pullerAdapter, pullerSources, pullSource } from "./import-pullers.ts";
+import { PAST_COMMIT_BATCH, PAST_ENTITY, pastContext, pastEntityExists, writePastRow, type PastContext } from "./history.ts";
 import { insertImportedOutside, OUTSIDE_ROLES } from "./outside.ts";
 import { RepoError, type Row } from "./repos/types.ts";
 import { applyTrancheUpdate } from "./tranches.ts";
 
 /** Rows written per commit call: a batch stays well inside one Worker request's subrequest budget. */
-export const COMMIT_BATCH: Record<TargetKey, number> = { outside_applications: 50, award_history: 20 };
+export const COMMIT_BATCH: Record<TargetKey, number> = { outside_applications: 50, award_history: 20, history_applications: PAST_COMMIT_BATCH, history_reviews: PAST_COMMIT_BATCH, history_reports: PAST_COMMIT_BATCH };
 /** A preview not committed within this long is deleted. */
 export const PREVIEW_TTL_MS = 24 * 60 * 60 * 1000;
 /** At most this many previews wait per workspace; older ones are deleted first. */
@@ -88,7 +106,7 @@ const KEYS_PER_LOOKUP = 150;
 type Run = Row<"import_runs">;
 type LogRow = Row<"import_rows">;
 
-const SOURCE_LABEL: Record<SourceKind, string> = { csv: "CSV file", xlsx: "Excel workbook", google_sheets: "Google Sheets", airtable: "Airtable", json: "JSON export", fluxx: "Fluxx", zengine: "Zengine" };
+const SOURCE_LABEL: Record<SourceKind, string> = { csv: "CSV file", xlsx: "Excel workbook", google_sheets: "Google Sheets", airtable: "Airtable", json: "JSON export", fluxx: "Fluxx", zengine: "Zengine", salesforce: "Salesforce" };
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 // ------------------------------------------------------------------------------------ input
@@ -104,6 +122,8 @@ export const sourceInput = z.discriminatedUnion("kind", [
   // Read through the system's API with the funder's own credentials; `startPage` continues a source larger than one run.
   z.object({ kind: z.literal("fluxx"), startPage: z.number().int().min(1).max(100_000).optional() }).strict(),
   z.object({ kind: z.literal("zengine"), formId: z.string().regex(/^\d{1,12}$/), startPage: z.number().int().min(1).max(100_000).optional() }).strict(),
+  // Salesforce through Composio, read only: a preset, or a SOQL SELECT of the person's own.
+  z.object({ kind: z.literal("salesforce"), preset: z.enum(SALESFORCE_PRESETS as [SalesforcePreset, ...SalesforcePreset[]]).optional(), query: z.string().trim().min(1).max(MAX_SOQL_LENGTH).optional() }).strict(),
 ]);
 export const targetInput = z.enum(TARGET_KEYS as [TargetKey, ...TargetKey[]]);
 /** Which grants system's export this is (its preset mapping); omitted, the file is recognised by its header row when it can be. */
@@ -150,7 +170,7 @@ interface LoadedSource {
   total?: number | null;
 }
 
-const NOT_CONNECTED: Record<"google_sheets" | "airtable", string> = { google_sheets: "Connect Google Sheets first", airtable: "Connect Airtable first" };
+const NOT_CONNECTED: Record<"google_sheets" | "airtable" | "salesforce", string> = { google_sheets: "Connect Google Sheets first", airtable: "Connect Airtable first", salesforce: "Connect Salesforce first" };
 
 /** What a failed read means for the person importing. Nothing here repeats a provider's own error text. */
 function sourceError(e: unknown, kind: SourceKind): never {
@@ -160,9 +180,10 @@ function sourceError(e: unknown, kind: SourceKind): never {
     throw new ApiError(422, code, e.message);
   }
   if (e instanceof SourceReadError) throw new ApiError(422, "source_not_readable", e.message);
+  if (e instanceof SoqlRefusedError) throw new ApiError(422, "invalid_query", e.message);
   if (e instanceof ConnectorScopeError) throw new ApiError(422, "connector_scope_rejected", e.message);
   if (e instanceof ConnectorScopeUnverifiedError) throw new ApiError(422, "connector_scope_unverified", e.message);
-  if (e instanceof ConnectorAuthError) throw new ApiError(409, "source_not_connected", kind === "google_sheets" || kind === "airtable" ? NOT_CONNECTED[kind] : "Connect the source first");
+  if (e instanceof ConnectorAuthError) throw new ApiError(409, "source_not_connected", kind === "google_sheets" || kind === "airtable" || kind === "salesforce" ? NOT_CONNECTED[kind] : "Connect the source first");
   if (e instanceof ConnectorUnavailableError) throw new ApiError(503, "connector_unavailable", "Composio could not be reached. Nothing was read; try again in a few minutes");
   throw e;
 }
@@ -180,18 +201,32 @@ function fromBase64(b64: string): Uint8Array {
   }
 }
 
-async function loadSource(ctx: ServiceContext, wsId: string, src: z.output<typeof sourceInput>): Promise<LoadedSource> {
+/** Salesforce: one SOQL SELECT (a preset, or the person's own after the read-only check) and its pages, 5,000 rows a run. */
+async function salesforceSource(ctx: ServiceContext, wsId: string, src: Extract<z.output<typeof sourceInput>, { kind: "salesforce" }>, target: TargetKey): Promise<LoadedSource> {
+  const port = ctx.ports.salesforce;
+  if (!port) throw new ApiError(503, "import_source_not_configured", "Importing from Salesforce is not set up on this server");
+  if (!!src.preset === !!src.query) throw new ApiError(422, "invalid_query", "Choose what to read: grants, accounts, or a SOQL query of your own");
+  const soql = src.preset ? presetSoql(src.preset, { target }) : checkSoql(src.query!);
+  const records = await port.query(wsId, soql, MAX_IMPORT_ROWS);
+  const table = tableFromSalesforce(records, { target, ...(src.preset ? { preset: src.preset } : {}) });
+  const what = src.preset ? SALESFORCE_PRESET_DEFS[src.preset].label : (soqlObject(soql) ?? "Query");
+  const ref = src.preset ? `preset:${src.preset}` : `soql:${(await columnsFingerprint([soql])).slice(0, 32)}`;
+  return { kind: "salesforce", table, label: clip(`Salesforce · ${what}`, 200), ref };
+}
+
+async function loadSource(ctx: ServiceContext, wsId: string, src: z.output<typeof sourceInput>, target: TargetKey): Promise<LoadedSource> {
   try {
     if (src.kind === "csv") return { kind: "csv", table: tableFromCsv(src.text), label: src.fileName || "Pasted CSV", ref: null };
     if (src.kind === "json") return { kind: "json", table: tableFromJson(src.text), label: src.fileName || "JSON export", ref: null };
     if (src.kind === "fluxx" || src.kind === "zengine") {
-      const p = await pullSource(ctx, wsId, src);
+      const p = await pullSource(ctx, wsId, src, target);
       return { kind: src.kind, table: p.table, label: p.label, ref: p.ref, nextPage: p.nextPage, total: p.total };
     }
     if (src.kind === "xlsx") {
       const w = await readXlsx(fromBase64(src.base64), src.sheet ?? null);
       return { kind: "xlsx", table: w.table, label: `${src.fileName || "Workbook"} · ${w.sheet}`, ref: null, sheets: w.sheets, sheet: w.sheet };
     }
+    if (src.kind === "salesforce") return await salesforceSource(ctx, wsId, src, target);
     if (src.kind === "google_sheets") {
       const port = ctx.ports.sheets;
       if (!port) throw new ApiError(503, "import_source_not_configured", "Importing from Google Sheets is not set up on this server");
@@ -233,13 +268,20 @@ const sourceView = (s: LoadedSource) => ({
  * else the system its header row matches (grant history only), else none.
  */
 function adapterFor(target: TargetKey, kind: SourceKind, named: AdapterKey | undefined, columns: readonly string[]): { adapter: ImportAdapter | null; detected: ReturnType<typeof detectAdapter> } {
+  if (kind === "salesforce") {
+    // Salesforce's columns are its own (a preset names them for the target); no grants system's export applies.
+    if (named) throw new ApiError(422, "adapter_mismatch", "A Salesforce import is read as Salesforce, not as another system's export");
+    return { adapter: null, detected: null };
+  }
   if (kind === "fluxx" || kind === "zengine") {
     if (named && named !== kind) throw new ApiError(422, "adapter_mismatch", `A ${SOURCE_LABEL[kind]} import is read as ${SOURCE_LABEL[kind]}`);
+    if (!pullerAdapter(kind).presets[target]) throw new ApiError(422, "adapter_not_for_target", `${SOURCE_LABEL[kind]} is not read for this kind of record`);
     return { adapter: pullerAdapter(kind), detected: null };
   }
   if (named && ADAPTERS[named].via === "api") throw new ApiError(422, "adapter_mismatch", `${ADAPTERS[named].system} is read through its API, not from a file`);
-  if (named && !ADAPTERS[named].presets[target]) throw new ApiError(422, "adapter_not_for_target", `${ADAPTERS[named].system} exports are imported as a funder's grant history`);
-  const detected = target === "award_history" ? detectAdapter(columns, FILE_ADAPTERS) : null;
+  if (named && !ADAPTERS[named].presets[target]) throw new ApiError(422, "adapter_not_for_target", target === "award_history" || target === "outside_applications" ? `${ADAPTERS[named].system} exports are imported as a funder's grant history` : `${ADAPTERS[named].system} exports do not carry this kind of record`);
+  // A funder's targets (grant history and imported history) recognise a system's export; an applicant's do not.
+  const detected = target !== "outside_applications" ? detectAdapter(columns, FILE_ADAPTERS.filter((a) => !!a.presets[target])) : null;
   return { adapter: named ? ADAPTERS[named] : (detected?.adapter ?? null), detected };
 }
 const adapterRef = (a: ImportAdapter | null) => (a ? { key: a.key, system: a.system } : null);
@@ -249,24 +291,25 @@ export async function importSources(ctx: ServiceContext, target: TargetKey) {
   const ws = await importWorkspace(ctx, target);
   const canConnect = ws.role === "admin" && ctx.scopes.includes("workspace:admin") && !!ctx.actor.userId;
   const connected = async (port: { status(id: string): Promise<{ connected: boolean }> } | undefined) => (port ? (await port.status(ws.id).catch(() => ({ connected: false }))).connected : false);
-  const [sheets, airtable] = await Promise.all([connected(ctx.ports.sheets), connected(ctx.ports.airtable)]);
+  const [sheets, airtable, salesforce] = await Promise.all([connected(ctx.ports.sheets), connected(ctx.ports.airtable), connected(ctx.ports.salesforce)]);
   const t = TARGETS[target] as unknown as ImportTarget;
   // Fluxx and Zengine: grant history only, offered where the server can store credentials; only a
   // signed-in admin connects or reads them.
-  const pullers = target === "award_history" && ctx.config.credentialsKey ? await pullerSources(ctx, ws.id) : [];
+  const pullers = target !== "outside_applications" && ctx.config.credentialsKey ? (await pullerSources(ctx, ws.id)).filter((p) => !!pullerAdapter(p.provider).presets[target]) : [];
   return {
     target,
     maxRows: MAX_IMPORT_ROWS,
     maxXlsxBytes: MAX_XLSX_BYTES,
     fields: fieldsView(t),
     /** The grants systems whose exports have a preset for this target (none for an applicant's applications). */
-    adapters: adaptersFor(target).map(adapterView),
+    adapters: adaptersFor(target).map((a) => adapterView(a, target)),
     // A source that is not set up on this server is not listed at all.
     sources: [
       { kind: "csv" as const, label: SOURCE_LABEL.csv, connected: true, canConnect: false },
       { kind: "xlsx" as const, label: SOURCE_LABEL.xlsx, connected: true, canConnect: false },
       ...(ctx.ports.sheets ? [{ kind: "google_sheets" as const, label: SOURCE_LABEL.google_sheets, connected: sheets, canConnect }] : []),
       ...(ctx.ports.airtable ? [{ kind: "airtable" as const, label: SOURCE_LABEL.airtable, connected: airtable, canConnect }] : []),
+      ...(ctx.ports.salesforce ? [{ kind: "salesforce" as const, label: SOURCE_LABEL.salesforce, connected: salesforce, canConnect, presets: salesforcePresetsFor(target).map((p) => ({ key: p, label: SALESFORCE_PRESET_DEFS[p].label })) }] : []),
       ...pullers.map((p) => ({ kind: p.provider, label: p.label, connected: p.connected, canConnect: canConnect })),
     ],
   };
@@ -283,7 +326,7 @@ async function savedMapping(ctx: ServiceContext, wsId: string, target: TargetKey
 export async function readImportSource(ctx: ServiceContext, input: z.output<typeof readInput>) {
   const ws = await importWorkspace(ctx, input.target);
   const target = TARGETS[input.target] as unknown as ImportTarget;
-  const src = await loadSource(ctx, ws.id, input.source);
+  const src = await loadSource(ctx, ws.id, input.source, input.target);
   const screened = screenColumns(src.table.header, src.table.rows.map((r) => r.cells));
   const columns = screened.keep.map((i) => {
     const samples: string[] = [];
@@ -348,7 +391,7 @@ async function progressOf(ctx: ServiceContext, runId: string): Promise<Progress>
 }
 
 /** What a run log row links to, as the API names it. */
-const entityView = (r: LogRow) => (r.entity_id && r.written_at ? { type: r.entity_type as "outside_application" | "award", id: r.entity_type === "award" ? apiId("award", r.entity_id) : r.entity_id } : null);
+const entityView = (r: LogRow) => (r.entity_id && r.written_at ? { type: r.entity_type as "outside_application" | "award" | (typeof PAST_ENTITY)[keyof typeof PAST_ENTITY], id: r.entity_type === "award" ? apiId("award", r.entity_id) : r.entity_id } : null);
 const logView = (r: LogRow) => ({ line: r.line, outcome: r.outcome as "create" | "skip" | "error", reason: r.reason, problems: r.problems as unknown as Problem[], title: r.title, subtitle: r.subtitle, written: !!r.written_at, entity: entityView(r) });
 
 /** Previews nobody committed: those past their day, and any beyond the newest few. Their rows go with them. */
@@ -383,7 +426,7 @@ const moneyView = (m: readonly MoneyLine[]) => m.map((x) => ({ kind: x.kind, amo
 export async function previewImport(ctx: ServiceContext, input: z.output<typeof previewInput>) {
   const ws = await importWorkspace(ctx, input.target);
   const target = TARGETS[input.target] as unknown as ImportTarget<string, unknown>;
-  const src = await loadSource(ctx, ws.id, input.source);
+  const src = await loadSource(ctx, ws.id, input.source, input.target);
   let plan = await planImport({ target, table: src.table, mapping: input.mapping, source: { kind: src.kind, ref: src.ref } });
   // The same adapter as the read step (named, or recognised again from the screened columns).
   const { adapter } = adapterFor(input.target, src.kind, input.adapter, plan.columns);
@@ -486,6 +529,8 @@ export async function listImportRuns(ctx: ServiceContext, target: TargetKey) {
 interface WriteDeps {
   funderRecords: Row<"funder_records">[];
   awards: AwardImportContext | null;
+  /** Imported history: what its writers share in one batch (./history.ts). */
+  past: PastContext | null;
 }
 
 /** Record what the funder paid on an imported award as paid elsewhere: a resolve-mode tranche, walked through the machine. */
@@ -523,7 +568,7 @@ const COULD_NOT_SAVE = "This row could not be saved. Check its values and import
  */
 async function writeRow(ctx: ServiceContext, ws: ServiceWorkspace, run: Run, row: LogRow, deps: WriteDeps): Promise<"written" | "skipped" | "failed"> {
   const rows = ctx.repos.table("import_rows");
-  const entityType = run.target === "outside_applications" ? "outside_application" : "award";
+  const entityType = run.target === "outside_applications" ? "outside_application" : isPastTarget(run.target) ? PAST_ENTITY[run.target] : "award";
   let entityId = row.entity_id;
   if (!entityId) {
     const id = crypto.randomUUID();
@@ -537,10 +582,13 @@ async function writeRow(ctx: ServiceContext, ws: ServiceWorkspace, run: Run, row
     }
     if (!entityId) return "skipped";
   }
-  const exists = async () => (run.target === "outside_applications" ? !!(await ctx.repos.table("outside_applications").one({ id: entityId!, workspace_id: ws.id })) : !!(await ctx.repos.table("awards").one({ id: entityId!, workspace_id: ws.id })));
+  const exists = async () => (isPastTarget(run.target) ? pastEntityExists(ctx, run.target, entityId!, ws.id) : run.target === "outside_applications" ? !!(await ctx.repos.table("outside_applications").one({ id: entityId!, workspace_id: ws.id })) : !!(await ctx.repos.table("awards").one({ id: entityId!, workspace_id: ws.id })));
   try {
     if (run.target === "outside_applications") {
       if (!(await exists())) await insertImportedOutside(ctx, ws.id, row.record as unknown as OutsideRecord, deps.funderRecords, entityId);
+    } else if (isPastTarget(run.target)) {
+      // Imported history: a record imported before from another file of the same export is skipped (./history.ts).
+      if ((await writePastRow(ctx, ws.id, run, { ...row, entity_id: entityId }, deps.past!, entityId)) === "skipped") return "skipped";
     } else await writeHistory(ctx, ws.id, row.record as unknown as HistoryRecord, deps, entityId);
   } catch (e) {
     const refused = (e instanceof ApiError && (e.status === 409 || e.status === 422)) || (e instanceof RepoError && e.kind !== "unavailable");
@@ -579,6 +627,7 @@ export async function commitImport(ctx: ServiceContext, id: string) {
   const deps: WriteDeps = {
     funderRecords: target === "outside_applications" ? await ctx.repos.table("funder_records").find({ workspace_id: ws.id }) : [],
     awards: target === "award_history" ? await awardImportContext(ctx, ws.id) : null,
+    past: isPastTarget(target) && batch.length ? await pastContext(ctx, ws.id) : null,
   };
   let wrote = 0;
   for (const row of batch) if ((await writeRow(ctx, ws, run, row, deps)) === "written") wrote++;

@@ -35,6 +35,20 @@ const message = (key: string): string | undefined => {
   }
   return undefined;
 };
+/** The values each key's message uses, parsed once per key (a key is called from many places). */
+const usesOf = new Map<string, string[]>();
+const uses = (key: string, msg: string): string[] => {
+  let u = usesOf.get(key);
+  if (!u) usesOf.set(key, (u = [...used(parse(msg))]));
+  return u;
+};
+/**
+ * What makes this test slow, and how slow: it parses every web source file that calls the catalog
+ * with the TypeScript parser (217 files of apps/web/src at v1.12.0, about 0.8 s of parsing on an
+ * idle 4-core machine, 1.2 s for the whole test), and that grows with the app. Under load it ran
+ * near vitest's 5 s default, so it has a limit sized to that work.
+ */
+const PARSE_EVERY_SCREEN_MS = 30_000;
 const keysOf = (e: ts.Expression | undefined): string[] => (!e ? [] : ts.isStringLiteral(e) ? [e.text] : ts.isConditionalExpression(e) ? [...keysOf(e.whenTrue), ...keysOf(e.whenFalse)] : ts.isParenthesizedExpression(e) ? keysOf(e.expression) : []);
 
 describe("calls to the catalog", () => {
@@ -55,7 +69,7 @@ describe("calls to the catalog", () => {
             const obj = n.arguments.slice(translateCall ? 2 : 1).find(ts.isObjectLiteralExpression);
             if (obj?.properties.some(ts.isSpreadAssignment)) continue;
             const given = new Set(obj?.properties.map((p) => p.name?.getText(sf)) ?? []);
-            const missing = [...used(parse(msg))].filter((a) => !given.has(a));
+            const missing = uses(key, msg).filter((a) => !given.has(a));
             if (missing.length) problems.push(`${file.slice(src.length + 1)}:${sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1} ${key} needs ${missing.join(", ")}`);
           }
         }
@@ -64,5 +78,5 @@ describe("calls to the catalog", () => {
       visit(sf);
     }
     expect(problems).toEqual([]);
-  });
+  }, PARSE_EVERY_SCREEN_MS);
 });

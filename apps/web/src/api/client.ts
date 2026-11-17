@@ -3,7 +3,7 @@
 // generated from the TypeSpec document (`pnpm --filter @gms/web gen:api`); `createMockApi`
 // (mocks/api.ts) implements the same interface in the browser.
 import { isLocale, type Key, type Locale } from "@gms/i18n";
-import { translate } from "../i18n/current.ts";
+import { getLocale, translate } from "../i18n/current.ts";
 import createClient, { type Client } from "openapi-fetch";
 import type { components, paths } from "./schema.d.ts";
 import type {
@@ -328,7 +328,9 @@ export function createHttpApi(opts: HttpApiOptions): GmsApi & { http: Client<pat
     savePreferences,
     claimPassportSecondStep,
     publicFunder: (handle) => get(`/gms/public/funders/${e(handle)}`),
-    publicOpportunity: (handle, slug) => get(`/gms/public/funders/${e(handle)}/opportunities/${e(slug)}`),
+    // The page's language on the address (the funder's own Spanish where it gave it), so it follows
+    // the switcher without a cookie or a Spanish browser; the app remounts its routes on a change.
+    publicOpportunity: (handle, slug) => get(`/gms/public/funders/${e(handle)}/opportunities/${e(slug)}?lang=${getLocale()}`),
     publicEmbed: async (handle, slug) => {
       const res = await (opts.fetch ?? fetch)(`${opts.baseUrl}/gms/public/embed/funders/${e(handle)}/opportunities/${e(slug)}`, { credentials: "omit" });
       const json = (await res.json().catch(() => ({}))) as { data?: EmbedWidgetData; message?: string; errors?: unknown[] };

@@ -8,7 +8,8 @@
 //   Fluxx    REST API v2 on the funder's own instance (https://<name>.fluxx.io). An OAuth client the
 //            funder creates at /oauth/applications; client credentials at /oauth/token. Grant
 //            requests, the payments on them (request_transaction) and the organizations they went
-//            to, joined into one row per grant request.
+//            to, joined into one row per grant request; or (imported history) the reports on them
+//            (request_report), one row per report with its grant request's title and organization.
 //   Zengine  REST API v1 (https://api.zenginehq.com/v1) with an OAuth access token the funder gets
 //            from Zengine; 250 requests per 5 minutes per token, kept here with a sliding window.
 //            The records of one form, with the form's field labels as columns.
@@ -222,6 +223,16 @@ export const FLUXX_ORG_COLS = ["id", "name"] as const;
 /** One row per grant request, with these columns (the Fluxx adapter's preset names them). */
 export const FLUXX_COLUMNS = ["Fluxx ID", "Request ID", "Organization", "Project title", "Amount requested", "Amount awarded", "Granted", "Status", "Approved on", "Grant begins", "Grant ends", "Closed on", "Amount paid", "Last paid on"] as const;
 
+/**
+ * The report fields read (Fluxx's request_report model), and nothing else: never the grantee's
+ * contact fields or the report's notes and text, which the model also carries.
+ */
+export const FLUXX_REPORT_COLS = ["id", "request_id", "report_type", "due_at", "approved_at", "has_been_approved", "state"] as const;
+/** The grant request fields a report's row names: its title and organization, to link it by. */
+export const FLUXX_REPORT_GRANT_COLS = ["id", "project_title", "program_organization_id"] as const;
+/** One row per report, with these columns (the Fluxx adapter's history_reports preset names them). `Grant Fluxx ID` is the grant request's `Fluxx ID` in a grant history pull. */
+export const FLUXX_REPORT_COLUMNS = ["Report Fluxx ID", "Grant Fluxx ID", "Organization", "Project title", "Report type", "Due on", "Approved on", "Status"] as const;
+
 const orFilter = (field: string, ids: readonly (string | number)[]) => JSON.stringify({ group_type: "or", conditions: ids.map((id) => [field, "eq", id]) });
 
 export class FluxxPuller {
@@ -264,6 +275,21 @@ export class FluxxPuller {
     return { rows, more, total: typeof body.total_entries === "number" ? body.total_entries : null };
   }
 
+  /** The names of these records' organizations (`program_organization_id`), looked up by id in small batches. */
+  private async organizationNames(http: Http, base: string, token: string, records: readonly Record<string, unknown>[]): Promise<Map<string, string>> {
+    const orgIds = [...new Set(records.map((g) => g.program_organization_id).filter((x): x is string | number => typeof x === "number" || (typeof x === "string" && x !== "")))];
+    const orgName = new Map<string, string>();
+    for (let i = 0; i < orgIds.length; i += FLUXX_IDS_PER_LOOKUP) {
+      const ids = orgIds.slice(i, i + FLUXX_IDS_PER_LOOKUP);
+      for (let p = 1; ; p++) {
+        const r = await this.list(http, base, token, "organization", FLUXX_ORG_COLS, p, orFilter("id", ids));
+        for (const o of r.rows) orgName.set(String(o.id), text(o.name));
+        if (!r.more) break;
+      }
+    }
+    return orgName;
+  }
+
   /** Check the credentials with one token request and one one-row read. Nothing is kept. */
   async verify(c: FluxxCredentials): Promise<void> {
     const http = new Http("fluxx", this.deps, null);
@@ -299,16 +325,7 @@ export class FluxxPuller {
     const granted = grants.filter((g) => g.granted === true || g.granted === "true" || g.granted === 1);
 
     // Organization names for the granted requests, looked up by id in small batches.
-    const orgIds = [...new Set(granted.map((g) => g.program_organization_id).filter((x): x is string | number => typeof x === "number" || (typeof x === "string" && x !== "")))];
-    const orgName = new Map<string, string>();
-    for (let i = 0; i < orgIds.length; i += FLUXX_IDS_PER_LOOKUP) {
-      const ids = orgIds.slice(i, i + FLUXX_IDS_PER_LOOKUP);
-      for (let p = 1; ; p++) {
-        const r = await this.list(http, base, token, "organization", FLUXX_ORG_COLS, p, orFilter("id", ids));
-        for (const o of r.rows) orgName.set(String(o.id), text(o.name));
-        if (!r.more) break;
-      }
-    }
+    const orgName = await this.organizationNames(http, base, token, granted);
 
     // What was paid on each granted request.
     const paid = new Map<string, { minor: number; last: string }>();
@@ -338,6 +355,55 @@ export class FluxxPuller {
       return { id, fields: Object.fromEntries(FLUXX_COLUMNS.map((c, i) => [c, values[i]!])) };
     });
     return { columns: [...FLUXX_COLUMNS], records, nextPage, total, requests: http.requests };
+  }
+
+  /**
+   * Reports (request_report) from `startPage`, for imported history: each with its grant request's
+   * Fluxx id, title and organization, so it links to the grant a history import brought. At most
+   * `maxRows` rows. Read only, like every pull.
+   */
+  async pullReports(c: FluxxCredentials, opts: { startPage?: number; maxRows?: number } = {}): Promise<PullResult> {
+    const http = new Http("fluxx", this.deps, null);
+    const base = this.base(c);
+    const max = Math.min(opts.maxRows ?? MAX_PULL_ROWS, MAX_PULL_ROWS);
+    const token = await this.token(http, base, c);
+    const reports: Record<string, unknown>[] = [];
+    let page = Math.max(1, Math.floor(opts.startPage ?? 1));
+    let nextPage: number | null = null;
+    let total: number | null = null;
+    for (;;) {
+      const r = await this.list(http, base, token, "request_report", FLUXX_REPORT_COLS, page);
+      total = r.total ?? total;
+      reports.push(...r.rows);
+      if (!r.more) break;
+      page++;
+      if (reports.length + FLUXX_PAGE_SIZE > max) {
+        nextPage = page;
+        break;
+      }
+    }
+
+    // The grant requests the reports are on: their title and organization, looked up by id.
+    const requestIds = [...new Set(reports.map((x) => x.request_id).filter((x): x is string | number => typeof x === "number" || (typeof x === "string" && x !== "")))];
+    const grants = new Map<string, Record<string, unknown>>();
+    for (let i = 0; i < requestIds.length; i += FLUXX_IDS_PER_LOOKUP) {
+      const ids = requestIds.slice(i, i + FLUXX_IDS_PER_LOOKUP);
+      for (let p = 1; ; p++) {
+        const r = await this.list(http, base, token, "grant_request", FLUXX_REPORT_GRANT_COLS, p, orFilter("id", ids));
+        for (const g of r.rows) grants.set(String(g.id), g);
+        if (!r.more) break;
+      }
+    }
+    const orgName = await this.organizationNames(http, base, token, [...grants.values()]);
+
+    const records = reports.map((x): PulledRecord => {
+      const id = String(x.id ?? "");
+      const g = grants.get(String(x.request_id ?? ""));
+      const approved = x.has_been_approved === true || x.has_been_approved === "true" || x.has_been_approved === 1;
+      const values: string[] = [id, text(x.request_id), g ? (orgName.get(String(g.program_organization_id)) ?? "") : "", g ? text(g.project_title) : "", text(x.report_type), day(x.due_at), approved ? day(x.approved_at) : "", text(x.state)];
+      return { id, fields: Object.fromEntries(FLUXX_REPORT_COLUMNS.map((col, i) => [col, values[i]!])) };
+    });
+    return { columns: [...FLUXX_REPORT_COLUMNS], records, nextPage, total, requests: http.requests };
   }
 }
 

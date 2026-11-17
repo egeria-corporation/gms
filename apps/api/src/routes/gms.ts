@@ -18,6 +18,7 @@ import { applicationRoutes } from "./gms/applications.ts";
 import { awardSharingRoutes } from "./gms/award-sharing.ts";
 import { approvalRoutes } from "./gms/approvals.ts";
 import { assistRoutes } from "./gms/assist.ts";
+import { translationRoutes } from "./gms/translations.ts";
 import { fundRoutes } from "./gms/funds.ts";
 import { designRoutes } from "./gms/design.ts";
 import { digestRoutes } from "./gms/digests.ts";
@@ -38,11 +39,18 @@ import { galleryRoutes } from "./gallery.ts";
 import { socialRoutes } from "./gms/social.ts";
 import { sendPackageRoutes } from "./gms/send-package.ts";
 import { guestReviewRoutes } from "./gms/guest-review.ts";
+import { connectedAppRoutes } from "./gms/connected-apps.ts";
+import { historyRoutes } from "./gms/history.ts";
+// E4: funder loops.
+import { loopRoutes } from "./gms/loops.ts";
 import { config, userSvc } from "./http.ts";
 import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
 import { ssoRoutes } from "./gms/sso.ts";
 import { publicPages } from "./public.ts";
+// Syndication (E2): the public open-call feeds and the "Share this call" panel (docs/syndication.md).
+import { feedRoutes } from "./feeds.ts";
+import { syndicationRoutes } from "./gms/syndication.ts";
 
 export const gms = new Hono<AppEnv>();
 
@@ -71,6 +79,11 @@ const features = (c: Parameters<typeof config>[0]) => {
       customMcp: !!ports.mcpDirectory && !!cfg.credentialsKey,
       // Social posting through Zernio: ZERNIO_API_KEY and ZERNIO_WEBHOOK_SECRET.
       social: !!cfg.zernio,
+      // Connected apps through Composio (v1.12.0), each only with its own auth config.
+      slack: !!ports.slack,
+      googleCalendar: !!ports.calendar,
+      googleDrive: !!ports.drive,
+      salesforce: !!ports.salesforce,
     },
   };
 };
@@ -145,6 +158,8 @@ gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
 gms.route("/public", publicPages);
 // The embeddable apply widget's data, also public.
 gms.route("/public", embedPages);
+// Open-call feeds and the OpenGrants index feed, also public (docs/syndication.md).
+gms.route("/public", feedRoutes);
 // Opt-in content digests; their one-click unsubscribe needs no token, so they come before the routers below.
 gms.route("/", digestRoutes);
 // Registered first: its paths are more specific than the routers below (`/templates/usage` before `/templates/:id`).
@@ -161,6 +176,8 @@ gms.route("/", reviewParityRoutes);
 gms.route("/", moneyRoutes);
 gms.route("/", importRoutes);
 gms.route("/", importAdapterRoutes);
+// Imported history (v1.12.0): past applications, reviews and reports, read-only.
+gms.route("/", historyRoutes);
 gms.route("/", adminRoutes);
 gms.route("/", assistRoutes);
 // The switch pages' free migration request: no token needed, never an API or agent token.
@@ -181,6 +198,14 @@ gms.route("/", fundRoutes);
 // Send to the funder, and the guest reviewer loop (C4).
 gms.route("/", sendPackageRoutes);
 gms.route("/", guestReviewRoutes);
+// Connected apps (v1.12.0): Slack alerts, Google Calendar, Google Drive.
+gms.route("/", connectedAppRoutes);
+// Share this call: feeds, the OpenGrants index and Philanthropy News Digest (E2).
+gms.route("/", syndicationRoutes);
+// Funder loops (E4): peer invitations, "for funders", onboarding links, the partner directory, the reusable profile.
+gms.route("/", loopRoutes);
+// Bilingual forms and opportunity text: the assistant's translation drafts (E6, docs/forms.md).
+gms.route("/", translationRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);

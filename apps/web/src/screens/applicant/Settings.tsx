@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Workspace settings for the signed-in member: which events reach them in this workspace, in the
 // app and by email, and how email is batched. Account-level settings live in Account settings.
+import { ConnectedAppsLinkCard } from "../../components/ConnectedAppsLink.tsx";
 import { useState } from "react";
 import { Link } from "react-router";
 import type { NotificationPreferences } from "../../api/applicantMore.ts";
@@ -154,6 +155,7 @@ export default function Settings() {
               <WhatWeEmailYouCard workspaceId={ws.id} />
               <GrantSettingsCard />
               <CalendarFeedCard />
+              <ConnectedAppsLinkCard />
               <TokensCard base={base} />
               <ExportsCard handle={ws.handle} />
               <DangerZone workspaceId={ws.id} name={ws.name} />

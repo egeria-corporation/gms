@@ -2,7 +2,7 @@
 // Worker entry: wires Supabase-backed stores. The service-role client is created once per isolate;
 // every store query filters by workspace explicitly (RLS is on for every table regardless).
 import { AnthropicLlmClient } from "@gms/assist";
-import { ComposioAirtableSource, ComposioClient, ComposioSheetsSource, GoogleWorkspaceConnector, HttpMcpDirectory, MercuryBankFeed } from "@gms/connectors";
+import { ComposioAirtableSource, ComposioClient, ComposioSheetsSource, GoogleWorkspaceConnector, HttpMcpDirectory, MercuryBankFeed, connectedAppPorts } from "@gms/connectors";
 import type { DbClient } from "@gms/db";
 import { SupabaseLedgerStore } from "@gms/ledger";
 import { MemoryKv } from "@gms/mcp";
@@ -77,6 +77,8 @@ function ports(env: Env): ServicePorts {
     ...(env.COMPOSIO_API_KEY && env.COMPOSIO_AIRTABLE_AUTH_CONFIG_ID
       ? { airtable: new ComposioAirtableSource({ client: new ComposioClient({ apiKey: env.COMPOSIO_API_KEY }), authConfigId: env.COMPOSIO_AIRTABLE_AUTH_CONFIG_ID, callbackUrl: (_entityId, returnTo) => returnUrl(env, returnTo, "airtable") }) }
       : {}),
+    // Connected apps (v1.12.0): Slack, Google Calendar, Google Drive, Salesforce, each only with the key and its own auth config.
+    ...connectedAppPorts(env, (returnTo, provider) => returnUrl(env, returnTo, provider)),
     mcpDirectory: new HttpMcpDirectory(),
     // The drafting assistant exists only when it is switched on and has a key.
     ...(env.ASSISTANT_ENABLED === "true" && env.ANTHROPIC_API_KEY ? { llm: new AnthropicLlmClient({ apiKey: env.ANTHROPIC_API_KEY, model: env.ASSISTANT_MODEL ?? null }) } : {}),

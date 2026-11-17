@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The Submission, Notes and Activity tabs of an outside application, and the dialog that edits
 // its details (title, funder, program, ask, owner, links).
+import { SaveToDriveButton } from "../../../components/DriveAttach.tsx";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Bot, Clock, ExternalLink, Hash, Plus, Send, User, X } from "lucide-react";
@@ -89,6 +90,7 @@ export function SubmissionTab({ detail, record, base, readOnly, onMarkSubmitted 
               {snapshot ? (
                 <>
                   <DocumentRow doc={snapshot} applicationId={detail.id} note={t("outsideTabs.asSubmitted")} />
+                  <SaveToDriveButton kind="outside" id={detail.id} />
                   {detail.snapshotSha256 && (
                     <p className="small muted row" style={{ gap: "6px", alignItems: "flex-start" }}>
                       <Hash className="ic ic-sm" aria-hidden="true" />

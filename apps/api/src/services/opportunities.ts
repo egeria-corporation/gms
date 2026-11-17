@@ -2,9 +2,11 @@
 // Opportunities: CommonGrants `OpportunityBase` plus the GMS fields a funder edits (build spec
 // §9.2, §11.3). Publishing validates the CommonGrants projection and stores it; nothing here
 // writes to the OpenGrants index, which pulls from the public protocol routes.
+import { isPlainObject, validateOpportunityTranslations, type OpportunityTranslations } from "@gms/forms";
 import { ProjectionError, projectOpportunity, type FunderRow, type OpportunityBase, type OpportunityRow } from "@gms/protocol";
-import { parseRules } from "@gms/rules";
+import { parseRules, type Rule } from "@gms/rules";
 import { z } from "zod";
+import { forbidden } from "../auth/verify.ts";
 import { apiId } from "../lib/ids.ts";
 import { unprocessable } from "../lib/input.ts";
 import { audit, authorize, changeStatus, guardWrite, required, type ServiceContext } from "./context.ts";
@@ -63,9 +65,89 @@ export const opportunityInput = z
       .strict()
       .optional(),
     customFields: json.optional(),
+    /**
+     * The title, summary and eligibility labels in other languages (`@gms/forms` OpportunityTranslations).
+     * Stored as the CommonGrants custom field `translations`; the canonical fields keep the funder's language.
+     */
+    translations: json.optional(),
   })
   .strict();
 export const opportunityPatch = opportunityInput.partial();
+
+/** The custom field an opportunity's translations travel in (CommonGrants `customFields.translations`). */
+export const TRANSLATIONS_FIELD = "translations";
+
+/** An opportunity's translations, as stored in its custom field. */
+export const opportunityTranslationsOf = (o: Pick<Opp, "custom_fields">): OpportunityTranslations | null => {
+  const f = (o.custom_fields as Record<string, unknown> | null)?.[TRANSLATIONS_FIELD];
+  const value = isPlainObject(f) ? f.value : undefined;
+  return isPlainObject(value) ? (value as OpportunityTranslations) : null;
+};
+
+/** Whether translations hold any text in a language besides the funder's own. */
+export const hasOtherLanguage = (t: unknown): boolean => isPlainObject(t) && Object.entries(t).some(([k, v]) => k !== "source" && isPlainObject(v) && Object.values(v).some((x) => x !== undefined && x !== null && !(isPlainObject(x) && !Object.keys(x).length)));
+
+/**
+ * Text in a second language reaches the public only when a signed-in person puts it there: an
+ * agent may ask the assistant for drafts (which saves nothing), but publishing a call or a form
+ * that carries another language, or changing the other language of a call that is already public,
+ * is a person's, never an agent's or an API client's (403 human_only). One constant to relax.
+ */
+export const TRANSLATIONS_PUBLISHED_BY_A_PERSON = true;
+export function personPublishesTranslations(ctx: Pick<ServiceContext, "actor">, what: string): void {
+  if (TRANSLATIONS_PUBLISHED_BY_A_PERSON && ctx.actor.kind !== "user") throw forbidden("human_only", `${what} is a human gate: it must be done by a signed-in person in the GMS, never by an agent or API client`);
+}
+
+/** The labels of an opportunity's eligibility rules, each once: the texts a funder translates. */
+export function eligibilityLabelsOf(rules: unknown): string[] {
+  const parsed = parseRules(rules);
+  if (!parsed.ok) return [];
+  const out: string[] = [];
+  const walk = (r: Rule) => {
+    if ("all" in r) r.all.forEach(walk);
+    else if ("any" in r) r.any.forEach(walk);
+    else if (r.label?.trim() && !out.includes(r.label)) out.push(r.label);
+  };
+  walk(parsed.rules);
+  return out;
+}
+
+/**
+ * The custom fields with the translations set (or removed when there are none), checked first.
+ * An assistant draft is never stored on an opportunity: a person reviews it in the builder before
+ * saving, because a published opportunity's text is public as soon as it is saved. Eligibility
+ * labels the rules no longer have are dropped.
+ */
+function withTranslations(customFields: unknown, translations: unknown, rules: unknown): J {
+  const errors = validateOpportunityTranslations(translations);
+  if (errors.length) throw unprocessable("These translations are not valid", errors);
+  const t = (translations ?? {}) as OpportunityTranslations;
+  const labels = new Set(eligibilityLabelsOf(rules));
+  const value: Record<string, unknown> = {};
+  for (const [lang, tr] of Object.entries(t)) {
+    if (lang === "source") {
+      value.source = tr;
+      continue;
+    }
+    if (!isPlainObject(tr)) continue;
+    const entries = [["title", tr.title], ["description", tr.description], ...Object.entries((tr.eligibility as Record<string, unknown> | undefined) ?? {}).map(([k, v]) => [`eligibility/${k}`, v])] as [string, unknown][];
+    const drafts = entries.filter(([, v]) => isPlainObject(v) && v.draft === true).map(([k]) => ({ path: `translations/${lang}/${k}`, message: "Review the assistant's draft before saving it" }));
+    if (drafts.length) throw unprocessable("Review the assistant's drafts before saving them", drafts);
+    const eligibility = Object.fromEntries(Object.entries((tr.eligibility as Record<string, unknown> | undefined) ?? {}).filter(([k]) => labels.has(k)));
+    const kept = { ...(tr.title ? { title: tr.title } : {}), ...(tr.description ? { description: tr.description } : {}), ...(Object.keys(eligibility).length ? { eligibility } : {}) };
+    if (Object.keys(kept).length) value[lang] = kept;
+  }
+  const { [TRANSLATIONS_FIELD]: _old, ...rest } = (customFields ?? {}) as Record<string, unknown>;
+  // A record written in another language than English keeps saying so, translated or not.
+  return (Object.keys(value).length
+    ? { ...rest, [TRANSLATIONS_FIELD]: { name: TRANSLATIONS_FIELD, fieldType: "object", value, description: "The funder's title, summary and eligibility labels in other languages, by language code; each text keeps the source it translates. Canonical fields are in `source` (English when absent)." } }
+    : rest) as J;
+}
+
+/** `customFields.translations` is written through `translations` only. */
+function assertNoTranslationsField(customFields: unknown) {
+  if (isPlainObject(customFields) && TRANSLATIONS_FIELD in customFields) throw unprocessable("Set translations with the `translations` field", [{ path: `customFields/${TRANSLATIONS_FIELD}`, message: "is written through `translations`" }]);
+}
 export const publishInput = z.object({ status: z.enum(["forecasted", "open"]).optional() }).strict();
 
 type Opp = Row<"opportunities">;
@@ -103,6 +185,7 @@ export const opportunityView = (o: Opp) => ({
   publish: o.publish,
   applicantOptions: applicantOptionsOf(o),
   customFields: o.custom_fields,
+  translations: opportunityTranslationsOf(o) ?? {},
   published: o.published_at !== null,
   publishedAt: o.published_at,
   createdAt: o.created_at,
@@ -159,11 +242,14 @@ export async function getOpportunity(ctx: ServiceContext, id: string) {
 export async function createOpportunity(ctx: ServiceContext, input: z.output<typeof opportunityInput>) {
   const ws = await authorize(ctx, { scope: "opportunities:write", kind: "funder" });
   if (input.eligibilityRules !== undefined) assertRules(input.eligibilityRules);
+  assertNoTranslationsField(input.customFields);
   await assertProgram(ctx, ws.id, input.programId);
+  const translated = input.translations !== undefined ? { custom_fields: withTranslations(input.customFields, input.translations, input.eligibilityRules) } : {};
   const row = await guardWrite("An opportunity with this slug", () =>
     ctx.repos.table("opportunities").insert({
       workspace_id: ws.id,
       ...columns(input),
+      ...translated,
       title: input.title,
       slug: input.slug ?? slugify(input.title),
       ...(input.publish ? { publish: { publicPage: true, openGrantsIndex: true, sitemap: true, ...input.publish } } : {}),
@@ -176,9 +262,17 @@ export async function createOpportunity(ctx: ServiceContext, input: z.output<typ
 export async function updateOpportunity(ctx: ServiceContext, id: string, input: z.output<typeof opportunityPatch>) {
   const ws = await authorize(ctx, { scope: "opportunities:write", kind: "funder" });
   const current = required(await ctx.repos.table("opportunities").one({ id, workspace_id: ws.id }), "Opportunity");
+  // A public call's other language is public as soon as it is saved.
+  if (current.published_at && input.translations !== undefined && (hasOtherLanguage(input.translations) || hasOtherLanguage(opportunityTranslationsOf(current)))) personPublishesTranslations(ctx, "Changing the other language of a published call");
   if (input.eligibilityRules !== undefined) assertRules(input.eligibilityRules);
+  assertNoTranslationsField(input.customFields);
   await assertProgram(ctx, ws.id, input.programId);
-  const patch = { ...columns(input), ...(input.publish ? { publish: { ...(current.publish as object), ...input.publish } as J } : {}) };
+  // New custom fields keep the stored translations unless the patch sets them; new rules drop the labels they no longer have.
+  const translated =
+    input.translations !== undefined || input.customFields !== undefined || input.eligibilityRules !== undefined
+      ? { custom_fields: withTranslations(input.customFields ?? current.custom_fields, input.translations !== undefined ? input.translations : opportunityTranslationsOf(current), input.eligibilityRules ?? current.eligibility_rules) }
+      : {};
+  const patch = { ...columns(input), ...translated, ...(input.publish ? { publish: { ...(current.publish as object), ...input.publish } as J } : {}) };
   let cg: J | undefined;
   if (current.published_at) {
     // A published opportunity must stay a valid CommonGrants record: validate before anything is written.
@@ -201,6 +295,7 @@ export async function previewOpportunity(ctx: ServiceContext, id: string) {
 export async function publishOpportunity(ctx: ServiceContext, id: string, input: z.output<typeof publishInput> = {}) {
   const ws = await authorize(ctx, { scope: "opportunities:write", kind: "funder" });
   const opp = required(await ctx.repos.table("opportunities").one({ id, workspace_id: ws.id }), "Opportunity");
+  if (hasOtherLanguage(opportunityTranslationsOf(opp))) personPublishesTranslations(ctx, "Publishing a call in two languages");
   const funder = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
   const to = input.status ?? "open";
   const at = ctx.now().toISOString();

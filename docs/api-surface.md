@@ -52,7 +52,7 @@ Implemented responses are validated against the compiled OpenAPI document in
 
 | Route | Auth | Status |
 |---|---|---|
-| `GET /opportunities`, `GET /opportunities/{oppId}`, `POST /opportunities/search` | public for published; a token for the owning workspace also reads drafts | Implemented. `OpportunityDetails` carries the competitions the caller may see; `awards` arrive with phase 3 |
+| `GET /opportunities`, `GET /opportunities/{oppId}`, `POST /opportunities/search` | public for published; a token for the owning workspace also reads drafts | Implemented. `OpportunityDetails` carries the competitions the caller may see; `awards` arrive with phase 3. The list and search leave out a call whose public page is off (`publish.publicPage: false`, unlisted, v1.12.0); it stays readable by its id |
 | `GET /competitions/{compId}` | public for open/closed under a published opportunity; token for drafts | Implemented. Stages in `customFields.gms.value.stages` |
 | `GET /forms`, `GET /forms/{formId}` (`?version=`) | public for form versions pinned by a public competition; token for the workspace's other versions | Implemented. A report form pinned by a requirement is readable, at the pinned version, by the grantee who owes the report and the funder who asked for it; everyone else gets 404 |
 | `POST /applications/start` | `applications:write`, applicant workspace | Implemented. Body `{ competitionId, organizationId?, title? }`. Creates the draft, prefills the first stage's forms from the cached Passport record (provenance `passport`), stores an eligibility preview in `customFields.gms.value.eligibility` (`preview: true`). `201`; starting again returns the same application with `200` |
@@ -605,3 +605,77 @@ Tests: `apps/api/test/send-package.test.ts`, `contract-send-package.test.ts`, `g
 | `GET/POST/DELETE /gms/imports/connections/{fluxx\|zengine}` | Implemented | Funder admin, a signed-in person to connect (agents and API clients `403 human_only`). Credentials checked with one read, stored encrypted, never returned; requests never follow a redirect |
 | `GET /gms/imports/zengine/forms` | Implemented | The forms the stored Zengine token can open |
 | `POST /gms/imports/runs/{id}/files/match`, `GET/POST /gms/imports/runs/{id}/files` | Implemented | After an import has finished: match a system's zip by paths, then attach each file (a person, 25 MB each). Stored as the funder's own documents, listed on the funder's award page, never the grantee's |
+
+## Connected apps, syndication, imported history, funder loops, the award kit and bilingual forms (v1.12.0)
+
+Every write below is a signed-in person's (agents and API clients get `403 human_only` or
+`person_required`, checked before the body is read) unless it says otherwise; `GET /gms/config`
+says which connected apps this server offers (`available.slack`, `googleCalendar`, `googleDrive`,
+`salesforce`).
+
+### Connected apps (`docs/connectors.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `POST/DELETE /gms/connectors/{slack\|google_drive\|salesforce}` | Implemented | Workspace admin. Composio connection on the workspace's entity; scopes checked before every use, a broader connection deleted at Composio |
+| `GET/PUT/DELETE /gms/connected-apps/slack`, `GET /gms/connected-apps/slack/channels` | Implemented | Read: `workspace:admin` (an agent reads, as the screen does). Alerts: a public channel and the events; one short message per event, never answers or amounts. 503 `connector_not_configured` until `COMPOSIO_SLACK_AUTH_CONFIG_ID` is set |
+| `GET/POST/PUT/DELETE /gms/connected-apps/calendar`, `GET …/calendars`, `POST …/sync` | Implemented | The person's own calendar (`calendar_links`): connect, choose, sync now, disconnect. Deadlines as all-day events, kept in step hourly by the jobs Worker |
+| `POST /gms/connected-apps/google-drive/fetch`, `POST …/save` | Implemented | Applicants. Copy a file picked in the Google Picker (`drive.file`, 25 MB, the upload's own checks), or save the as-submitted copy to Drive |
+| `POST /gms/imports/read`, `POST /gms/imports/preview` | Changed | Source `salesforce`: a preset (per target) or a SOQL SELECT of the person's own, checked first (`invalid_query`) |
+| MCP `get_slack_alerts` | Implemented | Funder and applicant, read only. No tool connects an app, changes alerts, writes a calendar or copies a file |
+
+### Syndication (`docs/syndication.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/public/feeds/opportunities.json`, `.csv`, `.rss` | Implemented | No token. Open and upcoming calls with their public page on and in the feeds, only what each page shows; `region`, `category`, `funder`, `closingWithin`; cached 300 s with an ETag |
+| `GET /gms/public/feeds/opengrants.json` | Implemented | No token. CommonGrants `OpportunityBase` records of the calls in the OpenGrants index, for OpenGrants to pull (`page`, `pageSize` ≤ 100, `modifiedSince`) |
+| `GET /gms/opportunities/{id}/syndication` | Implemented | `opportunities:read`. The Share this call panel: feeds, the OpenGrants index status, PND's send-by date and state, counts of starts from feeds and PND |
+| `PUT /gms/opportunities/{id}/syndication/feeds` | Implemented | `opportunities:write`. `{ feeds }`: leave a call out of every feed |
+| `POST /gms/opportunities/{id}/syndication/pnd/preview`, `POST …/pnd` | Implemented | Admin or program officer, a person. The email to Philanthropy News Digest, sent as previewed, once per call, until four weeks before the earliest deadline |
+| MCP `get_opportunity_syndication` | Implemented | Read only |
+
+### Imported history (`docs/importers.md`, `docs/reports.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/history` | Implemented | `applications:read`, the funder's staff (`HISTORY_ROLES`). `?organization=` or `?award=`: past applications, reviews (with `reviews:read`) and reports (with `requirements:read`); fund advisors see their funds' rows |
+| `GET /gms/history/applications/{id}` | Implemented | One past application with its answers and reviews |
+| `GET /gms/history/applications/{id}/files/{docId}`, `GET /gms/history/reports/{id}/files/{docId}` | Implemented | A file attached from the export's zip; outside every fund |
+| `POST /gms/imports/read`, `/preview`, `GET /gms/imports/sources` | Changed | Targets `history_applications`, `history_reviews`, `history_reports`; the `cybergrants` adapter; Fluxx reads `request_report` for past reports |
+| `POST /gms/reports/preview`, report views | Changed | Data set `history` ("Imported history") |
+
+### Funder loops
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/public/for-funders` | Implemented | No token. `?ref=` (a package link) or `?invite=`: the region and, from ten up, how many organizations there keep their applications here (a number only) |
+| `GET /gms/public/partners`, `GET /gms/public/join/{token}`, `GET …/logo` | Implemented | No token. The partner directory (approved listings) and an intermediary's co-branded onboarding page and logo |
+| `POST /gms/referrals/claim` | Implemented | A person, for a workspace they made within the hour: counts the join for the link or invitation it came from, once |
+| `GET /gms/peer-invitations`, `POST …/preview`, `POST /gms/peer-invitations` | Implemented | Funder admin. Five a week, one per address; the note holds no link; sent as previewed |
+| `GET /gms/partner-settings`, `POST/DELETE …/onboarding-link`, `POST …/onboarding-link/replace`, `PUT/PATCH/DELETE …/onboarding-link/logo`, `PUT …/listing`, `POST …/listing/withdraw` | Implemented | Funder admin of an intermediary (two or more named funds) |
+| `GET /gms/partners/moderation/me`, `GET …/queue`, `POST …/listings/{id}/approve`, `POST …/listings/{id}/reject` | Implemented | A person's session only; operators in `DIRECTORY_MODERATORS` (else `GALLERY_MODERATORS`) |
+| `GET /gms/reusable-profile` | Implemented | `org:read`, applicants. The organization fields every funder here sees, verified or self-declared |
+
+### Award kit (`docs/award-sharing.md`)
+
+| Route | Status | Notes |
+|---|---|---|
+| `GET /gms/awards/{id}/sharing`, `GET /gms/my/awards/{id}/sharing` | Changed | The kit adds the portrait card's words and public address (`portrait.imageUrl`), the carousel, a press release, the federal statement, the pages to tag; the three posts in the reader's language |
+| `PUT /gms/awards/{id}/federal-funding` | Implemented | Funder. `{ funded, amount?, percent?, source? }`; the statement only with both numbers |
+| `GET /gms/awards/{id}/sharing/carousel.pdf`, `GET /gms/my/awards/{id}/sharing/carousel.pdf` | Implemented | `awards:read`. 6 to 10 pages of 1080 × 1350; 409 `not_public` otherwise |
+| `GET/PUT /gms/share-kit/profile` | Implemented | The workspace's social page and consent to be tagged; for funders the credit wording and standard description. Write: admin, a person |
+| `POST /gms/social/reminders/{id}/dismiss` | Implemented | Funder admin, a person: dismiss "Two weeks left" for a call |
+| `GET /gms/social/compose?subjectType=program&subjectId=…`, `POST /gms/social/posts` | Changed | A program as the subject: "Meet our grantees", publicly listed awards only |
+| Front Worker `GET /og/f/{handle}/awards/{slug}/portrait.png` | Implemented | No token. The portrait card under the award page's rules (404 otherwise); `?amount=1` draws the amount while the funder shows amounts; `?lang=` |
+| MCP `get_award_share_kit` | Changed | Describes the portrait card, carousel, press release and federal statement it returns |
+
+### Bilingual forms (`docs/forms.md`, "Languages")
+
+| Route | Status | Notes |
+|---|---|---|
+| `PATCH /gms/forms/{id}`, `PATCH /gms/opportunities/{id}` | Changed | `translations`: the funder's Spanish beside its own text (an opportunity's in `customFields.translations`); an assistant draft is never stored on an opportunity. Changing the other language of a published call is a person's |
+| `POST /gms/forms/{id}/publish`, `POST /gms/opportunities/{id}/publish` | Changed | A form version or call that carries another language is published by a person only (`403 human_only` for agents and API clients); a form holding an unreviewed draft is refused |
+| `POST /gms/translations/forms/{id}/draft`, `POST /gms/translations/opportunities/{id}/draft` | Implemented | `assist` with `forms:write` / `opportunities:write`, funders. The assistant's drafts of missing or stale texts; saves nothing; one call against the monthly quota (agents may draft) |
+| `GET /gms/public/funders/{handle}/opportunities/{slug}` | Changed | Title, summary and eligibility in the reader's language (`?lang=`, cookie, `Accept-Language`); `opportunity.language` and `opportunity.translations`; `Vary: Accept-Language, Cookie` |
+

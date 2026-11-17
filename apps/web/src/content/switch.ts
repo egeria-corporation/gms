@@ -73,6 +73,8 @@ export interface SwitchEntry {
   movesOver: string[];
   /** Step one, for this system. */
   exportStep: string;
+  /** The GMS reads this system directly through its API, read-only, with the funder's own credentials (no file to export). */
+  pull?: true;
   /** A list price only where the research gives one with a source (shown with LIST_PRICE_LABEL); "priced by quote" where the owner publishes none; null where the research says nothing. */
   price: Price | null;
   sources: Source[];
@@ -93,7 +95,7 @@ const ENTRIES: Omit<SwitchEntry, "kind">[] = [
     summary: "Export applications, reviews and contracts as CSV or Excel; they come over as history.",
     news: [],
     exports: ["CSV or Excel exports of applications, reviews, file details and contracts.", "A zip of up to 100 applications per download. Download links expire after 48 hours.", "The Good Grants API (version 2.3), on the Premium plan."],
-    movesOver: ["Applications", "Reviews", "Contracts, kept as the history of past cycles"],
+    movesOver: ["Past applications and their answers, as read-only history", "Reviews, as read-only history", "Awards from contracts, with payments recorded as paid elsewhere"],
     exportStep: "Export applications, reviews and contracts from Good Grants as CSV. An Excel export works too, once saved as CSV.",
     price: { kind: "list", product: "Good Grants", text: "€3,200 or €6,400 a year", source: { label: "Good Grants (goodgrants.com/pricing)", url: "https://goodgrants.com/pricing" } },
     sources: [
@@ -109,7 +111,7 @@ const ENTRIES: Omit<SwitchEntry, "kind">[] = [
     summary: "Export submissions as CSV and PDF from the submission list in classic Submittable, or from Downloads in Submittable Next.",
     news: [{ text: "Submittable acquired WizeHive, the maker of Zengine, on 8 August 2024.", source: SUBMITTABLE_WIZEHIVE }],
     exports: ["From the submission list: a CSV file, one PDF per submission (as a zip), or the files plus the PDF (as a zip).", "In Submittable Next: the Downloads page."],
-    movesOver: ["Submissions, with their files", "Awards, kept as history"],
+    movesOver: ["Submissions, with their answers and files, as read-only history", "Reviews, as read-only history", "Awards, with payments recorded as paid elsewhere"],
     exportStep: "From the submission list (or the Downloads page in Submittable Next), export the CSV, and the PDF zip if you want each submission as it was sent.",
     price: QUOTE,
     sources: [
@@ -125,7 +127,7 @@ const ENTRIES: Omit<SwitchEntry, "kind">[] = [
     summary: "Export each program's applications from Data Exports as CSV or XLSX.",
     news: [],
     exports: ["Data Exports as CSV or XLSX, with up to 100 columns and one program in each export.", "A bulk download of application PDFs, as a zip."],
-    movesOver: ["Applications, one program at a time"],
+    movesOver: ["Past applications and their answers, one program at a time, as read-only history", "Awards, with payments recorded as paid elsewhere"],
     exportStep: "In Data Exports, export each program as CSV (or as XLSX, saved as CSV). An export holds one program and up to 100 columns, so a program with more fields takes more than one export.",
     price: QUOTE,
     sources: [{ label: "SurveyMonkey help center (help.surveymonkey.com)", url: "https://help.surveymonkey.com/en/apply/analyze/data-exports" }],
@@ -141,7 +143,7 @@ const ENTRIES: Omit<SwitchEntry, "kind">[] = [
       { text: "GivingData later joined the same group.", source: FOUNDANT_GROUP },
     ],
     exports: ["CSV or XLS files from Export Data and from the report builder, one process at a time."],
-    movesOver: ["Applications", "Awards", "Payments, recorded as paid elsewhere"],
+    movesOver: ["Past applications and their answers, as read-only history", "Awards", "Payments, recorded as paid elsewhere"],
     exportStep: "From Export Data or the report builder, export the applications, awards and payments of each process as CSV (or as XLS, saved as CSV).",
     price: QUOTE,
     sources: [{ label: "Foundant (foundant.com)", url: "https://foundant.com/products/grant-management-software-for-foundations" }],
@@ -151,24 +153,26 @@ const ENTRIES: Omit<SwitchEntry, "kind">[] = [
     slug: "zengine",
     name: "Zengine",
     listName: "Zengine (WizeHive)",
-    summary: "Records come out through the Zengine REST API; we can help with the export.",
+    summary: "The GMS reads your Zengine records directly, read-only, with an access token of your own.",
     news: [{ text: "Zengine has been part of Submittable since August 2024, when Submittable acquired WizeHive.", source: SUBMITTABLE_WIZEHIVE }],
-    exports: ["The Zengine REST API, with OAuth, at up to 250 requests every 5 minutes."],
-    movesOver: ["Records, through the API"],
-    exportStep: "Export your records through the Zengine REST API into CSV files. If you would rather not write that export yourself, ask for the free migration and a person at OpenGrants helps with it.",
+    exports: ["The Zengine REST API, with OAuth, at up to 250 requests every 5 minutes.", "The GMS reads it for you, read-only, with an access token you get from Zengine: no export to write."],
+    movesOver: ["Past applications, reviews and reports from the forms you pick, as read-only history", "Awards, with payments recorded as paid elsewhere"],
+    exportStep: "Get an access token for your own Zengine account. Nothing is exported by hand: the GMS reads the form you pick through the API, read-only, and deletes the token when the import is finished.",
+    pull: true,
     price: null,
     sources: [{ label: "Zengine developer docs (zenginehq.github.io)", url: "https://zenginehq.github.io/developers/rest-api" }],
-    faq: [["Do we have to write code to export from Zengine?", "The export goes through the REST API. If you would rather not write it yourself, ask for the free migration and a person at OpenGrants helps with it."]],
+    faq: [["Do we have to write code to export from Zengine?", "No. The GMS reads your records through the REST API itself, read-only, with your own access token, and writes nothing to Zengine. A CSV export of your own works too."]],
   },
   {
     slug: "fluxx",
     name: "Fluxx",
     listName: "Fluxx",
-    summary: "Grant requests, payments, reports, documents and organizations come out through each instance's REST API.",
+    summary: "The GMS reads grant requests, payments and reports straight from your Fluxx instance, read-only, with an API application of your own.",
     news: [{ text: "Fluxx acquired Grantseeker on 12 November 2025.", source: { label: "Fluxx blog (fluxx.io)", url: "https://fluxx.io/blog/fluxx-acquires-grantseeker-to-build-fully-connected-grantmaking-ecosystem" } }],
-    exports: ["The REST API (version 2), for each Fluxx instance.", "Each instance has its own field dictionary, so the fields to map differ from one foundation to the next."],
-    movesOver: ["Grant requests", "Payments, recorded as paid elsewhere", "Reports", "Documents", "Organizations"],
-    exportStep: "Export through your instance's REST API into CSV files. The Rockefeller Archive Center publishes an open-source Fluxx exporter you can start from.",
+    exports: ["The REST API (version 2), for each Fluxx instance.", "Each instance has its own field dictionary, so the fields to map differ from one foundation to the next.", "The GMS reads it for you, read-only, with an API application you create in Fluxx: no export to write."],
+    movesOver: ["Grant requests, declined ones included, as read-only history", "Reports, as read-only history", "Awards, with payments recorded as paid elsewhere"],
+    exportStep: "In Fluxx, an administrator creates an API application at your instance's /oauth/applications page. Nothing is exported by hand: the GMS reads through the REST API, read-only, and deletes the application's id and secret when the import is finished.",
+    pull: true,
     price: { kind: "list", product: "Fluxx Grantmaker", text: "from $13,000 a year, plus a one-time setup fee", source: { label: "Fluxx (fluxx.io/demo)", url: "https://www.fluxx.io/demo" } },
     sources: [{ label: "Rockefeller Archive Center on GitHub (fluxx_exporter)", url: "https://github.com/RockefellerArchiveCenter/fluxx_exporter" }],
     faq: [["Our Fluxx fields are our own. Will they map?", "The import wizard shows each of your columns and suggests where it goes. You confirm the mapping before the dry run."]],
@@ -183,7 +187,7 @@ const ENTRIES: Omit<SwitchEntry, "kind">[] = [
       { text: "GivingData later joined the same group.", source: FOUNDANT_GROUP },
     ],
     exports: ["Excel or CSV list exports.", "OData feeds.", "The SmartConnect API, at up to 1,000 calls an hour."],
-    movesOver: ["Applications (Level 1 records)", "Reviews and payments (Level 2 records); payments are recorded as paid elsewhere"],
+    movesOver: ["Past applications (Level 1 records) and their answers, as read-only history", "Reviews (Level 2 records), as read-only history", "Awards, with payments (Level 2 records) recorded as paid elsewhere"],
     exportStep: "Export the Level 1 list (applications) and the Level 2 lists (reviews and payments) as CSV.",
     price: QUOTE,
     sources: [{ label: "SmartSimple wiki (wiki.smartsimple.com)", url: "https://wiki.smartsimple.com/wiki/SmartConnect_-_RESTful_API" }],
@@ -196,7 +200,7 @@ const ENTRIES: Omit<SwitchEntry, "kind">[] = [
     summary: "Export reports and application snapshots; awards and payment history come over without bank fields.",
     news: [],
     exports: ["Report exports.", "Application snapshots.", "The Insights API.", "A Snowflake data share."],
-    movesOver: ["Applications", "Awards", "Payment history, with bank fields dropped"],
+    movesOver: ["Past applications and their answers, as read-only history", "Impact reports, as read-only history", "Awards, with payment history recorded as paid elsewhere and bank fields dropped"],
     exportStep: "Export reports of your applications, awards and payments as CSV.",
     price: QUOTE,
     sources: [{ label: "Bonterra (bonterratech.com)", url: "https://bonterratech.com/pricing/corporate-social-responsibility" }],
@@ -209,7 +213,7 @@ const ENTRIES: Omit<SwitchEntry, "kind">[] = [
     summary: "Export as Excel, CSV, JSON or PDF, or in bulk as a zip.",
     news: [],
     exports: ["Excel, CSV, JSON or PDF exports, and bulk downloads as a zip.", "A REST API, available as a paid add-on."],
-    movesOver: ["Applications", "Reviews"],
+    movesOver: ["Past applications and their answers, as read-only history", "Reviews (judging data), as read-only history", "Awards, with payments recorded as paid elsewhere"],
     exportStep: "Export applications and reviews as CSV.",
     price: QUOTE,
     sources: [{ label: "OpenWater help center (help.getopenwater.com)", url: "https://help.getopenwater.com/en/articles/3110614-openwater-rest-api" }],
@@ -236,10 +240,12 @@ export const SWITCH_ENTRIES: SwitchEntry[] = [...ENTRIES.map((e) => ({ ...e, kin
 export const switchEntry = (slug: string | undefined): SwitchEntry | undefined => SWITCH_ENTRIES.find((e) => e.slug === slug);
 
 export const STEPS = (entry: SwitchEntry): [string, string][] => [
-  [`Export from ${entry.kind === "spreadsheets" ? "your spreadsheets" : entry.name}`, entry.exportStep],
-  ["Upload the files to the import wizard", "Sign up free, then open Import in your workspace. CSV files work on every install."],
+  [entry.pull ? `Get your ${entry.name} credentials` : `Export from ${entry.kind === "spreadsheets" ? "your spreadsheets" : entry.name}`, entry.exportStep],
+  entry.pull
+    ? [`Connect ${entry.name} in the import wizard`, `Sign up free, then open Import in your workspace and choose ${entry.name}. The GMS only reads from it.`]
+    : ["Upload the files to the import wizard", "Sign up free, then open Import in your workspace. CSV files work on every install."],
   ["Review the dry run", "Before anything is saved, see what will be created, skipped or has an error, with counts and amounts by year."],
-  ["Import", "Applications, awards and past payments are created. Payments are recorded as paid elsewhere; nothing moves money."],
+  ["Import", "Awards are created, with past payments recorded as paid elsewhere, and past applications, reviews and reports are kept as read-only history. Nothing moves money."],
 ];
 
 export const STAYS_BEHIND = {
@@ -329,8 +335,8 @@ export function switchText(locale: Locale = getLocale()) {
     ] as [string, string][],
     /** Step one is the system's own export step, as written. */
     steps: (entry: SwitchEntry): [string, string][] => [
-      [entry.kind === "spreadsheets" ? t("switchContent.steps.exportSpreadsheets") : t("switchContent.steps.exportFrom", { name: entry.name }), entry.exportStep],
-      [t("switchContent.steps.upload.title"), t("switchContent.steps.upload.detail")],
+      [entry.pull ? t("switchContent.steps.credentials", { name: entry.name }) : entry.kind === "spreadsheets" ? t("switchContent.steps.exportSpreadsheets") : t("switchContent.steps.exportFrom", { name: entry.name }), entry.exportStep],
+      entry.pull ? [t("switchContent.steps.connect.title", { name: entry.name }), t("switchContent.steps.connect.detail", { name: entry.name })] : [t("switchContent.steps.upload.title"), t("switchContent.steps.upload.detail")],
       [t("switchContent.steps.dryRun.title"), t("switchContent.steps.dryRun.detail")],
       [t("switchContent.steps.import.title"), t("switchContent.steps.import.detail")],
     ],

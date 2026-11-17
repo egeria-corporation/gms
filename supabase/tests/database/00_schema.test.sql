@@ -32,7 +32,13 @@ select tables_are(
     'funds',
     'package_sends',
     'digest_subscriptions', 'digest_sends',
-    'user_preferences'
+    'user_preferences',
+    'alert_subscriptions', 'alert_deliveries', 'calendar_links',
+    -- 0045: a call's submission to a listing service (Philanthropy News Digest).
+    'syndication_sends',
+    'history_applications', 'history_reviews', 'history_reports',
+    'peer_invitations', 'referral_links', 'referral_joins', 'directory_listings',
+    'share_kit_profiles', 'social_reminder_prompts'
   ],
   'public schema has exactly the GMS tables'
 );

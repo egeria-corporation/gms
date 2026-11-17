@@ -104,6 +104,10 @@ const PERSONAL_ROUTES = new Set([
   // and whether the person moderates the template gallery is about them, not the workspace.
   "post /gms/sso/join",
   "get /gms/gallery/moderation/me",
+  // E4: whether the person moderates the partner directory, and counting a workspace they just
+  // made for the link they came from (their own new workspace only: a sample id is refused with 422).
+  "get /gms/partners/moderation/me",
+  "post /gms/referrals/claim",
   // One-click unsubscribe from a digest: public, the signed link is the proof (a sample token is refused with 400).
   "post /gms/digests/unsubscribe",
   "get /gms/digests/unsubscribe",
@@ -142,6 +146,22 @@ const WAVE_C_AREAS: Record<string, RegExp> = {
   "guest review": /^\w+ \/gms\/guest-review\//,
   digests: /^\w+ \/gms\/digests(\/preview)?$/,
   "importer adapters": /^\w+ \/gms\/imports\/(connections|zengine|runs\/\{id\}\/files)/,
+};
+
+/**
+ * The v1.12.0 areas a cowriter must never reach, on the invited draft too: the connected apps (the
+ * Google Drive attach and save-to-Drive, Slack, the person's calendar on the team's deadlines),
+ * the organization profile panel, the share kit, peer invitations and partner settings, imported
+ * history, translations and Share this call.
+ */
+const WAVE_E_AREAS: Record<string, RegExp> = {
+  "connected apps (Drive attach, Slack, Calendar)": /^\w+ \/gms\/connected-apps\//,
+  "the organization profile panel": /^\w+ \/gms\/reusable-profile$/,
+  "share kit": /^\w+ \/gms\/(share-kit\/|my\/awards\/\{id\}\/sharing\/carousel\.pdf)/,
+  "peer invitations and partners": /^\w+ \/gms\/(peer-invitations|partner-settings)/,
+  "imported history": /^\w+ \/gms\/history(\/|$)/,
+  translations: /^\w+ \/gms\/translations\//,
+  "share this call": /^\w+ \/gms\/opportunities\/\{id\}\/syndication/,
 };
 
 /** A report definition the report builder accepts. */
@@ -511,6 +531,16 @@ describe.skipIf(!existsSync(SPEC))("a cowriter invited into one outside draft, o
       const mine = calls.filter((c) => re.test(c.key) && !PERSONAL_ROUTES.has(c.key) && !ANYONE_ROUTES.has(c.key));
       expect(mine.length, `${area}: routes in the document`).toBeGreaterThan(0);
       // Even on the invited draft: its package is the team's to send, not a cowriter's.
+      expect(mine.filter((c) => c.status !== 403 && c.status !== 404).map((c) => `${area}: ${c.status} ${c.key}${c.own ? " (the invited draft)" : ""} ${c.text.slice(0, 160)}`)).toEqual([]);
+    }
+  });
+
+  it("reaches none of the connected apps, the profile panel, the share kit, partners, imported history, translations or Share this call", () => {
+    const keys = new Set(calls.map((c) => c.key));
+    for (const k of ["post /gms/connected-apps/google-drive/fetch", "post /gms/connected-apps/google-drive/save", "get /gms/reusable-profile", "get /gms/connected-apps/calendar", "put /gms/connected-apps/slack"]) expect(keys, k).toContain(k);
+    for (const [area, re] of Object.entries(WAVE_E_AREAS)) {
+      const mine = calls.filter((c) => re.test(c.key) && !PERSONAL_ROUTES.has(c.key) && !ANYONE_ROUTES.has(c.key));
+      expect(mine.length, `${area}: routes in the document`).toBeGreaterThan(0);
       expect(mine.filter((c) => c.status !== 403 && c.status !== 404).map((c) => `${area}: ${c.status} ${c.key}${c.own ? " (the invited draft)" : ""} ${c.text.slice(0, 160)}`)).toEqual([]);
     }
   });

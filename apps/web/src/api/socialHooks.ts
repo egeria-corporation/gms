@@ -6,6 +6,8 @@ import { useServices, type Services } from "../app/services.tsx";
 import { useCurrentWorkspace } from "../app/workspace.tsx";
 import { env } from "../env.ts";
 import { createMockSocialApi, seedSocialStore, type SocialStore } from "../mocks/social.ts";
+import { createMockAwardSharingApi } from "../mocks/awardSharing.ts";
+import { mockAwardSharingStore } from "./awardSharingHooks.ts";
 import type { Mutation, Query, QueryState } from "./hooks.ts";
 import { createHttpSocialApi, type SocialApi } from "./social.ts";
 
@@ -31,7 +33,14 @@ function portFor(services: Pick<Services, "auth" | "mock" | "api">) {
     const workspace = { current: null as Current };
     const session = () => services.auth.getSession();
     const api = services.mock
-      ? createMockSocialApi({ session, store: mockSocialStore(services), workspace: () => workspace.current, getOpportunity: (id) => services.api.getOpportunity(id) })
+      ? createMockSocialApi({
+          session,
+          store: mockSocialStore(services),
+          workspace: () => workspace.current,
+          getOpportunity: (id) => services.api.getOpportunity(id),
+          // Awards and "Meet our grantees" read the award sharing mock's store, as the API reads award sharing.
+          awards: { api: createMockAwardSharingApi({ store: mockAwardSharingStore(services), workspace: () => workspace.current, funder: async (handle) => (await services.api.publicFunder(handle)).funder }), store: () => mockAwardSharingStore(services) },
+        })
       : createHttpSocialApi({ baseUrl: env.apiBaseUrl, token: async () => (await session())?.accessToken ?? null, workspaceId: () => workspace.current?.id ?? null });
     port = { api, workspace };
     ports.set(services.auth, port);

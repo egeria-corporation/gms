@@ -109,6 +109,36 @@ const claimLink = async (page: Page) => {
 
 const one = (path: string, who: Who, steps?: RouteCase["steps"]): RouteCase => ({ path, who, ...(steps ? { steps } : {}) });
 
+/** E4: Riverbend runs two funds besides its default (an intermediary), then makes its onboarding link. */
+const asIntermediary = async (page: Page) => {
+  await page.evaluate(async () => {
+    const mock = (window as unknown as { __gmsMock: { workspace(handle: string): Promise<unknown>; createFund(input: { name: string }): Promise<unknown> } }).__gmsMock;
+    await mock.workspace("riverbend");
+    await mock.createFund({ name: "River Health Fund" });
+    await mock.createFund({ name: "Youth Arts Fund" });
+  });
+  // Through another screen, so the partner settings load again with the new funds.
+  await navigate(page, `${F}/settings/funds`);
+  await page.getByRole("button", { name: /^(New fund|Nuevo fondo)$/ }).waitFor();
+  await navigate(page, `${F}/settings/partners`);
+  await page.getByRole("button", { name: /^(Make the onboarding link|Crear el enlace de incorporación)$/ }).click();
+  await page.getByRole("textbox", { name: /^(Onboarding link|Enlace de incorporación)$/ }).waitFor();
+};
+
+/** E4: an address and a note typed, then the invitation's preview open. Names in either language. */
+const previewInvitation = async (page: Page) => {
+  await page.getByLabel(/Their email address|Su dirección de correo electrónico/).fill("peer@northwind.example");
+  await page.getByLabel(/A note from you|Una nota suya/).fill("We moved our whole cycle here.");
+  await page.getByRole("button", { name: /^(Preview the email|Ver la vista previa del correo)$/ }).click();
+  await page.getByRole("dialog", { name: /^(Check the invitation|Revise la invitación)$/ }).waitFor();
+};
+
+/** "Add Spanish" in a builder (bilingual forms and opportunity text, E6), in either interface language. */
+const addSpanish = async (page: Page) => {
+  await page.getByRole("button", { name: /^(Add Spanish|Agregar español)$/ }).click();
+  await page.getByRole("button", { name: /^(Remove Spanish|Quitar español)$/ }).waitFor();
+};
+
 /** Keyed by the route pattern exactly as App.tsx builds it (children of /w/:ws prefixed). */
 export const ROUTES: Record<string, RouteCase[]> = {
   "/": [one("/", "signed-out")],
@@ -147,6 +177,11 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/templates": [one("/templates", "signed-out")],
   "/templates/:slug": [one("/templates/small-grants-program-kit", "signed-out")],
   "/digests/unsubscribe": [one("/digests/unsubscribe#token=mock_unsubscribe_new_matches", "signed-out"), one("/digests/unsubscribe#token=v1.forged", "signed-out")],
+  // E4: funder loops. The package link's page with and without a count, funder setup in place, the
+  // directory, and a live and a turned-off co-branded page (mocks/loops.ts seeds High Desert).
+  "/for-funders": [one("/for-funders", "signed-out"), one("/for-funders?ref=mockpkgoregon0000001", "signed-out"), one("/for-funders?ref=mockpkgmontana000002&setup=1", "funder-admin")],
+  "/partners": [one("/partners", "signed-out")],
+  "/join/:token": [one("/join/mockjoinhighdesert01", "signed-out"), one("/join/mockjoinhighdesert01?setup=1", "funder-admin"), one("/join/notalivelink00000000", "signed-out")],
 
   "/onboarding/funder": [one("/onboarding/funder", "funder-admin")],
   "/onboarding/funder/:step": ["organization", "brand", "team", "payments", "program"].map((s) => one(`/onboarding/funder/${s}`, "funder-admin")),
@@ -158,6 +193,7 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/account": [one("/account", "funder-admin")],
   "/account/agents": [one("/account/agents", "funder-admin")],
   "/gallery/moderation": [one("/gallery/moderation", "funder-admin")],
+  "/partners/moderation": [one("/partners/moderation", "funder-admin")],
   "/review/assignments": [one("/review/assignments", "funder-reviewer"), one("/", "guest-reviewer", asGuest("gms_inv_mock_guest_reviewer", async (page) => {
     await page.getByRole("button", { name: /Start reviewing|Empezar a revisar/ }).click();
     await page.waitForURL(/\/review\/assignments/);
@@ -175,10 +211,27 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/w/:ws/programs/:programId": [one(`${F}/programs/${PROGRAM}`, "funder-admin")],
   "/w/:ws/opportunities": [one(`${F}/opportunities`, "funder-admin")],
   "/w/:ws/opportunities/new": [one(`${F}/opportunities/new`, "funder-admin")],
-  "/w/:ws/opportunities/:oppId/edit": [one(`${F}/opportunities/${OPP}/edit`, "funder-admin"), one(`${F}/opportunities/${OPP}/edit#publish`, "funder-admin")],
+  "/w/:ws/opportunities/:oppId/edit": [
+    one(`${F}/opportunities/${OPP}/edit`, "funder-admin"),
+    one(`${F}/opportunities/${OPP}/edit#publish`, "funder-admin"),
+    // Share this call (E2): the preview of the email to Philanthropy News Digest, shown in place.
+    one(`${F}/opportunities/${OPP}/edit#publish`, "funder-admin", async (page) => {
+      await page.getByRole("button", { name: /^(Preview the email to PND|Ver el correo para PND)$/ }).click();
+      await page.getByRole("region", { name: /^(Email to|Correo para) Philanthropy News Digest$/ }).waitFor();
+    }),
+    one(`${F}/opportunities/${OPP}/edit`, "funder-admin", addSpanish),
+  ],
   "/w/:ws/opportunities/:oppId/competition": [one(`${F}/opportunities/${OPP}/competition`, "funder-admin")],
   "/w/:ws/forms": [one(`${F}/forms`, "funder-admin")],
-  "/w/:ws/forms/:formId/edit": [one(`${F}/forms/${FORM}/edit`, "funder-admin")],
+  "/w/:ws/forms/:formId/edit": [
+    one(`${F}/forms/${FORM}/edit`, "funder-admin"),
+    // Bilingual forms (E6): the next draft, Spanish added, the side-by-side Translate view.
+    one(`${F}/forms/${FORM}/edit`, "funder-admin", async (page) => {
+      await page.getByRole("button", { name: /^(Create v3 to edit|Crear la v3 para editar)$/ }).click();
+      await addSpanish(page);
+      await page.getByRole("list", { name: /^(Spanish text|Texto en español)$/ }).waitFor();
+    }),
+  ],
   "/w/:ws/competitions/:compId": [one(`${F}/competitions/${COMP}`, "funder-admin")],
   "/w/:ws/competitions/:compId/panel": [one(`${F}/competitions/${COMP}/panel`, "funder-admin")],
   "/w/:ws/applications": [one(`${F}/applications`, "funder-admin"), one(`${R}/applications`, "funder-reviewer"), one(`${A}/applications`, "applicant-admin"), one(`${A}/applications?view=board`, "applicant-admin"), one(`${A}/applications?view=calendar`, "applicant-admin")],
@@ -196,7 +249,14 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/w/:ws/payments/ledger": [one(`${F}/payments/ledger`, "funder-admin")],
   "/w/:ws/reporting": [one(`${F}/reporting`, "funder-admin"), one(`${F}/reporting?tab=received`, "funder-admin")],
   "/w/:ws/grantees": [one(`${F}/grantees`, "funder-admin")],
-  "/w/:ws/grantees/:granteeId": [one(`${F}/grantees/${GRANTEE}`, "funder-admin")],
+  "/w/:ws/grantees/:granteeId": [
+    one(`${F}/grantees/${GRANTEE}`, "funder-admin"),
+    // Imported history (v1.12.0): a past application opened in place, with its answers and reviews.
+    one(`${F}/grantees/${GRANTEE}`, "funder-admin", async (page) => {
+      await page.getByRole("button", { name: "After-school transport" }).click();
+      await page.getByRole("table", { name: /^(Past applications|Solicitudes anteriores)$/ }).getByText("A van for after-school pick-up three days a week.").waitFor();
+    }),
+  ],
   "/w/:ws/analytics": [one(`${F}/analytics`, "funder-admin")],
   "/w/:ws/report-builder": [one(`${F}/report-builder`, "funder-admin")],
   "/w/:ws/communications": [one(`${F}/communications`, "funder-admin")],
@@ -207,8 +267,25 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/w/:ws/settings/security": [one(`${F}/settings/security`, "funder-admin")],
   "/w/:ws/settings/social": [one(`${F}/settings/social`, "funder-admin"), one(`${A}/settings/social`, "applicant-admin")],
   "/w/:ws/settings/funds": [one(`${F}/settings/funds`, "funder-admin")],
+  // E4: the invitation's preview is reached by typing an address first, so it is a step, not a dialog case.
+  "/w/:ws/settings/invite-funders": [one(`${F}/settings/invite-funders`, "funder-admin"), one(`${F}/settings/invite-funders`, "funder-admin", previewInvitation)],
+  "/w/:ws/settings/partners": [one(`${F}/settings/partners`, "funder-admin"), one(`${F}/settings/partners`, "funder-admin", asIntermediary)],
   "/w/:ws/settings/connectors": [one(`${F}/settings/connectors`, "funder-admin")],
-  "/w/:ws/import": [one(`${F}/import`, "funder-admin"), one(`${A}/import`, "applicant-admin")],
+  // Connected apps (v1.12.0): both kinds; the funder pass also opens the Slack settings once connected.
+  "/w/:ws/settings/apps": [
+    one(`${F}/settings/apps`, "funder-admin"),
+    one(`${A}/settings/apps`, "applicant-admin"),
+    {
+      path: `${F}/settings/apps`,
+      who: "funder-admin",
+      steps: async (page) => {
+        // The same steps run in English and Spanish.
+        await page.getByRole("button", { name: /^(Connect Slack|Conectar Slack)$/ }).click();
+        await page.getByRole("combobox", { name: /^(Channel|Canal)$/ }).waitFor();
+      },
+    },
+  ],
+  "/w/:ws/import": [one(`${F}/import`, "funder-admin"), one(`${A}/import`, "applicant-admin"), one(`${F}/import?target=history_reviews`, "funder-admin")],
   "/w/:ws/approvals": [one(`${F}/approvals`, "funder-admin")],
 
   "/w/:ws/organization": [one(`${A}/organization`, "applicant-admin")],
@@ -322,4 +399,7 @@ export const DIALOGS: DialogCase[] = [
   d(`${A}/outside/${OAP(3)}?tab=submission`, "applicant-admin", "Record decision", "Record the decision", es("Registrar la decisión", "Registrar la decisión")),
   d(`${A}/organization/documents`, "applicant-admin", "Add a document", "Add a document to the vault", es("Agregar un documento", "Agregar un documento al archivo")),
   d(`${A}/organization/documents`, "applicant-admin", "Edit Board of directors 2026.pdf", "Board of directors 2026.pdf", es("Editar Board of directors 2026.pdf", "Board of directors 2026.pdf")),
+  // v1.12.0: the award kit's share-kit settings, from both sides of an award.
+  d(`${F}/awards/${AWD_F}/agreement`, "funder-admin", "Share-kit settings", "Share-kit settings", es("Configuración del kit para compartir", "Configuración del kit para compartir")),
+  d(`${A}/grants/${AWD_HEALTH}`, "applicant-admin", "Share-kit settings", "Share-kit settings", es("Configuración del kit para compartir", "Configuración del kit para compartir")),
 ];

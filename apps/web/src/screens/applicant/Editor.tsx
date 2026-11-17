@@ -3,6 +3,7 @@
 // field by field (only changed paths are sent; the server merges), so teammates and a scoped
 // consultant can work at once. Passport-owned fields are read-only here. The submit dialog runs
 // the readiness checklist and submits; a 422 comes back as the list of fields to fix.
+import { DriveAttachButton } from "../../components/DriveAttach.tsx";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
@@ -24,12 +25,15 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { LevelBadge, SelfReportedTag, StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, errorMessage, Notice, ReadinessChecklist, TabPanel, Tabs } from "../../components/ui.tsx";
 import { FormView, type UploadedFile } from "../../forms/FormView.tsx";
-import { fieldLabel, patchFor, rebase, sectionFor, sectionsOf, sectionState, type Section } from "./editorSync.ts";
+import { fieldLabel, fieldLabelShown, formTitleShown, patchFor, rebase, sectionFor, sectionsOf, sectionState, type Section } from "./editorSync.ts";
+import type { ShownText } from "@gms/forms";
+import { getLocale } from "../../i18n/index.tsx";
 import { EditorAssistant } from "./editorAssist.tsx";
 import type { DraftInvitation } from "../../api/invites.ts";
 import { InviteDialog, InviteOptions, InvitePicker, InviteSentNote, TeamNote, useDraftInvites } from "./inviteDraft.tsx";
 import { validationMessage } from "../../forms/FormView.tsx";
 import { t, useApplicantText } from "./i18n.ts";
+import { YourProfilePanel } from "./YourProfilePanel.tsx";
 import { explainResult } from "../../lib/eligibilityText.ts";
 
 interface EditorData {
@@ -70,6 +74,11 @@ const toBase64 = async (file: File): Promise<string> => {
   for (const b of bytes) binary += String.fromCharCode(b);
   return btoa(binary);
 };
+
+/** A funder's text, marked with its language when the page reads in another one (WCAG 3.1.2), as FormView marks it. */
+function InLang({ s }: { s: ShownText }) {
+  return s.lang === getLocale() ? <>{s.text}</> : <span lang={s.lang}>{s.text}</span>;
+}
 
 const SEC_ICON = { done: CircleCheck, prog: Clock, todo: CircleDashed } as const;
 const slug = (label: string) => `sec-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
@@ -197,7 +206,8 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   const formRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     for (const s of sections) {
-      const el = [...(formRef.current?.querySelectorAll<HTMLElement>("section[aria-label]") ?? [])].find((n) => n.getAttribute("aria-label") === s.label);
+      // FormView names each card with the title the reader sees (their language where translated).
+      const el = [...(formRef.current?.querySelectorAll<HTMLElement>("section[aria-label]") ?? [])].find((n) => n.getAttribute("aria-label") === s.shown.text);
       if (el) el.id = slug(s.label);
     }
   });
@@ -382,7 +392,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
             return (
               <a key={sec.label} href={`#${slug(sec.label)}`} className="fchip" style={{ height: "36px", flex: "none", textDecoration: "none", ...(st.state === "done" ? { color: "var(--s-ok-fg)" } : {}) }}>
                 <Icon className="ic ic-sm" aria-hidden="true" />
-                {sec.label}
+                <InLang s={sec.shown} />
               </a>
             );
           })}
@@ -397,7 +407,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
             <div className="seg" role="group" aria-label={t("editor.form")} style={{ margin: "0 6px 10px" }}>
               {editableForms.map((f) => (
                 <button key={f.formId} type="button" className={f.formId === activeFormId ? "on" : ""} aria-pressed={f.formId === activeFormId} onClick={() => setActiveFormId(f.formId)}>
-                  {defs[f.formId]?.title ?? t("editor.form")}
+                  {defs[f.formId] ? <InLang s={formTitleShown(defs[f.formId]!)} /> : t("editor.form")}
                 </button>
               ))}
             </div>
@@ -421,7 +431,9 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                 >
                   <Icon className="ic" aria-hidden="true" />
                   <div>
-                    <div className="nm">{s.label}</div>
+                    <div className="nm">
+                      <InLang s={s.shown} />
+                    </div>
                     <div className="st">{st.state === "done" ? t("editor.complete") : st.state === "prog" ? t("editor.inProgressToFix", { count: st.problems.length }) : t("editor.notStarted")}</div>
                   </div>
                   <span className="meta">
@@ -440,7 +452,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               <a key={f.formId} href={`#locked-${f.formId}`} className="s-lock">
                 <Lock className="ic" aria-hidden="true" />
                 <div>
-                  <div className="nm">{t("editor.formResponses", { form: defs[f.formId]?.title ?? t("editor.earlierStage") })}</div>
+                  <div className="nm">{t("editor.formResponses", { form: defs[f.formId] ? formTitleShown(defs[f.formId]!).text : t("editor.earlierStage") })}</div>
                   <div className="st">{t("editor.lockedPriorStageReadOnly")}</div>
                 </div>
                 <span className="meta"></span>
@@ -533,16 +545,17 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                   }}
                 />
               </label>
+              <DriveAttachButton onFile={(file) => uploadFile(file)} />
             </div>
           </section>
 
           {lockedForms.map((f) => {
             const d = defs[f.formId];
             return d ? (
-              <section className="card" key={f.formId} id={`locked-${f.formId}`} aria-label={t("editor.formResponses", { form: d.title })}>
+              <section className="card" key={f.formId} id={`locked-${f.formId}`} aria-label={t("editor.formResponses", { form: formTitleShown(d).text })}>
                 <div className="card-h">
                   <div>
-                    <h3>{t("editor.formResponses", { form: d.title })}</h3>
+                    <h3>{t("editor.formResponses", { form: formTitleShown(d).text })}</h3>
                     <p className="small muted">{t("editor.priorStageResponsesAreReadOnly")}</p>
                   </div>
                   <span className="bdg bdg-neutral">
@@ -612,7 +625,9 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                           <li key={`${e.field}-${i}`} className="rc-row rc-fail" style={i === 0 ? { borderTop: 0 } : undefined}>
                             <CircleX className="ic" role="img" aria-label={t("editor.needsAttention")} />
                             <div>
-                              <div className="l">{fieldLabel(def, e.field)}</div>
+                              <div className="l">
+                                <InLang s={fieldLabelShown(def, e.field)} />
+                              </div>
                               <div className="r">{validationMessage(e)}</div>
                             </div>
                             {s ? (
@@ -723,7 +738,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               </TabPanel>
             </div>
           </div>
-          {!phone ? <EditorAssistant answers={data.answers} fields={textFields.map(([k, f]) => ({ key: k, label: typeof f.title === "string" ? f.title : k }))} /> : null}
+          {!phone ? <EditorAssistant answers={data.answers} fields={textFields.map(([k]) => ({ key: k, label: fieldLabel(def, `/${k}`) }))} /> : null}
         </aside>,
         )}
       </div>
@@ -768,7 +783,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                 <ul className="d">
                   {submitProblems.slice(0, 6).map((p, i) => (
                     <li key={i}>
-                      {fieldLabel(def, (p.field ?? "").replace(/^[0-9a-f-]{36}/, ""))}: {p.detail}
+                      <InLang s={fieldLabelShown(def, (p.field ?? "").replace(/^[0-9a-f-]{36}/, ""))} />: {p.detail}
                     </li>
                   ))}
                 </ul>
@@ -815,7 +830,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
       </Dialog>
 
       <Dialog open={libraryOpen} onClose={() => setLibraryOpen(false)} labelledBy="lib-title">
-        <InsertAnswer answers={data.answers} fields={textFields.map(([k, s]) => ({ key: k, label: typeof s.title === "string" ? s.title : k }))} onInsert={insertAnswer} onClose={() => setLibraryOpen(false)} />
+        <InsertAnswer answers={data.answers} fields={textFields.map(([k]) => ({ key: k, label: fieldLabel(def, `/${k}`) }))} onInsert={insertAnswer} onClose={() => setLibraryOpen(false)} />
       </Dialog>
     </>
   );
@@ -867,11 +882,14 @@ function CommentsPanel({ comments, def, onAdd, onResolve }: { comments: Comment[
         </label>
         <select className="sel" id="cmt-field" style={{ height: "36px", fontSize: "14px" }} value={field} onChange={(e) => setField(e.target.value)}>
           <option value="">{t("editor.wholeApplication")}</option>
-          {fields.map(([k, s]) => (
-            <option key={k} value={`/${k}`}>
-              {typeof s.title === "string" ? s.title : k}
-            </option>
-          ))}
+          {fields.map(([k]) => {
+            const label = fieldLabelShown(def, `/${k}`);
+            return (
+              <option key={k} value={`/${k}`} lang={label.lang !== getLocale() ? label.lang : undefined}>
+                {label.text}
+              </option>
+            );
+          })}
         </select>
         <label className="sr" htmlFor="cmt-body">
           {t("editor.writeACommentForYourTeam")}
@@ -960,6 +978,7 @@ export default function Editor({ openSubmit = false, phone = false }: { openSubm
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
   const body = (
     <main className="main" style={phone ? { flex: 1 } : { gap: "16px" }}>
+      <YourProfilePanel compact />
       <Loaded query={query} label={t("editor.openingTheApplication")}>
         {(data) =>
           data.app.status === "draft" || data.app.status === "revision_requested" ? (

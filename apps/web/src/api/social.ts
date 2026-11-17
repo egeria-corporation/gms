@@ -35,6 +35,8 @@ export interface SocialApi {
   /** The person's click on Post. `idempotencyKey` is one per logical post: a retry sends the same. */
   post(input: SocialComposeInput & { previewToken: string }, idempotencyKey: string): Promise<SocialPost>;
   reach(subject?: SocialSubject): Promise<SocialReach>;
+  /** A funder admin dismisses a call's "Two weeks left" prompt. */
+  dismissReminder(id: string): Promise<{ id: string; opportunityId: string; dismissed: true }>;
 }
 
 export interface HttpSocialOptions {
@@ -80,6 +82,7 @@ export function createHttpSocialApi(opts: HttpSocialOptions): SocialApi {
     preview: (input) => call("POST", "/gms/social/posts/preview", input),
     post: (input, idempotencyKey) => call("POST", "/gms/social/posts", input, { "Idempotency-Key": idempotencyKey }),
     reach: (subject) => call("GET", `/gms/social/posts${subject ? `?${subjectQuery(subject)}` : ""}`),
+    dismissReminder: (id) => call("POST", `/gms/social/reminders/${e(id)}/dismiss`),
   };
 }
 

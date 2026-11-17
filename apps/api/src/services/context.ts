@@ -8,7 +8,7 @@ import type { DirectAwardStore, InvitationLimiter } from "./direct-award-store.t
 import type { SessionsPort } from "./sessions.ts";
 import type { PreferencesPort } from "./preferences.ts";
 import type { LlmClient } from "@gms/assist";
-import type { AirtableSource, BankFeed, FluxxPuller, McpDirectory, SheetsSource, WorkspaceApps, ZenginePuller } from "@gms/connectors";
+import type { AirtableSource, BankFeed, CalendarSync, DriveFiles, FluxxPuller, McpDirectory, SalesforceSource, SheetsSource, SlackAlerts, WorkspaceApps, ZenginePuller } from "@gms/connectors";
 import { formatActor, record, type Actor, type LedgerStore } from "@gms/ledger";
 import type { Locale } from "@gms/i18n";
 import type { Mailer } from "@gms/notify";
@@ -127,6 +127,11 @@ export interface ServicePorts {
   pullers?: { fluxx: FluxxPuller; zengine: ZenginePuller };
   /** Tool listing for funder-registered MCP servers. */
   mcpDirectory?: McpDirectory;
+  /** Connected apps through Composio (v1.12.0): Slack alerts, a person's Google Calendar, an applicant's Google Drive, Salesforce import (read-only). */
+  slack?: SlackAlerts;
+  calendar?: CalendarSync;
+  drive?: DriveFiles;
+  salesforce?: SalesforceSource;
   /** Where export bundles and ledger archives are written. */
   exports?: { put(key: string, body: string, contentType: string): Promise<void> };
   /** Binary files in the same EXPORTS bucket, read back by their routes (board dockets). Never public. */

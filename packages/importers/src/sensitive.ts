@@ -68,8 +68,20 @@ const HEADER_PARTS = [
 ];
 const SENSITIVE_HEADER = new RegExp(HEADER_PARTS.join("|"), "i");
 
-/** Whether a header names bank or identity data. Such a column is never imported. */
-export const isSensitiveHeader = (header: string): boolean => SENSITIVE_HEADER.test(header.trim());
+/**
+ * A header's words when it is written as one identifier: `Grant_Program_Area__c`, `grant.program`
+ * or `GrantProgramArea` read as "Grant Program Area" (Salesforce API names, snake_case and
+ * camelCase exports), so the word boundaries above still find the words.
+ */
+export const headerWords = (header: string): string =>
+  header
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/[_.]+/g, " ")
+    .trim();
+
+/** Whether a header names bank or identity data, as written or read as words. Such a column is never imported. */
+export const isSensitiveHeader = (header: string): boolean => SENSITIVE_HEADER.test(header.trim()) || SENSITIVE_HEADER.test(headerWords(header));
 
 const EIN_HEADER = /\bein\b|employer[\s_.-]*ident|\bfein\b/i;
 const PHONE_HEADER = /phone|\btel\b|telephone|mobile|\bcell\b|\bfax\b/i;

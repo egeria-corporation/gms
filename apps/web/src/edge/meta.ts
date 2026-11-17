@@ -17,6 +17,7 @@ import { seoFor, switchEntry } from "../content/switch.ts";
 import { translate } from "../i18n/current.ts";
 import { daysUntil, formatAwardRange, formatDateAs, formatMoney } from "../lib/format.ts";
 import type { CardText, Tone } from "./og/card.ts";
+import type { PortraitText } from "./og/portrait.ts";
 import { cleanText } from "./og/raster.ts";
 
 export const SITE_NAME = "OpenGrants GMS";
@@ -79,8 +80,19 @@ export interface FunderPageData {
 }
 export interface OpportunityPageData {
   funder: PublicFunder;
-  opportunity: PublicCard;
+  /** `translations`: the funder's reviewed title and summary in other languages (apps/api/src/services/public.ts). */
+  opportunity: PublicCard & { translations?: Partial<Record<Locale, { title?: string; description?: string }>> };
   competitions?: { status: string }[];
+}
+
+/**
+ * An opportunity's title and summary in a language: the funder's own translation where it gave a
+ * reviewed one, otherwise as it wrote them. The page's data always carries both, so one cached
+ * copy serves every language.
+ */
+export function opportunityTextIn(o: OpportunityPageData["opportunity"], locale: Locale): { title: string; description: string } {
+  const tr = o.translations?.[locale];
+  return { title: tr?.title ?? o.title, description: tr?.description ?? o.description };
 }
 /** An approved template gallery item (apps/api/src/services/gallery.ts, `GET /gms/gallery/{slug}`). */
 export interface GalleryItemData {
@@ -151,6 +163,19 @@ export function imageRouteOf(pathname: string): ImageRoute | null {
   const m = /^\/og\/f\/([^/]+?)(?:\/o\/([^/]+?))?\.png$/.exec(pathname);
   return m ? pageRoute(m[1], m[2]) : null;
 }
+
+/**
+ * The award whose portrait card (1080 × 1350, the award kit's) a path asks for:
+ * `/og/f/{handle}/awards/{slug}/portrait.png`. A public address, so a post that takes a portrait
+ * image (Instagram, through Zernio) can attach it; the award page's own rules apply (the API
+ * answers only for an award its funder lists and its grantee agreed to).
+ */
+export function portraitRouteOf(pathname: string): { kind: "award"; handle: string; slug: string } | null {
+  const m = /^\/og\/f\/([^/]+)\/awards\/([^/]+)\/portrait\.png$/.exec(pathname);
+  const r = m ? awardRoute(m[1], m[2]) : null;
+  return r?.kind === "award" ? r : null;
+}
+export const portraitPathOf = (handle: string, slug: string) => `/og/f/${handle}/awards/${slug}/portrait.png`;
 
 /** The award slug a badge path names: `/badge/{slug}.svg`. */
 export function badgeRouteOf(pathname: string): string | null {
@@ -260,7 +285,7 @@ export function funderCard(d: FunderPageData, site: string, locale: Locale = DEF
 export function opportunityCard(d: OpportunityPageData, site: string, now: Date = new Date(), locale: Locale = DEFAULT_LOCALE): CardText {
   const s = opportunityStatus(d.opportunity, now, locale);
   const range = locale === DEFAULT_LOCALE ? amountOf(d.opportunity) : formatAwardRange(d.opportunity.funding ?? null, locale);
-  return { site, eyebrow: d.funder.name, title: d.opportunity.title, amount: range === "\u2014" ? null : range, status: { label: s.label, tone: s.tone }, note: notVerified(d.funder, locale) };
+  return { site, eyebrow: d.funder.name, title: opportunityTextIn(d.opportunity, locale).title, amount: range === "\u2014" ? null : range, status: { label: s.label, tone: s.tone }, note: notVerified(d.funder, locale) };
 }
 
 /** "{Funder} awarded {Recipient} a grant": the award card's title and the award page's heading. */
@@ -276,6 +301,27 @@ export function awardCard(d: AwardPageData, site: string, locale: Locale = DEFAU
   const a = d.award;
   const title = locale === DEFAULT_LOCALE ? awardHeadline(d) : m(locale, "meta.award.headline", { funder: cleanText(d.funder.name), recipient: cleanText(a.recipient.name) });
   return { site, eyebrow: w(locale, "card.award.eyebrow"), title, detail: a.purpose, amount: a.amount ? formatMoney(a.amount, locale) : null, status: { label: w(locale, "card.award.year", { year: String(a.year) }), tone: "neutral" }, note: notVerified(d.funder, locale) };
+}
+
+/**
+ * The award's portrait card, as the award kit draws it in the browser: both organizations, the
+ * program, what it funds and the year. The amount only when the address asks for it (`?amount=1`)
+ * and the award page shows it (never while the funder hides amounts). Never a logo.
+ */
+export function awardPortrait(d: AwardPageData, site: string, locale: Locale = DEFAULT_LOCALE, withAmount = false): PortraitText {
+  const a = d.award;
+  return {
+    site,
+    eyebrow: w(locale, "card.portrait.eyebrow"),
+    funder: cleanText(d.funder.name),
+    connector: w(locale, "card.portrait.connector"),
+    recipient: cleanText(a.recipient.name),
+    program: a.program ? w(locale, "card.portrait.program", { program: cleanText(a.program) }) : null,
+    detail: a.purpose,
+    amount: withAmount && a.amount ? formatMoney(a.amount, locale) : null,
+    status: { label: w(locale, "card.portrait.year", { year: String(a.year) }), tone: "neutral" },
+    note: notVerified(d.funder, locale),
+  };
 }
 
 /** A card image's address: the page's language when it is not English (the Worker draws the card in it), and the card's version. */
@@ -410,7 +456,8 @@ export function funderMeta(d: FunderPageData, origin: string, locale: Locale = D
 }
 
 export function opportunityMeta(d: OpportunityPageData, origin: string, now: Date = new Date(), locale: Locale = DEFAULT_LOCALE): PageMeta {
-  const o = d.opportunity;
+  // The funder's title and summary in the page's language where it translated them.
+  const o = { ...d.opportunity, ...opportunityTextIn(d.opportunity, locale) };
   const route: PageRoute = { kind: "opportunity", handle: d.funder.handle, slug: o.slug };
   const url = `${origin}${pagePathOf(route)}`;
   const status = opportunityStatus(o, now, locale);

@@ -61,6 +61,13 @@ model InstallAvailability {
 
   /** Social posting through Zernio (ZERNIO_API_KEY and ZERNIO_WEBHOOK_SECRET set). */
   social: boolean;
+
+  /** Connected apps through Composio (v1.12.0), each with its own auth config: Slack alerts, Google Calendar, an applicant's Google Drive, Salesforce import. */
+  slack: boolean;
+
+  googleCalendar: boolean;
+  googleDrive: boolean;
+  salesforce: boolean;
 }
 
 /** One sign-in session of the calling person. */

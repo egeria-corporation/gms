@@ -10,20 +10,27 @@
 // system's matching, or reads straight from Fluxx or Zengine with credentials it creates there.
 // After the import, the PDFs and files of the system's zip can be attached to the imported awards:
 // the zip is opened here, only its file names are sent to be matched, then each matched file.
+//
+// Imported history (v1.12.0): a funder first says what the file holds (ImportTargetPicker): grant
+// history, or past applications, reviews or reports, kept read-only as "Imported history".
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowLeft, ArrowRightLeft, Check, CircleCheck, CircleSlash, Database, FileArchive, FileSpreadsheet, Link2, Link2Off, Plug, ShieldCheck, Sheet, TriangleExclamationPoint, Unplug, Upload } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, Check, CircleCheck, CircleSlash, Cloud, Database, FileArchive, FileSpreadsheet, Link2, Link2Off, Plug, ShieldCheck, Sheet, TriangleExclamationPoint, Unplug, Upload } from "lucide-react";
+import { SALESFORCE_START, SalesforcePick, salesforceSource, type SalesforceChoice } from "./SalesforcePick.tsx";
 import { useCurrentWorkspace } from "../../app/workspace.tsx";
 import { fileSource, targetFor, toBase64, type ConnectedApp, type ImportAdapter, type ImportAdapterKey, type ImportCommitted, type ImportFilesMatch, type ImportPreview, type ImportPreviewRow, type ImportPuller, type ImportRead, type ImportRunDetail, type ImportSourceInput, type ImportTotal, type ZengineForm } from "../../api/imports.ts";
 import { useImportsApi, useImportsQuery } from "../../api/importsHooks.ts";
 import { ApplicantShell, FunderShell } from "../../components/shells.tsx";
 import { ErrorBanner, Field, Loading, Notice, PageHeader } from "../../components/ui.tsx";
 import { railLabel } from "../../components/shells.tsx";
+import { ImportTargetPicker, isFunderTarget, KIND_OF, type FunderTarget } from "./ImportTargetPicker.tsx";
 import { formatMinor } from "../../lib/format.ts";
 
-import { intlLocale, translator } from "../../i18n/index.tsx";
+import { intlLocale, translator, useExtrasMessages } from "../../i18n/index.tsx";
 
 const tr = translator("shared");
+/** The Salesforce source's words (the `extras` catalog, loaded with this screen). */
+const trx = translator("extras");
 type Step = "source" | "system" | "connect" | "pick" | "map" | "check" | "import" | "done";
 /** A file, a connected app, an export from a grants system, or a grants system read through its API. */
 type Choice = "file" | "system" | ConnectedApp | ImportPuller;
@@ -38,9 +45,9 @@ const STEP_KEY = {
   done: "importWizard.step.done",
 } as const satisfies Record<Step, string>;
 const STEP_LABEL = (step: Step): string => tr(STEP_KEY[step]);
-const APP_LABEL: Record<ConnectedApp | ImportPuller, string> = { google_sheets: "Google Sheets", airtable: "Airtable", fluxx: "Fluxx", zengine: "Zengine" };
+const APP_LABEL: Record<ConnectedApp | ImportPuller, string> = { google_sheets: "Google Sheets", airtable: "Airtable", salesforce: "Salesforce", fluxx: "Fluxx", zengine: "Zengine" };
 const isPuller = (c: Choice | null): c is ImportPuller => c === "fluxx" || c === "zengine";
-const isApp = (c: Choice | null): c is ConnectedApp => c === "google_sheets" || c === "airtable";
+const isApp = (c: Choice | null): c is ConnectedApp => c === "google_sheets" || c === "airtable" || c === "salesforce";
 /** Files read from a zip at once, and sent to be matched. */
 const MAX_ZIP_PATHS = 2000;
 const KIND_LABEL: Record<string, string> = {
@@ -239,7 +246,7 @@ const bytesOf = (file: File): Promise<Uint8Array> =>
  * opened in the browser; only its file names go to the server to be matched, then each matched
  * file on its own. Nothing in them is read by the GMS.
  */
-function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter }) {
+function ZipFiles({ runId, adapter, history = false }: { runId: string; adapter: ImportAdapter; history?: boolean }) {
   const api = useImportsApi();
   const [zip, setZip] = useState<{ name: string; bytes: Uint8Array; extra: number } | null>(null);
   const [match, setMatch] = useState<ImportFilesMatch | null>(null);
@@ -299,7 +306,7 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
         <p className="small" style={{ margin: 0 }}>
-          {tr("importWizard.onlyYourTeamSeesThem", { attachments: adapter.attachments })}
+          {history ? tr("importWizard.target.zip.onlyYourTeam", { attachments: adapter.attachments }) : tr("importWizard.onlyYourTeamSeesThem", { attachments: adapter.attachments })}
         </p>
         {error ? <ErrorBanner error={error} /> : null}
         <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
@@ -317,7 +324,7 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
             <div className="row" style={{ gap: "8px", flexWrap: "wrap" }} role="group" aria-label={tr("importWizard.filesMatched")}>
               <span className="bdg bdg-ok">
                 <CircleCheck className="ic" aria-hidden="true" />
-                {tr("importWizard.filesMatch", { count: match.matched.length })}
+                {history ? tr("importWizard.target.zip.filesMatch", { count: match.matched.length }) : tr("importWizard.filesMatch", { count: match.matched.length })}
               </span>
               {match.unmatched.length > 0 && (
                 <span className="bdg bdg-neutral">
@@ -332,7 +339,7 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
                   <thead>
                     <tr>
                       <th>{tr("importWizard.file")}</th>
-                      <th>{tr("importWizard.award")}</th>
+                      <th>{history ? tr("importWizard.target.zip.record") : tr("importWizard.award")}</th>
                       <th>{tr("importWizard.matchedBy")}</th>
                     </tr>
                   </thead>
@@ -374,8 +381,8 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
         )}
         {progress && !busy && match && progress.done === match.matched.length && (
           <Notice tone={progress.failed.length ? "warn" : "ok"} title={tr("importWizard.filesAttached", { count: progress.attached })}>
-            {progress.already ? tr("importWizard.alreadyOnAward", { count: progress.already }) : ""}
-            {progress.failed.length ? tr("importWizard.couldNotBeAttached", { length: progress.failed.length, join: progress.failed.map((f) => `${f.name} (${f.why})`).join("; ") }) : tr("importWizard.eachIsOnTheAward")}
+            {progress.already ? (history ? tr("importWizard.target.zip.alreadyOn", { count: progress.already }) : tr("importWizard.alreadyOnAward", { count: progress.already })) : ""}
+            {progress.failed.length ? tr("importWizard.couldNotBeAttached", { length: progress.failed.length, join: progress.failed.map((f) => `${f.name} (${f.why})`).join("; ") }) : history ? tr("importWizard.target.zip.eachIsOn") : tr("importWizard.eachIsOnTheAward")}
           </Notice>
         )}
       </div>
@@ -391,22 +398,28 @@ function ZipFiles({ runId, adapter }: { runId: string; adapter: ImportAdapter })
 }
 
 export function ImportWizard() {
+  useExtrasMessages();
   const ws = useCurrentWorkspace()!;
   const api = useImportsApi();
   const [params] = useSearchParams();
   const funder = ws.kind === "funder";
-  const target = targetFor(ws.kind);
+  // A funder chooses what it imports (`?target=` opens one directly); an applicant imports its applications.
+  const asked = params.get("target");
+  const [funderTarget, setFunderTarget] = useState<FunderTarget>(isFunderTarget(asked) ? asked : "award_history");
+  const target = funder ? funderTarget : targetFor(ws.kind);
+  const past = target !== "award_history" && target !== "outside_applications";
   const base = `/w/${ws.handle}`;
-  const noun = funder ? { one: "award", many: "awards", list: "Awards", to: `${base}/awards` } : { one: "application", many: "applications", list: "Applications", to: `${base}/applications` };
+  const noun = funder ? { one: KIND_OF[target], many: "awards", list: "Awards", to: past ? `${base}/grantees` : `${base}/awards` } : { one: "application", many: "applications", list: "Applications", to: `${base}/applications` };
   const returned = params.get("connected");
   const sources = useImportsQuery((a) => a.sources(target), [target]);
 
-  const [choice, setChoice] = useState<Choice | null>(returned === "google_sheets" || returned === "airtable" ? returned : null);
+  const [choice, setChoice] = useState<Choice | null>(returned === "google_sheets" || returned === "airtable" || returned === "salesforce" ? returned : null);
   const [system, setSystem] = useState<ImportAdapterKey | null>(null);
   const [creds, setCreds] = useState({ instanceUrl: "", clientId: "", clientSecret: "", token: "" });
   const [forms, setForms] = useState<ZengineForm[] | null>(null);
   const [formId, setFormId] = useState("");
-  const [step, setStep] = useState<Step>(returned === "google_sheets" || returned === "airtable" ? "pick" : "source");
+  const [step, setStep] = useState<Step>(returned === "google_sheets" || returned === "airtable" || returned === "salesforce" ? "pick" : "source");
+  const [salesforce, setSalesforce] = useState<SalesforceChoice>(SALESFORCE_START);
   const [pasted, setPasted] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [link, setLink] = useState("");
@@ -460,6 +473,10 @@ export function ImportWizard() {
     if (choice === "zengine") return readSource({ kind: "zengine", formId });
     if (choice === "google_sheets") return readSource({ kind: "google_sheets", url: link });
     if (choice === "airtable") return readSource({ kind: "airtable", url: link });
+    if (choice === "salesforce") {
+      const src = salesforceSource(salesforce);
+      if (src) return readSource(src);
+    }
   }
 
   async function connectPuller(provider: ImportPuller) {
@@ -560,7 +577,7 @@ export function ImportWizard() {
           <PageHeader
             crumbs={[{ label: ws.name, to: base }, { label: railLabel(noun.list), to: noun.to }, { label: tr("importWizard.step.import") }]}
             title={title}
-            meta={<span>{funder ? tr("importWizard.pastAwardsToNamedOrganizations") : tr("importWizard.applicationsYouTrackInA")}</span>}
+            meta={<span>{past ? tr("importWizard.target.meta") : funder ? tr("importWizard.pastAwardsToNamedOrganizations") : tr("importWizard.applicationsYouTrackInA")}</span>}
           />
           <Steps steps={steps} at={step} />
           {error ? <ErrorBanner error={error} title={busy === "import" || step === "import" ? tr("importWizard.theImportStopped") : tr("importWizard.thatDidNotWork")} /> : null}
@@ -573,6 +590,7 @@ export function ImportWizard() {
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {sources.status === "loading" && <Loading label={tr("importWizard.loadingSources")} />}
                 {sources.status === "error" && <ErrorBanner error={sources.error} onRetry={sources.reload} />}
+                {funder && <ImportTargetPicker target={funderTarget} onChange={(next) => { setFunderTarget(next); setChoice(null); setSystem(null); }} />}
                 {sources.status === "ready" && (
                   <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
                     <legend className="sr">{tr("importWizard.source")}</legend>
@@ -614,7 +632,7 @@ export function ImportWizard() {
                           {tr(k === "fluxx" ? "importWizard.readHistoryFluxx" : "importWizard.readHistoryToken", { system: APP_LABEL[k] })}
                         </SourceOption>
                       ))}
-                    {(["google_sheets", "airtable"] as const)
+                    {(["google_sheets", "airtable", "salesforce"] as const)
                       .filter((k) => option(k))
                       .map((k) => (
                         <SourceOption
@@ -622,7 +640,7 @@ export function ImportWizard() {
                           value={k}
                           chosen={choice}
                           onChoose={setChoice}
-                          icon={k === "google_sheets" ? <Sheet className="ic" aria-hidden="true" /> : <Database className="ic" aria-hidden="true" />}
+                          icon={k === "google_sheets" ? <Sheet className="ic" aria-hidden="true" /> : k === "salesforce" ? <Cloud className="ic" aria-hidden="true" /> : <Database className="ic" aria-hidden="true" />}
                           title={APP_LABEL[k]}
                           status={
                             option(k)!.connected ? (
@@ -638,7 +656,7 @@ export function ImportWizard() {
                             )
                           }
                         >
-                          {k === "google_sheets" ? tr("importWizard.pasteTheLinkToA") : tr("importWizard.pasteTheLinkToA2")}
+                          {k === "google_sheets" ? tr("importWizard.pasteTheLinkToA") : k === "salesforce" ? trx("salesforcePick.sourceHelp") : tr("importWizard.pasteTheLinkToA2")}
                         </SourceOption>
                       ))}
                   </fieldset>
@@ -767,7 +785,9 @@ export function ImportWizard() {
                   <span>
                     {choice === "google_sheets"
                       ? tr("importWizard.youSignInWithGoogle")
-                      : tr("importWizard.youSignInWithAirtable")}
+                      : choice === "salesforce"
+                        ? trx("salesforcePick.youSignIn")
+                        : tr("importWizard.youSignInWithAirtable")}
                   </span>
                 </p>
                 {option(choice)?.canConnect ? null : <Notice tone="info" title={tr("importWizard.askAWorkspaceAdminTo", { value: APP_LABEL[choice] })}>{tr("importWizard.onceItIsConnectedAnyone")}</Notice>}
@@ -789,12 +809,12 @@ export function ImportWizard() {
           {step === "pick" && choice && (
             <section className="card" aria-labelledby="imp-pick">
               <div className="card-h">
-                <h3 id="imp-pick">{choice === "file" ? tr("importWizard.chooseTheFile") : choice === "system" ? tr("importWizard.chooseTheExport", { value: adapterOf(system)?.system ?? "" }) : choice === "fluxx" ? tr("importWizard.readFromFluxx") : choice === "zengine" ? tr("importWizard.whichZengineForm") : choice === "google_sheets" ? tr("importWizard.whichSpreadsheet") : tr("importWizard.whichAirtableBase")}</h3>
+                <h3 id="imp-pick">{choice === "file" ? tr("importWizard.chooseTheFile") : choice === "system" ? tr("importWizard.chooseTheExport", { value: adapterOf(system)?.system ?? "" }) : choice === "fluxx" ? tr("importWizard.readFromFluxx") : choice === "zengine" ? tr("importWizard.whichZengineForm") : choice === "google_sheets" ? tr("importWizard.whichSpreadsheet") : choice === "salesforce" ? trx("salesforcePick.heading") : tr("importWizard.whichAirtableBase")}</h3>
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {returned === choice && (
                   <Notice tone="ok" title={tr("importWizard.isConnected", { value: APP_LABEL[choice as ConnectedApp] })}>
-                    {tr("importWizard.pasteTheLinkToRead")}
+                    {choice === "salesforce" ? trx("salesforcePick.chooseWhatToRead") : tr("importWizard.pasteTheLinkToRead")}
                   </Notice>
                 )}
                 {isPuller(choice) ? (
@@ -836,6 +856,8 @@ export function ImportWizard() {
                       <textarea id="imp-paste" className="ta mono" style={{ minHeight: "110px", fontSize: "12px" }} value={pasted} onChange={(e) => setPasted(e.target.value)} />
                     </Field>
                   </>
+                ) : choice === "salesforce" ? (
+                  <SalesforcePick value={salesforce} onChange={setSalesforce} />
                 ) : (
                   <Field id="imp-link" label={choice === "google_sheets" ? tr("importWizard.spreadsheetLink") : tr("importWizard.airtableLink")} help={choice === "google_sheets" ? tr("importWizard.itStartsWithHttpsDocs") : tr("importWizard.itStartsWithHttpsAirtable")}>
                     <input id="imp-link" className="inp" value={link} onChange={(e) => setLink(e.target.value)} />
@@ -843,7 +865,7 @@ export function ImportWizard() {
                 )}
               </div>
               <div className="card-f">
-                <button type="button" className="btn btn-primary" disabled={busy === "read" || (choice === "file" || choice === "system" ? !file && !pasted.trim() : choice === "fluxx" ? false : choice === "zengine" ? !formId : !link.trim())} onClick={() => void pick()}>
+                <button type="button" className="btn btn-primary" disabled={busy === "read" || (choice === "file" || choice === "system" ? !file && !pasted.trim() : choice === "fluxx" ? false : choice === "zengine" ? !formId : choice === "salesforce" ? !salesforceSource(salesforce) : !link.trim())} onClick={() => void pick()}>
                   {busy === "read" ? tr("importWizard.reading") : choice === "file" || choice === "system" ? tr("importWizard.readTheFile") : choice === "fluxx" ? tr("importWizard.readGrantRequests") : choice === "zengine" ? tr("importWizard.readTheForm") : tr("importWizard.readIt")}
                 </button>
                 {isPuller(choice) && option(choice)?.canConnect && (
@@ -988,7 +1010,7 @@ export function ImportWizard() {
                 </div>
                 <Totals totals={reconciliation.totals} />
                 <Dropped dropped={preview.run.dropped} />
-                <RowsTable rows={preview.rows} subtitle={funder ? tr("importWizard.organization") : tr("importWizard.funder")} />
+                <RowsTable rows={preview.rows} subtitle={target === "history_reviews" ? tr("importWizard.target.reviewer") : funder ? tr("importWizard.organization") : tr("importWizard.funder")} />
               </div>
               <div className="card-f">
                 <button type="button" className="btn btn-primary" disabled={reconciliation.create === 0} onClick={() => void importAll()}>
@@ -1059,7 +1081,7 @@ export function ImportWizard() {
                     ))}
                   </ul>
                 )}
-                {funder && <p className="small muted">{tr("importWizard.importedAwardsAreMarkedAs")}</p>}
+                {funder && <p className="small muted">{past ? tr("importWizard.target.doneNote") : tr("importWizard.importedAwardsAreMarkedAs")}</p>}
                 {preview?.run.nextPage ? (
                   <Notice tone="info" title={APP_LABEL[preview.run.source as ImportPuller] ? tr("importWizard.thereIsMoreToImport", { system: APP_LABEL[preview.run.source as ImportPuller] }) : tr("importWizard.thereIsMoreToImportSource")}>
                     <span>{tr("importWizard.thisImportReadOnePart")} </span>
@@ -1083,7 +1105,7 @@ export function ImportWizard() {
               </div>
             </section>
           )}
-          {step === "done" && funder && preview && adapterOf(preview.run.adapter?.key)?.attachments && (detail?.run.progress?.written ?? 0) > 0 && <ZipFiles runId={preview.run.id} adapter={adapterOf(preview.run.adapter!.key)!} />}
+          {step === "done" && funder && target !== "history_reviews" && preview && adapterOf(preview.run.adapter?.key)?.attachments && (detail?.run.progress?.written ?? 0) > 0 && <ZipFiles runId={preview.run.id} adapter={adapterOf(preview.run.adapter!.key)!} history={past} />}
         </main>
       </Shell>
     </>

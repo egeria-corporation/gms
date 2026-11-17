@@ -5,8 +5,8 @@
 // when the import has read the source to its end, on disconnect, or after a week unused), 5,000
 // rows a run and resumable; files from a zip attached to the imported awards, funder-only.
 // Fluxx and Zengine are fake instances behind a stubbed `fetch`; nothing here calls them.
-import { FLUXX_COLUMNS } from "@gms/connectors";
-import { FLUXX_PULL_COLUMNS } from "@gms/importers";
+import { FLUXX_COLUMNS, FLUXX_REPORT_COLUMNS } from "@gms/connectors";
+import { FLUXX_PULL_COLUMNS, FLUXX_REPORT_PULL_COLUMNS } from "@gms/importers";
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WORKSPACE_CLAIM } from "../src/auth/scopes.ts";
@@ -63,7 +63,7 @@ describe("a grants system's export", () => {
 
   it("is offered as a system to pick, for grant history only", async () => {
     const s = await data<{ adapters: { key: string; system: string; via: string; steps: string[]; attachments: string | null }[]; sources: { kind: string }[] }>(funderAdmin, "GET", "/gms/imports/sources?target=award_history");
-    expect(s.adapters.map((a) => a.key)).toEqual(["good_grants", "sm_apply", "submittable", "foundant_glm", "smartsimple", "openwater", "fluxx", "zengine"]);
+    expect(s.adapters.map((a) => a.key)).toEqual(["good_grants", "sm_apply", "submittable", "foundant_glm", "smartsimple", "openwater", "cybergrants", "fluxx", "zengine"]);
     expect(s.adapters.find((a) => a.key === "submittable")).toMatchObject({ system: "Submittable", via: "file", attachments: expect.stringMatching(/zip/) });
     expect(s.sources.map((x) => x.kind)).toEqual(["csv", "xlsx", "google_sheets", "airtable", "fluxx", "zengine"]);
     const a = await data<{ adapters: unknown[]; sources: { kind: string }[] }>(applicant, "GET", "/gms/imports/sources?target=outside_applications");
@@ -235,7 +235,14 @@ function fakeSources(opts: { grants: number; grantedEvery: number; zengine429?: 
       const page = Number(q.get("page"));
       const per = Number(q.get("per_page"));
       const model = url.pathname.split("/").pop()!;
-      const rows = model === "grant_request" ? grants : model === "organization" ? [{ id: 1, name: "Harbor Food Bank" }] : grants.filter((g) => g.granted).map((g) => ({ id: g.id + 9000, request_id: g.id, amount_paid: 1000, paid_at: "2024-04-01T00:00:00Z", has_been_paid: true }));
+      const rows =
+        model === "grant_request"
+          ? grants
+          : model === "organization"
+            ? [{ id: 1, name: "Harbor Food Bank" }]
+            : model === "request_report"
+              ? grants.filter((g) => g.granted).map((g) => ({ id: g.id + 8000, request_id: g.id, report_type: "Final report", due_at: "2025-03-31T04:00:00Z", approved_at: null, has_been_approved: false, state: "new" }))
+              : grants.filter((g) => g.granted).map((g) => ({ id: g.id + 9000, request_id: g.id, amount_paid: 1000, paid_at: "2024-04-01T00:00:00Z", has_been_paid: true }));
       return json(200, { records: { [model]: rows.slice((page - 1) * per, page * per) }, total_entries: rows.length, total_pages: Math.max(1, Math.ceil(rows.length / per)), per_page: per });
     }
     if (url.host === "api.zenginehq.com") {
@@ -318,8 +325,38 @@ describe("Fluxx, read with the funder's own credentials", () => {
     expect([read.status, read.body.errors?.[0]?.code]).toEqual([409, "source_not_connected"]);
   });
 
+  it("pulls past reports from request_report and links each to the grant a Fluxx history import brought", async () => {
+    const seen = fakeSources({ grants: 3, grantedEvery: 1 });
+    await data(funderAdmin, "POST", "/gms/imports/connections/fluxx", fluxxCreds);
+    const grants = await data<Read>(funderAdmin, "POST", "/gms/imports/read", { target: "award_history", source: { kind: "fluxx" } });
+    const g = await data<Preview>(funderAdmin, "POST", "/gms/imports/preview", { target: "award_history", source: { kind: "fluxx" }, adapter: "fluxx", mapping: grants.mapping });
+    await commitAll(funderAdmin, g.run.id);
+    expect(await h.repos.table("awards").count({ workspace_id: WS_FUNDER })).toBe(3);
+
+    // The credentials went with the finished run: connect again for the reports.
+    await data(funderAdmin, "POST", "/gms/imports/connections/fluxx", fluxxCreds);
+    const read = await data<Read>(funderAdmin, "POST", "/gms/imports/read", { target: "history_reports", source: { kind: "fluxx" } });
+    expect(read.adapter).toMatchObject({ key: "fluxx" });
+    expect(read.source.label).toBe("Fluxx · acme.fluxx.io · reports (records 1–3 of 3)");
+    expect(read.mapping).toMatchObject({ sourceId: "Report Fluxx ID", awardRef: "Grant Fluxx ID", awardTitle: "Project title", title: "Report type", dueDate: "Due on", status: "Status" });
+    const p = await data<Preview>(funderAdmin, "POST", "/gms/imports/preview", { target: "history_reports", source: { kind: "fluxx" }, adapter: "fluxx", mapping: read.mapping });
+    expect(p.run).toMatchObject({ nextPage: null, reconciliation: { rows: 3, create: 3, error: 0 } });
+    await commitAll(funderAdmin, p.run.id);
+    const reports = await h.repos.table("history_reports").find({ workspace_id: WS_FUNDER });
+    expect(reports).toHaveLength(3);
+    const awards = new Set((await h.repos.table("awards").find({ workspace_id: WS_FUNDER })).map((a) => a.id));
+    // Each report sits on the award its grant request became, by the request's Fluxx id.
+    for (const r of reports) expect(awards.has(r.award_id!), r.award_title ?? "").toBe(true);
+    expect(new Set(reports.map((r) => r.award_id)).size).toBe(3);
+    expect(reports[0]).toMatchObject({ due_on: "2025-03-31", source_system: expect.stringMatching(/fluxx/i) });
+    // Never a write to Fluxx, and the reports are read through request_report.
+    expect(new Set(seen.filter((x) => x.method !== "GET").map((x) => new URL(x.url).pathname))).toEqual(new Set(["/oauth/token"]));
+    expect(seen.some((x) => new URL(x.url).pathname.endsWith("/request_report"))).toBe(true);
+  });
+
   it("writes rows with exactly the columns the Fluxx adapter's preset names", () => {
     expect([...FLUXX_COLUMNS]).toEqual([...FLUXX_PULL_COLUMNS]);
+    expect([...FLUXX_REPORT_COLUMNS]).toEqual([...FLUXX_REPORT_PULL_COLUMNS]);
   });
 });
 

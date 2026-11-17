@@ -160,7 +160,16 @@ order: the database first, then the API, the jobs Worker and the web app.
 imports offer CSV and Excel files only. New in v1.8.0: `GALLERY_MODERATORS` (API, a secret, not a
 `[vars]` entry). Until it is set, nobody moderates the template gallery and nothing new is published;
 the nine starter items still show. New in v1.9.0: `ZERNIO_API_KEY` and `ZERNIO_WEBHOOK_SECRET` (API);
-until both are set, social posting is hidden.
+until both are set, social posting is hidden. New in v1.12.0, all optional:
+- `COMPOSIO_SLACK_AUTH_CONFIG_ID` and `COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID` (API and jobs, with
+  `COMPOSIO_API_KEY` on the jobs Worker too): until set, Slack alerts and Google Calendar are not
+  offered under Settings, Connected apps;
+- `COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID` (API), on the same Google OAuth client as the Picker
+  (`VITE_GOOGLE_OAUTH_CLIENT_ID` and `VITE_GOOGLE_PICKER_API_KEY`, public web build variables):
+  until set, applicants see no "Attach from Google Drive" or "Save to Google Drive";
+- `COMPOSIO_SALESFORCE_AUTH_CONFIG_ID` (API): until set, Salesforce is not an import source;
+- `DIRECTORY_MODERATORS` (API, a secret, not a `[vars]` entry): until set, `GALLERY_MODERATORS`
+  moderate the partner directory.
 
 ## Sign in with Passport
 

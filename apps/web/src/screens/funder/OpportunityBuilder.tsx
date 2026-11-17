@@ -3,10 +3,17 @@
 // is edited across the steps and saved through `/gms/opportunities`; publishing validates the
 // CommonGrants record on the server. The Applications step takes a published opportunity to one
 // applicants can apply to (quick setup, the launch checklist, opening). `/opportunities/new` creates; `/opportunities/:id/edit` edits (the id may
-// also be the opportunity's slug).
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+// also be the opportunity's slug). Basics also takes the title, summary and eligibility rules in a
+// second language ("Add Spanish"), for the public page and its share card (docs/forms.md,
+// "Languages"); an assistant draft is reviewed before the opportunity is saved.
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { ArrowLeft, ArrowRight, Check, CircleCheck, Clock, Eye } from "lucide-react";
+import { opportunityTranslationStatus, type FormLanguage, type OpportunityTranslation, type OpportunityTranslations } from "@gms/forms";
+import type { Rule } from "@gms/rules";
+import { useTranslationsApi } from "../../api/translationsHooks.ts";
+import type { OpportunityTextDraft } from "../../api/translations.ts";
+import { LanguagePicker, RowsHead, TranslateAssist, TranslationRow } from "./TranslationParts.tsx";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import { usePassportFlags } from "../../api/launchHooks.ts";
 import type { CgEvent, Opportunity, OpportunityInput, OppFunding, Program } from "../../api/types.ts";
@@ -17,6 +24,7 @@ import { StatusBadge } from "../../components/status.tsx";
 import { ApplicationsStep } from "./ApplicationsStep.tsx";
 import { EmbedPanel } from "./EmbedPanel.tsx";
 import { SocialPanel } from "../../components/SocialPanel.tsx";
+import { lazyPanel } from "../../components/lazyPanel.tsx";
 import { competitionOf, offersApply, OpportunityStatusBadge, takingApplications } from "./applicationsStatus.tsx";
 import { ErrorBanner, Field, Loading, Notice, PageHeader, problemFor, SaveNote } from "../../components/ui.tsx";
 import { applicantTypeLabel, formatAwardCount, formatAwardRange, formatDate, parseDollars, slugify } from "../../lib/format.ts";
@@ -24,6 +32,9 @@ import { rowsToRules, rulesToRows, type RuleRow } from "../../lib/rules.ts";
 import { ApplicantTypes, EligibilityDryRun, rowProblem, RuleRows } from "./EligibilityEditor.tsx";
 import { t, useFunderMessages } from "./i18n.ts";
 import { usePublicMessages } from "../../i18n/index.tsx";
+
+// Share this call shows on the Publish step only: loaded then.
+const SyndicationPanel = lazyPanel(() => import("./SyndicationPanel.tsx").then((m) => m.SyndicationPanel));
 
 const STEPS = [
   { key: "basics", get title() { return t("opportunityBuilder.step.basics.title"); }, get hint() { return t("opportunityBuilder.step.basics.hint"); } },
@@ -66,6 +77,8 @@ interface Draft {
   sitemap: boolean;
   requirePassport: boolean;
   acceptSelfReported: boolean;
+  /** The opportunity's own language, the one added beside it (if any), and the texts in it. */
+  languages: { source: FormLanguage; added: FormLanguage | null; texts: OpportunityTranslations };
 }
 
 const dollars = (m: { amount: string } | undefined) => (m ? String(Number(m.amount)) : "");
@@ -95,8 +108,42 @@ function draftOf(o: Opportunity | undefined, programId: string): Draft {
     sitemap: o?.publish.sitemap !== false,
     requirePassport: o?.publish.requirePassport === true,
     acceptSelfReported: o?.publish.acceptSelfReported === true,
+    languages: languagesOf(o?.translations),
   };
 }
+
+function languagesOf(tr: OpportunityTranslations | undefined): Draft["languages"] {
+  const source: FormLanguage = tr?.source === "es" ? "es" : "en";
+  const added = (["en", "es"] as const).find((l) => l !== source && !!tr?.[l]) ?? null;
+  return { source, added, texts: tr ?? {} };
+}
+
+/** The eligibility rules' labels, each once: what a funder translates. */
+function ruleLabels(rule: Rule, out: string[] = []): string[] {
+  if ("all" in rule) rule.all.forEach((r) => ruleLabels(r, out));
+  else if ("any" in rule) rule.any.forEach((r) => ruleLabels(r, out));
+  else if (rule.label?.trim() && !out.includes(rule.label)) out.push(rule.label);
+  return out;
+}
+
+/** The opportunity's texts as they will be saved, and where their translation stands. */
+const textStatus = (d: Draft, language: FormLanguage) =>
+  opportunityTranslationStatus({ title: d.title.trim(), description: d.description.trim(), eligibility: ruleLabels(rowsToRules(d.rows)) }, d.languages.texts, language);
+
+type OppTextKind = "title" | "description" | "eligibility";
+/** Sets (or, empty, removes) one translated text; a person's text is reviewed, an assistant's is a draft. */
+function setText(texts: OpportunityTranslations, language: FormLanguage, kind: OppTextKind, key: string, source: string, text: string, draft = false): OpportunityTranslations {
+  const tr: OpportunityTranslation = { ...(texts[language] ?? {}), eligibility: { ...(texts[language]?.eligibility ?? {}) } };
+  const value = text.trim() ? { text, source, ...(draft ? { draft: true as const } : {}) } : undefined;
+  if (kind === "eligibility") {
+    if (value) tr.eligibility![key] = value;
+    else delete tr.eligibility![key];
+  } else if (value) tr[kind] = value;
+  else delete tr[kind];
+  if (!Object.keys(tr.eligibility!).length) delete tr.eligibility;
+  return { ...texts, [language]: tr };
+}
+const entryOf = (texts: OpportunityTranslations, language: FormLanguage, kind: OppTextKind, key: string) => (kind === "eligibility" ? texts[language]?.eligibility?.[key] : texts[language]?.[kind]);
 
 type Errors = Partial<Record<keyof Draft, string>>;
 
@@ -110,11 +157,13 @@ function check(d: Draft): Errors {
   if (min !== null && max !== null && d.min.trim() && d.max.trim() && min > max) e.max = t("opportunityBuilder.problem.maxBelowMin");
   for (const key of ["minCount", "maxCount"] as const) if (d[key].trim() && !/^\d+$/.test(d[key].trim())) e[key] = t("opportunityBuilder.problem.wholeNumber");
   if (d.opens && d.closes && d.opens >= d.closes) e.closes = t("opportunityBuilder.problem.closesBeforeOpens");
+  // An assistant draft is never saved: the public page would show it at once.
+  if (d.languages.added && textStatus(d, d.languages.added).drafts > 0) e.languages = t("translation.assist.reviewFirst");
   return e;
 }
 
 const STEP_FIELDS: Record<StepKey, (keyof Draft)[]> = {
-  basics: ["title", "slug", "description", "programId"],
+  basics: ["title", "slug", "description", "programId", "languages"],
   funding: ["total", "min", "max", "minCount", "maxCount"],
   dates: ["opens", "closes"],
   who: ["rows"],
@@ -152,6 +201,7 @@ function toInput(d: Draft): OpportunityInput {
     acceptedApplicantTypes: d.types,
     eligibilityRules: rowsToRules(d.rows),
     publish: { publicPage: d.publicPage, openGrantsIndex: d.openGrantsIndex, sitemap: d.sitemap, requirePassport: d.requirePassport, acceptSelfReported: d.acceptSelfReported },
+    translations: { ...(d.languages.source !== "en" ? { source: d.languages.source } : {}), ...(d.languages.added ? { [d.languages.added]: d.languages.texts[d.languages.added] ?? {} } : {}) },
   };
 }
 
@@ -195,6 +245,79 @@ export function PreviewCard({ draft, brand, apply, closed = false }: { draft: Dr
   );
 }
 
+/** "Add Spanish" for the title, summary and eligibility rules, side by side with the funder's own text. */
+function LanguagesSection({ draft, error, onChange, assist }: { draft: Draft; error: string | null; onChange: (languages: Draft["languages"]) => void; assist: ReactNode }) {
+  const { source, added, texts } = draft.languages;
+  const status = added ? textStatus(draft, added) : null;
+  const kindOf = { title: "oppTitle", description: "oppSummary", eligibility: "oppEligibility" } as const;
+  return (
+    <section aria-labelledby="opp-languages-h" style={{ display: "flex", flexDirection: "column", gap: "12px", borderTop: "1px solid var(--og-gray-100)", paddingTop: "16px" }}>
+      <h3 id="opp-languages-h" style={{ fontSize: "15px" }}>
+        {t("opportunityBuilder.translate.heading")}
+      </h3>
+      <LanguagePicker
+        idPrefix="opp"
+        source={source}
+        added={added}
+        progress={status}
+        readOnly={false}
+        onSource={(l) => onChange({ ...draft.languages, source: l })}
+        onAdd={(l) => onChange({ source, added: l, texts: { ...texts, [l]: texts[l] ?? {} } })}
+        onRemove={(l) => {
+          const { [l]: _gone, ...rest } = texts;
+          onChange({ source, added: null, texts: rest });
+        }}
+      />
+      {added && status && (
+        <>
+          <p className="small muted">{t("opportunityBuilder.translate.intro", { language: added })}</p>
+          {assist}
+          <RowsHead source={source} language={added} />
+          <ul style={{ display: "flex", flexDirection: "column" }} aria-label={t("opportunityBuilder.translate.heading")}>
+            {status.items.map((item) => (
+              <TranslationRow
+                key={`${item.kind}:${item.key}`}
+                kind={kindOf[item.kind]}
+                source={item.source}
+                sourceLanguage={source}
+                language={added}
+                text={item.text}
+                state={item.state}
+                {...(item.was !== undefined ? { was: item.was } : {})}
+                multiline={item.kind === "description"}
+                readOnly={false}
+                onText={(text) => onChange({ ...draft.languages, texts: setText(texts, added, item.kind, item.key, item.source, text) })}
+                onConfirm={() => onChange({ ...draft.languages, texts: setText(texts, added, item.kind, item.key, item.source, entryOf(texts, added, item.kind, item.key)?.text ?? "") })}
+              />
+            ))}
+          </ul>
+          {error && (
+            <span className="err-msg" role="alert">
+              {error}
+            </span>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+/** The assistant's drafts, marked as drafts, for the texts still missing or stale (a person's text is never replaced). */
+function withDrafts(d: Draft, items: readonly OpportunityTextDraft[]): { languages: Draft["languages"]; applied: number } {
+  const added = d.languages.added;
+  if (!added) return { languages: d.languages, applied: 0 };
+  const open = new Map(textStatus(d, added).items.filter((i) => i.state === "missing" || i.state === "stale").map((i) => [`${i.kind}:${i.key}`, i]));
+  let texts = d.languages.texts;
+  let applied = 0;
+  for (const item of items) {
+    const row = open.get(`${item.kind}:${item.key}`);
+    if (!row || row.source !== item.source || !item.text.trim()) continue;
+    texts = setText(texts, added, item.kind, item.key, item.source, item.text, true);
+    applied++;
+  }
+  return { languages: { ...d.languages, texts }, applied };
+}
+
 function Builder({ opportunity, programs, initialVisited, onSaved }: { opportunity: Opportunity | undefined; programs: Program[]; initialVisited: Visited; onSaved: (o: Opportunity, visited: Visited) => void }) {
   const ws = useWorkspace("funder");
   const passportFlags = usePassportFlags();
@@ -231,6 +354,9 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
   const save = useApiMutation((api, input: OpportunityInput) => (opportunity ? api.updateOpportunity(opportunity.id, input) : api.createOpportunity(input)));
   const publish = useApiMutation((api, id: string, status: "forecasted" | "open") => api.publishOpportunity(id, status));
   const close = useApiMutation((api, id: string) => api.closeOpportunity(id));
+  const assistStatus = useApiQuery((api) => api.assistStatus(), []);
+  const translationsApi = useTranslationsApi();
+  const [assist, setAssist] = useState<{ busy: boolean; error: unknown; drafted: number | null }>({ busy: false, error: null, drafted: null });
 
   async function saveDraft(): Promise<Opportunity | undefined> {
     setShowErrors(true);
@@ -247,6 +373,26 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
     }
     return saved;
   }
+  /** Saves first when needed (the server drafts from the saved record), then marks each draft for review. */
+  async function draftTranslations() {
+    const language = draft.languages.added;
+    if (!language) return;
+    const saved = dirty || !opportunity ? await saveDraft() : opportunity;
+    if (!saved) return;
+    setAssist({ busy: true, error: null, drafted: null });
+    try {
+      const result = await translationsApi.draftOpportunity(ws.id, saved.id, language);
+      // Saving changed only the slug: the texts the drafts were made for are the draft's own.
+      const next = withDrafts(draft, result.items);
+      setDraft((d) => ({ ...d, languages: next.languages }));
+      if (next.applied) setDirty(true);
+      setAssist({ busy: false, error: null, drafted: next.applied });
+      assistStatus.reload();
+    } catch (e) {
+      setAssist({ busy: false, error: e, drafted: null });
+    }
+  }
+
   async function publishAs(status: "forecasted" | "open") {
     const saved = dirty || !opportunity ? await saveDraft() : opportunity;
     if (!saved) return;
@@ -270,6 +416,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
   const program = programs.find((p) => p.id === draft.programId);
   const publicPath = opportunity ? `/f/${ws.handle}/o/${opportunity.slug}` : null;
   const writeError = save.error ?? publish.error ?? close.error;
+  const languageStatus = draft.languages.added ? textStatus(draft, draft.languages.added) : null;
 
   return (
     <main className="main">
@@ -383,6 +530,25 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
                     <input className={err("slug") ? "inp err" : "inp"} id="opp-slug" placeholder={slugify(draft.title || t("opportunityBuilder.yourTitle"))} {...text("slug")} />
                   </Field>
                 </div>
+                <LanguagesSection
+                  draft={draft}
+                  error={err("languages") ?? problemFor(save.error, "translations")}
+                  onChange={(languages) => set("languages", languages)}
+                  assist={
+                    assistStatus.status === "ready" && assistStatus.data.enabled ? (
+                      <TranslateAssist
+                        id="opp-translate-assist"
+                        help={t("translation.assist.opportunityHelp")}
+                        quota={assistStatus.data.quota}
+                        busy={assist.busy || save.state === "saving"}
+                        disabled={!languageStatus || !draft.title.trim() || languageStatus.missing + languageStatus.stale === 0}
+                        result={assist.drafted}
+                        error={assist.error !== null ? <ErrorBanner error={assist.error} /> : null}
+                        onDraft={() => void draftTranslations()}
+                      />
+                    ) : null
+                  }
+                />
               </>
             )}
             {step === "funding" && (
@@ -530,6 +696,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
                 )}
                 <EmbedPanel handle={ws.handle} funderName={ws.name} opportunity={opportunity} listed={opportunity?.publish.publicPage !== false} taking={taking} />
                 {opportunity && <SocialPanel key={`${opportunity.id}-${opportunity.updatedAt}`} subject={{ type: "opportunity", id: opportunity.id }} />}
+                {opportunity && <SyndicationPanel opportunity={opportunity} />}
               </>
             )}
             {step === "applications" && <ApplicationsStep opportunity={opportunity} competition={competition} base={base} publicPath={publicPath} onChanged={comps.reload} />}

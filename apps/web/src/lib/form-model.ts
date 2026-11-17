@@ -6,7 +6,27 @@
 // A layout the builder does not model (a HorizontalLayout inside a section) is flattened into
 // its section when a form is opened; parts of a field's schema the builder does not edit are
 // kept as they were.
-import type { ControlOptions, FormSchema, Json, MappingSchema, UiControl, UiElement } from "@gms/forms";
+//
+// Translations (docs/forms.md, "Languages") are held beside the model with each section's
+// translation under the section's id, so removing a section never moves another's translation
+// onto it; they are compiled back to UI-schema paths when the form is saved.
+import {
+  confirmTranslation,
+  normalizeTranslations,
+  setTranslation,
+  translationStatus,
+  type ControlOptions,
+  type FormLanguage,
+  type FormSchema,
+  type FormTranslation,
+  type FormTranslations,
+  type Json,
+  type MappingSchema,
+  type TranslatableText,
+  type TranslationStatus,
+  type UiControl,
+  type UiElement,
+} from "@gms/forms";
 
 export type FieldKind =
   | "text"
@@ -437,4 +457,103 @@ export function localProblems(model: FormModel): Record<string, string> {
     else if (f.kind === "budgetTable" && f.categories.filter((c) => c.trim()).length === 0) out[f.key] = "Add at least one budget category";
   }
   return out;
+}
+
+// ------------------------------------------------------------------------------------ languages
+
+/** The builder's translations: the stored shape, with section titles keyed by section id ("s1"). */
+export interface TranslationModel {
+  /** The language the form is written in. */
+  source: FormLanguage;
+  /** Languages added beside it. */
+  languages: FormLanguage[];
+  texts: FormTranslations;
+}
+
+const SECTION_PATH = /^\/elements\/(\d+)$/;
+
+/** A stored form's translations → the builder's (section paths become the ids `parseForm` gives). */
+export function parseTranslations(stored: FormTranslations | null | undefined): TranslationModel {
+  const source: FormLanguage = stored?.source === "es" ? "es" : "en";
+  const languages = (["en", "es"] as const).filter((l) => l !== source && !!stored?.[l] && typeof stored[l] === "object");
+  const texts: FormTranslations = {};
+  for (const l of languages) {
+    const tr = stored![l]!;
+    const sections = Object.fromEntries(Object.entries(tr.sections ?? {}).flatMap(([path, e]) => {
+      const m = SECTION_PATH.exec(path);
+      return m ? [[`s${Number(m[1]) + 1}`, e]] : [];
+    }));
+    texts[l] = { ...(tr.title ? { title: tr.title } : {}), ...(Object.keys(sections).length ? { sections } : {}), ...(tr.fields ? { fields: tr.fields } : {}) };
+  }
+  return { source, languages, texts };
+}
+
+/** The builder's translations → what the API stores, for the form as it is now (gone texts dropped). */
+export function compileTranslations(model: FormModel, tm: TranslationModel, title: string): FormTranslations {
+  const out: FormTranslations = tm.source === "en" ? {} : { source: tm.source };
+  for (const l of tm.languages) {
+    const src = tm.texts[l] ?? {};
+    const tr: FormTranslation = {};
+    if (src.title) tr.title = src.title;
+    const sections = Object.fromEntries(model.sections.flatMap((s, j) => (src.sections?.[s.id] ? [[`/elements/${j}`, src.sections[s.id]!]] : [])));
+    if (Object.keys(sections).length) tr.sections = sections;
+    if (src.fields) tr.fields = src.fields;
+    out[l] = tr;
+  }
+  return normalizeTranslations({ title, ...compileForm(model), translations: out });
+}
+
+/** Where the translation into `language` stands, text by text, for the form as it is now. */
+export function translationRows(model: FormModel, tm: TranslationModel, title: string, language: FormLanguage): TranslationStatus {
+  return translationStatus({ title, ...compileForm(model), translations: compileTranslations(model, tm, title) }, language);
+}
+
+/** A row's text as the builder keys it: a section by its id. */
+function internal(model: FormModel, unit: Pick<TranslatableText, "kind" | "path" | "option" | "source">): Pick<TranslatableText, "kind" | "path" | "option" | "source"> {
+  if (unit.kind !== "section") return unit;
+  const m = SECTION_PATH.exec(unit.path);
+  const section = m ? model.sections[Number(m[1])] : undefined;
+  return { ...unit, path: section?.id ?? unit.path };
+}
+
+/** A person writes (or clears) one text: reviewed, and stamped with today's source. */
+export function writeTranslation(model: FormModel, tm: TranslationModel, language: FormLanguage, unit: Pick<TranslatableText, "kind" | "path" | "option" | "source">, text: string, opts: { draft?: boolean } = {}): TranslationModel {
+  return { ...tm, texts: setTranslation(tm.texts, language, internal(model, unit), text, opts) };
+}
+
+/** "Still correct" for a stale text, "Mark as reviewed" for an assistant draft. */
+export function confirmRow(model: FormModel, tm: TranslationModel, language: FormLanguage, unit: Pick<TranslatableText, "kind" | "path" | "option" | "source">): TranslationModel {
+  return { ...tm, texts: confirmTranslation(tm.texts, language, internal(model, unit)) };
+}
+
+/**
+ * The assistant's drafts, each marked as a draft, for the texts that are still missing or stale:
+ * a text a person wrote since is never replaced.
+ */
+export function applyDrafts(model: FormModel, tm: TranslationModel, title: string, language: FormLanguage, drafts: readonly (Pick<TranslatableText, "kind" | "path" | "option" | "source"> & { text: string })[]): { tm: TranslationModel; applied: number } {
+  const open = new Map(translationRows(model, tm, title, language).items.filter((i) => i.state === "missing" || i.state === "stale").map((i) => [i.id, i]));
+  let next = tm;
+  let applied = 0;
+  for (const d of drafts) {
+    const row = open.get(JSON.stringify(d.option === undefined ? [d.kind, d.path] : [d.kind, d.path, d.option]));
+    if (!row || row.source !== d.source || !d.text.trim()) continue;
+    next = writeTranslation(model, next, language, row, d.text, { draft: true });
+    applied++;
+  }
+  return { tm: next, applied };
+}
+
+export function addLanguage(tm: TranslationModel, language: FormLanguage): TranslationModel {
+  if (language === tm.source || tm.languages.includes(language)) return tm;
+  return { ...tm, languages: [...tm.languages, language], texts: { ...tm.texts, [language]: tm.texts[language] ?? {} } };
+}
+
+export function removeLanguage(tm: TranslationModel, language: FormLanguage): TranslationModel {
+  const { [language]: _gone, ...texts } = tm.texts;
+  return { ...tm, languages: tm.languages.filter((l) => l !== language), texts };
+}
+
+/** The language the form is written in; only while no other language is added. */
+export function setSourceLanguage(tm: TranslationModel, source: FormLanguage): TranslationModel {
+  return tm.languages.length ? tm : { ...tm, source };
 }

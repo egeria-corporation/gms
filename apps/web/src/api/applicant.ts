@@ -120,8 +120,8 @@ export interface ApplicantApi {
   // ---- applications ----
   applications(): Promise<MyApplication[]>;
   applicationStatus(id: string): Promise<ApplicationStatusView>;
-  /** `utmSource: "social"` when the person came from a shared social link (lib/socialLanding.ts). */
-  startApplication(competitionId: string, opts?: { utmSource?: "social" }): Promise<Application>;
+  /** `utmSource` when the person came from a shared social link, a feed item or a PND listing (lib/socialLanding.ts). */
+  startApplication(competitionId: string, opts?: { utmSource?: "social" | "feed" | "pnd" }): Promise<Application>;
   application(id: string): Promise<Application>;
   /** The pinned version of a form an application answers. */
   form(formId: string, version: number): Promise<FormDefinition>;
@@ -252,6 +252,8 @@ interface CgForm {
 
 export function toFormDefinition(f: CgForm, version: number): FormDefinition {
   const gms = (f.customFields?.gms?.value ?? {}) as { version?: number; fieldMeta?: FormDefinition["fieldMeta"] };
+  // The funder's text in other languages travels in its own custom field (docs/forms.md, "Languages").
+  const translations = f.customFields?.translations?.value as FormDefinition["translations"] | undefined;
   return {
     id: f.id,
     version: gms.version ?? version,
@@ -262,6 +264,7 @@ export function toFormDefinition(f: CgForm, version: number): FormDefinition {
     ...(f.mappingFromCommonGrants ? { mappingFromCommonGrants: f.mappingFromCommonGrants } : {}),
     ...(f.mappingToCommonGrants ? { mappingToCommonGrants: f.mappingToCommonGrants } : {}),
     ...(gms.fieldMeta ? { fieldMeta: gms.fieldMeta } : {}),
+    ...(translations && typeof translations === "object" ? { translations } : {}),
   };
 }
 
@@ -343,7 +346,7 @@ export function createHttpApplicantApi(opts: HttpApplicantOptions): ApplicantApi
     applications: () => get("/gms/my/applications"),
     applicationStatus: (id) => get(`${my(id)}/status`),
     // The source travels in the query string: the CommonGrants start body takes no other field.
-    startApplication: async (competitionId, opts) => toApplication(await call<CgApplication>("POST", `/common-grants/applications/start${opts?.utmSource === "social" ? "?utm_source=social" : ""}`, { competitionId: bare(competitionId) })),
+    startApplication: async (competitionId, opts) => toApplication(await call<CgApplication>("POST", `/common-grants/applications/start${opts?.utmSource && ["social", "feed", "pnd"].includes(opts.utmSource) ? `?utm_source=${opts.utmSource}` : ""}`, { competitionId: bare(competitionId) })),
     application: async (id) => toApplication(await get<CgApplication>(cg(id))),
     form: async (formId, version) => toFormDefinition(await get<CgForm>(`/common-grants/forms/${e(bare(formId))}?version=${version}`), version),
     saveForm: async (id, formId, patch) => toAppForm(await call<CgFormResponse>("PUT", `${cg(id)}/forms/${e(bare(formId))}`, { response: patch })),

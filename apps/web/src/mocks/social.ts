@@ -4,12 +4,18 @@
 // state sealed with an expiry and checked on the way back, the exact body built once for the
 // preview and the post, one post per Idempotency-Key, and Zernio's counts in the reach report.
 // The person "signs in" at the platform at once: the connect link is a path back into this app.
-// Awards are not offered, as on a server where award sharing is not wired yet.
+// Awards are offered from the award sharing mock's kit when one is given (`awards`), as the API
+// offers them through award sharing's one public rule; "Meet our grantees" (v1.12.0) lists a
+// program's awards the same way. The demo store holds one "Two weeks left" prompt, for the
+// Housing Stability call, as if the daily run had made it.
 import { buildPostBody, checkCompose, FakeZernio, openToken, PLATFORM_LABEL, PLATFORM_LIMIT, NEEDS_IMAGE, PLATFORMS, postDigest, sealToken, ZernioClient, type Platform, type PostBody, type ZernioPost } from "@gms/social";
 import type { Session } from "../auth/types.ts";
 import { ApiError } from "../api/client.ts";
 import type { Opportunity } from "../api/types.ts";
 import type { SocialAccount, SocialApi, SocialComposeInput, SocialDraft, SocialPost, SocialPostStatus, SocialPreview, SocialReach, SocialSettings, SocialSubject } from "../api/social.ts";
+import type { AwardSharingApi } from "../api/awardSharing.ts";
+import { mockMeetOurGrantees, type AwardSharingStore } from "./awardSharing.ts";
+import { IDS } from "./store.ts";
 
 const KEY = "zk_mock_browser_key_not_real";
 /** Seals connect states and preview tokens in page memory only. */
@@ -43,11 +49,13 @@ export interface SocialStore {
   profiles: Map<string, string>;
   accounts: MockAccount[];
   posts: MockPost[];
+  /** "Two weeks left" prompts, as the daily run makes them (one per call). */
+  reminders: { id: string; workspaceId: string; opportunityId: string; deadline: string; dismissed: boolean }[];
 }
 
 export function seedSocialStore(): SocialStore {
   const fake = new FakeZernio({ apiKey: KEY });
-  return { fake, client: new ZernioClient({ apiKey: KEY, fetch: fake.fetch }), profiles: new Map(), accounts: [], posts: [] };
+  return { fake, client: new ZernioClient({ apiKey: KEY, fetch: fake.fetch }), profiles: new Map(), accounts: [], posts: [], reminders: [{ id: "0190c000-0000-7000-8000-0000000004e1", workspaceId: "riverbend", opportunityId: IDS.oppHousing27, deadline: "2027-05-27", dismissed: false }] };
 }
 
 type Current = { id: string; kind: "funder" | "applicant"; handle: string; name: string; role: string } | null;
@@ -57,6 +65,8 @@ export interface MockSocialOptions {
   store: SocialStore;
   workspace: () => Current;
   getOpportunity: (id: string) => Promise<Opportunity>;
+  /** The award sharing mock (the same workspace), for awards and "Meet our grantees". */
+  awards?: { api: AwardSharingApi; store: () => AwardSharingStore };
 }
 
 const accountView = (a: MockAccount): SocialAccount => ({ id: a.id, platform: a.platform, label: PLATFORM_LABEL[a.platform], username: a.username, status: a.status, connectedAt: a.connectedAt, disconnectedAt: a.disconnectedAt });
@@ -77,9 +87,50 @@ export function createMockSocialApi(opts: MockSocialOptions): SocialApi {
   };
   const canPost = (w: NonNullable<Current>) => POST_ROLES.includes(w.role);
 
+  const withUtm = (link: string) => `${link}${link.includes("?") ? "&" : "?"}utm_source=social`;
+  // Reminders are kept by workspace handle in the demo store (the mock's workspace ids are handles too).
+  const remindersOf = (w: NonNullable<Current>) => store.reminders.filter((r) => r.workspaceId === w.handle || r.workspaceId === w.id);
+
+  async function awardDraft(subject: SocialSubject, w: NonNullable<Current>): Promise<SocialDraft> {
+    const base: SocialDraft = { subject: { ...subject, title: "Award" }, shareable: false, reason: "This award is not listed publicly, so it is not offered for posting", suggestions: [], link: null, imageUrl: null };
+    if (!opts.awards) return base;
+    const panel = await opts.awards.api.sharing(subject.id, w.kind === "funder" ? "funder" : "grantee");
+    const kit = panel.kit;
+    if (!kit) return base;
+    const link = withUtm(kit.links.page);
+    const swap = (text: string) => text.split(kit.links.page).join(link);
+    const program = w.kind === "funder" && kit.award.program ? (opts.awards.store().programs[w.handle] ?? []).find((p) => p.name === kit.award.program) : undefined;
+    return {
+      ...base,
+      subject: { ...subject, title: kit.award.purpose },
+      shareable: true,
+      reason: null,
+      suggestions: [
+        { label: "LinkedIn post", text: swap(kit.posts.linkedin) },
+        { label: "Short post", text: swap(kit.posts.short) },
+        { label: "Newsletter paragraph", text: swap(kit.posts.newsletter) },
+      ],
+      link,
+      imageUrl: kit.links.image,
+      program: program ? { id: program.id, name: program.name } : null,
+    };
+  }
+
+  function programDraft(subject: SocialSubject, w: NonNullable<Current>): SocialDraft {
+    const found = w.kind === "funder" && opts.awards ? mockMeetOurGrantees(opts.awards.store(), w.handle, subject.id, window.location.origin) : null;
+    if (!found) throw new ApiError(404, "Program not found");
+    const base: SocialDraft = { subject: { type: "program", id: subject.id, title: found.program.name }, shareable: false, reason: null, suggestions: [], link: null, imageUrl: null, grantees: [], parts: null };
+    if (!found.grantees.length) return { ...base, reason: "No award in this program is listed publicly yet, so there is no one to introduce" };
+    const link = withUtm(found.awardsPage);
+    const grantees = found.grantees.map((g) => ({ awardId: g.awardId, name: g.recipient, tag: g.tag?.handle ?? null, line: g.tag ? `${g.recipient} (${g.tag.handle}): ${g.purpose}` : `${g.recipient}: ${g.purpose}` }));
+    const parts = { intro: `Meet the grantees of our ${found.program.name} program.`, outro: `See every grant we have awarded: ${link}` };
+    return { ...base, shareable: true, suggestions: [{ kind: "meet", label: "Meet our grantees", text: [parts.intro, "", ...grantees.map((g) => g.line), "", parts.outro].join("\n") }], link, imageUrl: `${window.location.origin}/og/f/${w.handle}/awards.png`, grantees, parts };
+  }
+
   async function draftFor(subject: SocialSubject): Promise<SocialDraft> {
     const w = ws();
-    if (subject.type === "award") return { subject: { ...subject, title: "Award" }, shareable: false, reason: "This award is not listed publicly, so it is not offered for posting", suggestions: [], link: null, imageUrl: null };
+    if (subject.type === "award") return awardDraft(subject, w);
+    if (subject.type === "program") return programDraft(subject, w);
     const o = await opts.getOpportunity(subject.id);
     const base: SocialDraft = { subject: { type: "opportunity", id: o.id, title: o.title }, shareable: false, reason: null, suggestions: [], link: null, imageUrl: null };
     if (!o.published || o.publish.publicPage === false) return { ...base, reason: "Publish this call with Public page on before you share it" };
@@ -90,7 +141,9 @@ export function createMockSocialApi(opts: MockSocialOptions): SocialApi {
     const opens = dateText(o.keyDates.postDate?.date);
     const long = o.status === "open" ? `Applications are open: ${o.title}, from ${w.name}.${close ? ` Apply by ${close}.` : ""}\n\n${link}` : `Coming soon: ${o.title}, from ${w.name}.${opens ? ` Applications open ${opens}.` : ""}\n\n${link}`;
     const short = o.status === "open" ? `Now open: ${o.title}${close ? ` (apply by ${close})` : ""} ${link}` : `Coming soon: ${o.title} ${link}`;
-    return { ...base, shareable: true, suggestions: [{ label: "Announcement", text: long }, { label: "Short", text: short }], link, imageUrl: `${origin}/og/f/${w.handle}/o/${o.slug}.png` };
+    const prompt = o.status === "open" ? remindersOf(w).find((r) => r.opportunityId === o.id && !r.dismissed) : undefined;
+    const reminder = prompt ? [{ kind: "reminder" as const, label: "Reminder", text: `Two weeks left to apply: ${o.title}, from ${w.name}. Apply by ${dateText(prompt.deadline)}.\n\n${link}` }] : [];
+    return { ...base, shareable: true, suggestions: [...reminder, { label: "Announcement", text: long }, { label: "Short", text: short }], link, imageUrl: `${origin}/og/f/${w.handle}/o/${o.slug}.png`, reminder: prompt ? { id: prompt.id, deadline: prompt.deadline } : null };
   }
 
   async function compose(input: SocialComposeInput) {
@@ -243,6 +296,16 @@ export function createMockSocialApi(opts: MockSocialOptions): SocialApi {
         return xs.length ? xs.reduce((a, b) => a + b, 0) : null;
       };
       return { posts, totals: { posts: posts.length, impressions: sum("impressions"), clicks: sum("clicks"), engagements: sum("engagements") }, applicationsFromSocial: subject?.type === "opportunity" ? 0 : null };
+    },
+
+    dismissReminder: async (id) => {
+      const w = ws();
+      await userId();
+      if (w.kind !== "funder" || w.role !== "admin") throw new ApiError(403, "This needs one of these roles: admin");
+      const r = remindersOf(w).find((x) => x.id === id);
+      if (!r) throw new ApiError(404, "Reminder not found");
+      r.dismissed = true;
+      return { id: r.id, opportunityId: r.opportunityId, dismissed: true as const };
     },
   };
 }

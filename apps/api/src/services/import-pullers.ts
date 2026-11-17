@@ -21,7 +21,7 @@ export const PULLER_CREDENTIAL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const LABEL: Record<PullerProvider, string> = { fluxx: "Fluxx", zengine: "Zengine" };
 /** What the connector_accounts row records: what may be read, never a credential. */
-const SCOPES: Record<PullerProvider, string[]> = { fluxx: ["grant_request:read", "request_transaction:read", "organization:read"], zengine: ["forms:read", "records:read"] };
+const SCOPES: Record<PullerProvider, string[]> = { fluxx: ["grant_request:read", "request_transaction:read", "request_report:read", "organization:read"], zengine: ["forms:read", "records:read"] };
 
 /** One puller of each kind per isolate, so Zengine's rate window holds across requests. */
 let defaults: { fluxx: FluxxPuller; zengine: ZenginePuller } | null = null;
@@ -182,7 +182,7 @@ const range = (start: number, rows: number, total: number | null, perPage = 100)
  * Read one run's worth of rows from Fluxx or Zengine (at most 5,000, from `startPage`). Nothing
  * pulled is stored here: the caller screens the table first, as for a file.
  */
-export async function pullSource(ctx: ServiceContext, wsId: string, src: { kind: "fluxx"; startPage?: number | undefined } | { kind: "zengine"; formId: string; startPage?: number | undefined }): Promise<PulledSource> {
+export async function pullSource(ctx: ServiceContext, wsId: string, src: { kind: "fluxx"; startPage?: number | undefined } | { kind: "zengine"; formId: string; startPage?: number | undefined }, target?: string): Promise<PulledSource> {
   // Pulls are a funder admin's, signed in, whoever calls the import routes.
   if (ctx.workspace?.kind !== "funder") throw new ApiError(422, "bad_request", `${LABEL[src.kind]} imports grant history into a funder workspace`);
   const startPage = src.startPage ?? 1;
@@ -193,9 +193,12 @@ export async function pullSource(ctx: ServiceContext, wsId: string, src: { kind:
   if (src.kind === "fluxx") {
     const c = await credentials<FluxxCredentials>(ctx, wsId, "fluxx");
     account = c.account;
-    pulled = await pullersOf(ctx).fluxx.pullGrantHistory(c.value, { startPage, maxRows: MAX_IMPORT_ROWS }).catch((e: unknown) => pullError(ctx, wsId, "fluxx", e));
+    // Past reports read Fluxx's request_report; every other target reads grant requests.
+    const reports = target === "history_reports";
+    const opts = { startPage, maxRows: MAX_IMPORT_ROWS };
+    pulled = await (reports ? pullersOf(ctx).fluxx.pullReports(c.value, opts) : pullersOf(ctx).fluxx.pullGrantHistory(c.value, opts)).catch((e: unknown) => pullError(ctx, wsId, "fluxx", e));
     const host = new URL(c.value.instanceUrl).hostname;
-    label = `Fluxx · ${host} · grant requests`;
+    label = `Fluxx · ${host} · ${reports ? "reports" : "grant requests"}`;
     ref = `fluxx:${host}`;
   } else {
     const c = await credentials<{ token: string }>(ctx, wsId, "zengine");

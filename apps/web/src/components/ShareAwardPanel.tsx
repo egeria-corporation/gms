@@ -4,15 +4,23 @@
 // confidential", the grantee's "Don't list us publicly"), and while it is public the share kit:
 // three ready-to-edit posts, the award page link, the card image and the "Funded by" badge, each
 // with a copy button. Nothing is posted from here.
+// v1.12.0 (./AwardKitExtras.tsx): the federal share, the portrait card, the carousel PDF, the press
+// release, the other side's page to tag, and the workspace's share-kit settings.
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Circle, CircleCheck, Download, EyeOff, Globe, Info, Lock, ShieldCheck } from "lucide-react";
 import { badgeDataUrl, notListedText, type AwardShareKit, type AwardSharing, type ShareSide } from "../api/awardSharing.ts";
 import { useAwardSharingMutation, useAwardSharingQuery } from "../api/awardSharingHooks.ts";
+import { lazyPanel } from "./lazyPanel.tsx";
 import { CopyButton } from "./CopyButton.tsx";
 import { ErrorBanner, Loading, Notice, SaveNote } from "./ui.tsx";
 
 import { translator } from "../i18n/index.tsx";
+
+// The kit's extras (v1.12.0) load with the panel's kit, not with the award screen.
+const FederalFundingSection = lazyPanel(() => import("./AwardKitExtras.tsx").then((m) => m.FederalFundingSection));
+const KitExtras = lazyPanel(() => import("./AwardKitExtras.tsx").then((m) => m.KitExtras));
+const ShareKitSettings = lazyPanel(() => import("./AwardKitExtras.tsx").then((m) => m.ShareKitSettings));
 
 
 const t = translator("shared");
@@ -182,7 +190,10 @@ export function ShareAwardPanel({ awardId, side, funderName, settingsHref }: { a
                 </span>
               </p>
             )}
+            {data.federal && <FederalFundingSection awardId={awardId} federal={data.federal} onSaved={q.set} />}
             {data.kit && <Kit kit={data.kit} awardId={awardId} />}
+            {data.kit && <KitExtras kit={data.kit} side={side} awardId={awardId} />}
+            <ShareKitSettings side={side} />
           </>
         )}
       </div>

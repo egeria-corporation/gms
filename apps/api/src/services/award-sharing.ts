@@ -11,6 +11,15 @@
 // Public views carry public fields only: the funder's public name, the recipient's own workspace
 // name (never a Passport record it shares only with its funders), the award's title as its
 // purpose, the program, the year, and the amount unless the funder hides amounts.
+//
+// The kit, plus (v1.12.0): the portrait card's words, a 6-10 page carousel PDF with each page's
+// alt text, a press release with the funder's credit wording ("funded by" or "supported by", never
+// "sponsored"), each side's social page to tag (only with that side's consent), the federal share
+// statement (the Stevens Amendment, only when the funder entered both the amount and the
+// percentage), and "Meet our grantees" (a program's listable awards, for one post).
+import { DEFAULT_LOCALE, formatCurrency, formatDateIn, formatNumber, INTL_LOCALE, type Locale } from "@gms/i18n";
+import { serverTranslator } from "@gms/i18n/server";
+import { renderCarouselPdf, type CarouselPage } from "@gms/documents";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
 import { humanOnly, STAFF_ROLES } from "./awards.ts";
@@ -268,7 +277,7 @@ export function aGrant(amount: string | null): string {
   return `${an ? "an" : "a"} ${amount} grant`;
 }
 
-export interface ShareKit {
+export interface BaseShareKit {
   /** Ready to edit: nothing is posted from the GMS. */
   posts: { linkedin: string; short: string; newsletter: string };
   links: { page: string; awards: string; image: string; badge: string };
@@ -277,6 +286,9 @@ export interface ShareKit {
   award: PublicAward;
 }
 
+/** The share kit: the posts, link, card and badge, and (v1.12.0) the extras built with them. */
+export interface ShareKit extends BaseShareKit, KitExtras {}
+
 /** The longest short post: an X post, counting the link in full. */
 export const SHORT_POST_MAX = 280;
 
@@ -284,35 +296,32 @@ const attr = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").rep
 
 export const badgeText = (funderName: string, verified: boolean) => `Funded by ${funderName}${verified ? " · verified" : ""}`;
 
-/** The posts, links and badge for a listed award, from its public fields only. */
-export function buildShareKit(ctx: Pick<ServiceContext, "config">, award: PublicAward, funder: Ws, audience: ShareAudience): ShareKit {
+/**
+ * The posts, links and badge for a listed award, from its public fields only. The posts are in
+ * `locale` (the kit's language, as its press release and carousel: the reader's), from the email
+ * catalog's `kit.post.*`; English reads as it always has.
+ */
+export function buildShareKit(ctx: Pick<ServiceContext, "config">, award: PublicAward, funder: Ws, audience: ShareAudience, locale: Locale = DEFAULT_LOCALE): BaseShareKit {
   const funderName = publicFunderName(funder);
   const recipient = award.recipient.name;
-  const amount = award.amount ? formatAmount(award.amount) : null;
-  const grant = aGrant(amount);
-  const purpose = `“${award.purpose}”`;
+  const english = locale === DEFAULT_LOCALE;
+  const amount = award.amount ? (english ? formatAmount(award.amount) : formatCurrency(locale, Number(award.amount.amount), award.amount.currency, Number.isInteger(Number(award.amount.amount)) ? 0 : 2)) : null;
   const awards = `${ctx.config.webBaseUrl}/f/${funder.handle}/awards`;
-  const throughIts = award.program ? ` through its ${award.program} program` : "";
-  const throughOur = award.program ? ` through our ${award.program} program` : "";
   const page = award.links.page;
-  const short = (make: (p: string) => string) => {
+  const t = emailT(locale);
+  // "an $80,000 grant", "a $150,000 grant" or "a grant" in English (the article goes by how the amount is read); the other languages word it in the message.
+  const grantForm = amount ? aGrant(amount).split(" ")[0]! : "none";
+  const values = (purpose: string) => ({ funder: funderName, recipient, amount: amount ?? "", grantForm, program: award.program ?? "", hasProgram: award.program ? "yes" : "no", purpose, page, awards });
+  const short = (key: "kit.post.grantee.short" | "kit.post.funder.short") => {
     // Shorten the purpose until the post fits.
     let p = award.purpose;
-    while (make(`“${p}”`).length > SHORT_POST_MAX && p.length > 20) p = clip(p, Math.max(20, p.length - 10));
-    return make(`“${p}”`);
+    while (t(key, values(p)).length > SHORT_POST_MAX && p.length > 20) p = clip(p, Math.max(20, p.length - 10));
+    return t(key, values(p));
   };
   const posts =
     audience === "grantee"
-      ? {
-          linkedin: `We are grateful to ${funderName} for ${grant}${throughIts}. It funds our work on ${purpose}.\n\nThank you to the ${funderName} team for backing this work.\n\n${page}`,
-          short: short((p) => `Thank you, ${funderName}, for ${grant} for ${p}. ${page}`),
-          newsletter: `${recipient} has received ${grant} from ${funderName}${throughIts}. The grant funds ${purpose}. We thank ${funderName} for its support. Read more: ${page}`,
-        }
-      : {
-          linkedin: `We are proud to support ${recipient} with ${grant}${throughOur}. The grant funds ${purpose}.\n\nCongratulations to the ${recipient} team.\n\n${page}`,
-          short: short((p) => `Congratulations to ${recipient} on ${grant} from ${funderName} for ${p}. ${page}`),
-          newsletter: `${funderName} has awarded ${recipient} ${grant}${throughIts}. The grant funds ${purpose}. See every grant we have awarded: ${awards}`,
-        };
+      ? { linkedin: t("kit.post.grantee.linkedin", values(award.purpose)), short: short("kit.post.grantee.short"), newsletter: t("kit.post.grantee.newsletter", values(award.purpose)) }
+      : { linkedin: t("kit.post.funder.linkedin", values(award.purpose)), short: short("kit.post.funder.short"), newsletter: t("kit.post.funder.newsletter", values(award.purpose)) };
   const verified = funderVerified(funder);
   const text = badgeText(funderName, verified);
   const size = badgeSize(text);
@@ -404,7 +413,12 @@ async function sideAward(ctx: ServiceContext, awardId: string, audience: ShareAu
 export async function shareKit(ctx: ServiceContext, awardId: string, audience: ShareAudience): Promise<ShareKit | null> {
   const { award } = await sideAward(ctx, awardId, audience, "awards:read");
   const found = await listedAwardBySlug(ctx, award.public_slug);
-  return found ? buildShareKit(ctx, found.award, found.funder, audience) : null;
+  return found ? fullKit(ctx, award, found, audience) : null;
+}
+
+/** The kit with its extras, for an award that is public. */
+async function fullKit(ctx: ServiceContext, row: Award, found: { award: PublicAward; funder: Ws }, audience: ShareAudience): Promise<ShareKit> {
+  return { ...buildShareKit(ctx, found.award, found.funder, audience, ctx.locale ?? DEFAULT_LOCALE), ...(await kitExtras(ctx, row, found, audience)) };
 }
 
 export interface AwardSharing {
@@ -421,6 +435,8 @@ export interface AwardSharing {
   /** The funder's grants-awarded page, while it lists awards. */
   awardsPage: string | null;
   kit: ShareKit | null;
+  /** The federal share, as the funder entered it, and whether this caller may change it (funder staff). */
+  federal: FederalFunding & { canChange: boolean };
 }
 
 const FUNDER_CHANGE_ROLES: readonly string[] = STAFF_ROLES;
@@ -445,7 +461,8 @@ export async function awardSharing(ctx: ServiceContext, awardId: string, audienc
     amountsShown: settings.showAmounts,
     canChange: ctx.actor.kind === "user" && ws.role !== null && roles.includes(ws.role) && ctx.scopes.includes("awards:write"),
     awardsPage: settings.listAwards && funder ? `${ctx.config.webBaseUrl}/f/${funder.handle}/awards` : null,
-    kit: found ? buildShareKit(ctx, found.award, found.funder, audience) : null,
+    kit: found ? await fullKit(ctx, award, found, audience) : null,
+    federal: { ...federalView(ctx.locale ?? DEFAULT_LOCALE, award), canChange: audience === "funder" && ctx.actor.kind === "user" && ws.role !== null && FUNDER_CHANGE_ROLES.includes(ws.role) && ctx.scopes.includes("awards:write") },
   };
 }
 
@@ -549,4 +566,394 @@ export async function setProgramConfidentialDefault(ctx: ServiceContext, program
   }
   const w = await ctx.repos.table("workspaces").one({ id: ws.id });
   return listingView(ctx, w!);
+}
+
+// ------------------------------------------------------------------------------------ the kit, plus (v1.12.0)
+
+const emailT = (locale: Locale) => serverTranslator(locale, "email");
+
+/** The platforms a social page link may be on, by host (with or without `www.`). */
+export const SOCIAL_PAGE_PLATFORMS = ["linkedin", "facebook", "instagram", "x", "bluesky", "threads"] as const;
+export type SocialPagePlatform = (typeof SOCIAL_PAGE_PLATFORMS)[number];
+const PAGE_HOSTS: Record<string, SocialPagePlatform> = { "linkedin.com": "linkedin", "facebook.com": "facebook", "instagram.com": "instagram", "x.com": "x", "twitter.com": "x", "bsky.app": "bluesky", "threads.net": "threads", "threads.com": "threads" };
+const HANDLE = /^[A-Za-z0-9._-]{1,100}$/;
+
+/** A workspace's social page, read from the link it gave: the platform and the handle to tag. */
+export interface SocialPage {
+  url: string;
+  platform: SocialPagePlatform;
+  /** What a post writes to tag the page, e.g. `@alder-creek-family-services`. */
+  handle: string;
+}
+
+/**
+ * An organization's page on a known platform, or null. LinkedIn takes company, school and showcase
+ * pages only (never a person's profile); Bluesky `/profile/{handle}`; Threads `/@{name}`; the others
+ * `/{name}`. The stored link is rebuilt from what was read, so nothing else of the address is kept.
+ */
+export function socialPageOf(raw: string | null | undefined): SocialPage | null {
+  if (!raw) return null;
+  let u: URL;
+  try {
+    u = new URL(raw.trim());
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" || u.username || u.password || u.port) return null;
+  const host = u.hostname.toLowerCase().replace(/^(www|m|mobile)\./, "");
+  const platform = PAGE_HOSTS[host];
+  if (!platform) return null;
+  const parts = u.pathname.split("/").filter(Boolean);
+  let name: string | undefined;
+  let path: string;
+  if (platform === "linkedin") {
+    if (!["company", "school", "showcase"].includes(parts[0] ?? "")) return null;
+    name = parts[1];
+    path = `${parts[0]}/${name}`;
+  } else if (platform === "bluesky") {
+    if (parts[0] !== "profile") return null;
+    name = parts[1];
+    path = `profile/${name}`;
+  } else if (platform === "threads") {
+    name = parts[0]?.replace(/^@/, "");
+    path = `@${name}`;
+  } else {
+    name = parts[0]?.replace(/^@/, "");
+    path = `${name}`;
+  }
+  if (!name || !HANDLE.test(name) || (platform !== "linkedin" && platform !== "bluesky" && parts.length > 1)) return null;
+  const canonical = platform === "x" ? "x.com" : platform === "bluesky" ? "bsky.app" : platform === "threads" ? "www.threads.net" : `www.${host}`;
+  return { url: `https://${canonical}/${path}`, platform, handle: `@${name}` };
+}
+
+// ---- share-kit settings (share_kit_profiles, 0048)
+
+/** The press release's credit wording. "Sponsored" is never one: a grant is not a sponsorship. */
+export const CREDIT_WORDINGS = ["funded_by", "supported_by"] as const;
+export type CreditWording = (typeof CREDIT_WORDINGS)[number];
+/** Who changes a workspace's share-kit settings: its admins, in person (consent is theirs to give). */
+export const SHARE_PROFILE_ROLES: readonly string[] = ["admin"];
+
+export interface ShareProfile {
+  /** The social page link, as stored, and what was read from it. */
+  pageUrl: string | null;
+  page: SocialPage | null;
+  /** Whether the other side may tag this page. Without it the page is never tagged. */
+  tagConsent: boolean;
+  consentedAt: string | null;
+  /** A funder's: "funded by" (the default) or "supported by". */
+  creditWording: CreditWording;
+  /** A funder's standard description, for the press release ("About ..."). */
+  standardDescription: string | null;
+  canChange: boolean;
+}
+
+type ProfileRow = Row<"share_kit_profiles">;
+const creditOf = (r: ProfileRow | null | undefined): CreditWording => (r?.credit_wording === "supported_by" ? "supported_by" : "funded_by");
+/** The page another side may tag: only with this side's consent, and only a page we can read. */
+const taggable = (r: ProfileRow | null | undefined): SocialPage | null => (r && r.tag_consent === true ? socialPageOf(r.page_url) : null);
+
+function profileView(r: ProfileRow | null | undefined, canChange: boolean): ShareProfile {
+  return { pageUrl: r?.page_url ?? null, page: socialPageOf(r?.page_url), tagConsent: r?.tag_consent === true, consentedAt: r?.consented_at ?? null, creditWording: creditOf(r), standardDescription: r?.standard_description ?? null, canChange };
+}
+
+const profilesOf = async (ctx: Pick<ServiceContext, "repos">, ids: string[]): Promise<Map<string, ProfileRow>> => {
+  const rows = ids.length ? await ctx.repos.table("share_kit_profiles").find({ workspace_id: [...new Set(ids)] }) : [];
+  return new Map(rows.map((r) => [r.workspace_id, r]));
+};
+
+export const shareProfileInput = z
+  .object({
+    pageUrl: z.string().trim().max(300).nullable().optional(),
+    tagConsent: z.boolean().optional(),
+    creditWording: z.enum(CREDIT_WORDINGS).optional(),
+    standardDescription: z.string().trim().max(1500).nullable().optional(),
+  })
+  .strict();
+
+/** The workspace's share-kit settings. Any member who reads awards may read them. */
+export async function getShareProfile(ctx: ServiceContext): Promise<ShareProfile> {
+  const ws = await authorize(ctx, { scope: "awards:read" });
+  const row = await ctx.repos.table("share_kit_profiles").one({ workspace_id: ws.id });
+  return profileView(row, ctx.actor.kind === "user" && ws.role !== null && SHARE_PROFILE_ROLES.includes(ws.role) && ctx.scopes.includes("workspace:admin"));
+}
+
+const invalid = (code: string, field: string, message: string) => new ApiError(422, code, message, [{ code: "invalid", field, detail: message }]);
+
+/**
+ * Change the share-kit settings: a workspace admin, in person. Consent to be tagged is the
+ * organization's own, so no agent or API client gives it (403 human_only), and no MCP tool does.
+ */
+export async function updateShareProfile(ctx: ServiceContext, input: z.output<typeof shareProfileInput>): Promise<ShareProfile> {
+  const ws = await authorize(ctx, { scope: "workspace:admin", roles: SHARE_PROFILE_ROLES, person: true });
+  if (ctx.actor.kind !== "user") throw humanOnly("Changing your share-kit settings");
+  if (ws.kind !== "funder" && (input.creditWording !== undefined || input.standardDescription !== undefined)) throw invalid("funder_only_setting", "creditWording", "Only a funder sets the press release's credit wording and description");
+  const before = await ctx.repos.table("share_kit_profiles").one({ workspace_id: ws.id });
+  let pageUrl = input.pageUrl === undefined ? (before?.page_url ?? null) : input.pageUrl || null;
+  if (pageUrl !== null) {
+    const page = socialPageOf(pageUrl);
+    if (!page) throw invalid("page_url_invalid", "pageUrl", "Give the https address of your organization's page on LinkedIn, Facebook, Instagram, X, Bluesky or Threads");
+    pageUrl = page.url;
+  }
+  // Consent follows the link: a new link needs consent again, and no link means no consent.
+  const linkChanged = pageUrl !== (before?.page_url ?? null);
+  const wanted = input.tagConsent ?? (linkChanged ? false : before?.tag_consent === true);
+  if (wanted && !pageUrl) throw invalid("consent_needs_page", "tagConsent", "Give your page's link before you agree to be tagged");
+  const keepConsent = wanted && before?.tag_consent === true && !linkChanged;
+  const description = input.standardDescription === undefined ? (before?.standard_description ?? null) : input.standardDescription || null;
+  const next = {
+    page_url: pageUrl,
+    tag_consent: wanted,
+    consented_at: wanted ? (keepConsent ? before!.consented_at : ctx.now().toISOString()) : null,
+    consented_by: wanted ? (keepConsent ? before!.consented_by : ctx.actor.userId) : null,
+    credit_wording: input.creditWording ?? creditOf(before),
+    standard_description: description,
+    updated_by: ctx.actor.userId,
+  };
+  const row = before ? (await ctx.repos.table("share_kit_profiles").update({ workspace_id: ws.id }, next))[0]! : await ctx.repos.table("share_kit_profiles").insert({ workspace_id: ws.id, ...next });
+  if (!before || before.page_url !== row.page_url || before.tag_consent !== row.tag_consent || before.credit_wording !== row.credit_wording || before.standard_description !== row.standard_description) {
+    // The ledger names what changed, never the text of the description.
+    await audit(ctx, "workspace.share_kit_changed", "workspace", ws.id, { pageUrl: row.page_url, tagConsent: row.tag_consent, creditWording: row.credit_wording, description: row.standard_description !== null });
+  }
+  return profileView(row, true);
+}
+
+// ---- the federal share (the Stevens Amendment)
+
+export interface FederalFunding {
+  funded: boolean;
+  /** Federal dollars, e.g. "80000.00". */
+  amount: string | null;
+  /** The federal share of the project's total costs, in percent, as entered (never computed). */
+  percent: number | null;
+  /** The federal agency, as the funder named it. */
+  source: string | null;
+  /** The statement of the federal share, or null until both the amount and the percentage are entered. */
+  statement: string | null;
+}
+
+const toAmount = (n: number | string | null | undefined): string | null => (n === null || n === undefined || Number.isNaN(Number(n)) ? null : Number(n).toFixed(2));
+
+/** "62.5", "100", "33.33" in the language. */
+const percentText = (locale: Locale, p: number) => formatNumber(locale, p, { maximumFractionDigits: 2 });
+
+/**
+ * The statement of the federal share of costs, as HHS's grants policy asks of every statement,
+ * press release and publication about a project paid for in whole or in part with federal money
+ * (the Stevens Amendment; docs/award-sharing.md cites the rule). Only with both numbers: a
+ * percentage is never guessed or worked out from other figures.
+ */
+export function federalStatement(locale: Locale, f: { funded: boolean; amount: string | null; percent: number | null; source: string | null }): string | null {
+  if (!f.funded || f.amount === null || f.percent === null) return null;
+  const t = emailT(locale);
+  const amount = formatCurrency(locale, Number(f.amount), "USD", Number.isInteger(Number(f.amount)) ? 0 : 2);
+  const percent = percentText(locale, f.percent);
+  return f.source ? t("kit.federal.statement.agency", { agency: cleanText(f.source), amount, percent }) : t("kit.federal.statement.noAgency", { amount, percent });
+}
+
+export function federalView(locale: Locale, a: Pick<Award, "federally_funded" | "federal_amount" | "federal_percent" | "federal_source">): FederalFunding {
+  const f = { funded: a.federally_funded === true, amount: toAmount(a.federal_amount), percent: a.federal_percent === null || a.federal_percent === undefined ? null : Number(a.federal_percent), source: a.federal_source ?? null };
+  return { ...f, statement: federalStatement(locale, f) };
+}
+
+const twoDecimals = (n: number) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6;
+export const federalInput = z
+  .object({
+    federallyFunded: z.boolean(),
+    amount: z
+      .string()
+      .regex(/^\d{1,12}(\.\d{1,2})?$/, "A dollar amount, such as 80000 or 80000.50")
+      .refine((v) => Number(v) > 0, "More than zero")
+      .nullable()
+      .optional(),
+    percent: z.number().gt(0).lte(100).refine(twoDecimals, "At most two decimals").nullable().optional(),
+    source: z.string().trim().min(1).max(200).nullable().optional(),
+  })
+  .strict();
+
+/**
+ * The funder marks an award as federally funded, with the federal amount and percentage (and,
+ * optionally, the agency). Funder admins and program officers, in person. Unmarking clears the
+ * numbers. Either number may be left empty: the statement then does not appear.
+ */
+export async function setFederalFunding(ctx: ServiceContext, awardId: string, input: z.output<typeof federalInput>): Promise<AwardSharing> {
+  const { award } = await sideAward(ctx, awardId, "funder", "awards:write", FUNDER_CHANGE_ROLES);
+  if (ctx.actor.kind !== "user") throw humanOnly("Changing an award's federal funding");
+  const next = input.federallyFunded
+    ? { federally_funded: true, federal_amount: input.amount === undefined ? award.federal_amount : input.amount === null ? null : Number(input.amount), federal_percent: input.percent === undefined ? award.federal_percent : input.percent, federal_source: input.source === undefined ? award.federal_source : input.source || null }
+    : { federally_funded: false, federal_amount: null, federal_percent: null, federal_source: null };
+  const same = next.federally_funded === award.federally_funded && toAmount(next.federal_amount) === toAmount(award.federal_amount) && Number(next.federal_percent ?? -1) === Number(award.federal_percent ?? -1) && (next.federal_source ?? null) === (award.federal_source ?? null);
+  if (!same) {
+    await ctx.repos.table("awards").update({ id: award.id }, next);
+    await audit(ctx, "award.federal_funding_changed", "award", award.id, { federallyFunded: next.federally_funded, amount: toAmount(next.federal_amount), percent: next.federal_percent, source: next.federal_source });
+  }
+  return awardSharing(ctx, awardId, "funder");
+}
+
+// ---- the extras
+
+export interface SocialTag extends SocialPage {
+  /** Whose page it is. */
+  name: string;
+}
+
+export interface KitExtras {
+  /** "Funded by Riverbend Community Foundation" or "Supported by ...", the funder's choice. */
+  creditLine: string;
+  /** A press release to edit: the funder's standard description, the credit wording, the federal statement. Bracketed parts are for the person to fill in. */
+  pressRelease: string;
+  /** The statement of the federal share, when the funder entered both numbers; otherwise null. */
+  federalStatement: string | null;
+  /** The pages of the carousel PDF and their alt text; `path` downloads it (signed in). */
+  carousel: { pages: { heading: string; alt: string }[]; path: string; fileName: string };
+  /** What the portrait card (1080 × 1350) shows; the amount is null when the funder hides amounts. */
+  portrait: { funder: string; recipient: string; program: string | null; purpose: string; year: number; amount: Money | null; verified: boolean; imageUrl: string };
+  /** The other side's page to tag, only when that side gave the link and agreed to be tagged. */
+  tags: { funder: SocialTag | null; grantee: SocialTag | null };
+}
+
+interface KitWords {
+  locale: Locale;
+  funder: string;
+  recipient: string;
+  amount: string | null;
+  date: string;
+  wording: CreditWording;
+  credit: string;
+  federal: string | null;
+  description: string | null;
+}
+
+async function wordsFor(ctx: ServiceContext, row: Award, found: { award: PublicAward; funder: Ws }): Promise<KitWords & { profiles: Map<string, ProfileRow> }> {
+  const locale = ctx.locale ?? DEFAULT_LOCALE;
+  const t = emailT(locale);
+  const funder = publicFunderName(found.funder);
+  const a = found.award;
+  const profiles = await profilesOf(ctx, [row.workspace_id, ...(row.recipient_workspace_id ? [row.recipient_workspace_id] : [])]);
+  const fp = profiles.get(row.workspace_id);
+  // The funder's own description, else the mission on its public page.
+  const mission = (() => {
+    const org = (found.funder.self_declared_profile ?? found.funder.org_projection ?? null) as { mission?: unknown } | null;
+    return typeof org?.mission === "string" && org.mission.trim() ? cleanText(org.mission) : null;
+  })();
+  return {
+    locale,
+    funder,
+    recipient: a.recipient.name,
+    amount: a.amount ? formatCurrency(locale, Number(a.amount.amount), a.amount.currency, Number.isInteger(Number(a.amount.amount)) ? 0 : 2) : null,
+    date: formatDateIn(locale, a.awardDate, "medium") ?? a.awardDate,
+    wording: creditOf(fp),
+    credit: creditOf(fp) === "supported_by" ? t("kit.credit.supportedBy", { funder }) : t("kit.credit.fundedBy", { funder }),
+    federal: federalView(locale, row).statement,
+    description: fp?.standard_description ? cleanText(fp.standard_description) : mission,
+    profiles,
+  };
+}
+
+/** The press release, for the funder's announcement or the grantee's. */
+export function pressRelease(w: KitWords, a: PublicAward, audience: ShareAudience): string {
+  const t = emailT(w.locale);
+  const v = { funder: w.funder, recipient: w.recipient, amount: w.amount ?? "", program: a.program ?? "", purpose: a.purpose, date: w.date, hasAmount: w.amount ? "yes" : "no", hasProgram: a.program ? "yes" : "no" };
+  const parts = [
+    audience === "funder" ? t("kit.press.headline.funder", v) : t("kit.press.headline.grantee", v),
+    t("kit.press.release"),
+    audience === "funder" ? t("kit.press.lead.funder", v) : t("kit.press.lead.grantee", v),
+    w.wording === "supported_by" ? t("kit.press.credit.supportedBy", v) : t("kit.press.credit.fundedBy", v),
+    t("kit.press.quote"),
+    ...(w.federal ? [w.federal] : []),
+    t("kit.press.about", { name: w.funder }),
+    w.description ?? t("kit.press.aboutPlaceholder", { name: w.funder }),
+    t("kit.press.about", { name: w.recipient }),
+    t("kit.press.aboutPlaceholder", { name: w.recipient }),
+    t("kit.press.contact"),
+    t("kit.press.more", { link: a.links.page }),
+  ];
+  return parts.join("\n\n");
+}
+
+/** The carousel's pages, worded in the request's language: 6 without the amount or a federal statement, up to 8 with both. */
+export function carouselPages(w: KitWords, a: PublicAward, audience: ShareAudience, awardsPage: string): CarouselPage[] {
+  const t = emailT(w.locale);
+  const v = { funder: w.funder, recipient: w.recipient, purpose: a.purpose, program: a.program ?? "", date: w.date, amount: w.amount ?? "" };
+  const pages: Omit<CarouselPage, "alt">[] = [
+    { eyebrow: t("kit.carousel.cover.eyebrow"), heading: t("kit.carousel.cover.heading", v), body: [a.purpose] },
+    { eyebrow: t("kit.carousel.funds.eyebrow"), heading: a.purpose, body: [a.program ? t("kit.carousel.funds.program", v) : t("kit.carousel.funds.date", v)] },
+    { eyebrow: t("kit.carousel.grantee.eyebrow"), heading: w.recipient, body: [t("kit.carousel.grantee.body", v)] },
+    ...(w.amount ? [{ eyebrow: t("kit.carousel.amount.eyebrow"), heading: w.amount, body: [t("kit.carousel.amount.body", v)] }] : []),
+    { eyebrow: t("kit.carousel.funder.eyebrow"), heading: w.funder, body: [w.description ?? t("kit.carousel.funder.fallback", v)] },
+    ...(w.federal ? [{ eyebrow: t("kit.carousel.federal.eyebrow"), heading: t("kit.carousel.federal.heading"), body: [w.federal] }] : []),
+    { eyebrow: null, heading: audience === "funder" ? t("kit.carousel.thanks.funder", v) : t("kit.carousel.thanks.grantee", v), body: [w.credit] },
+    { eyebrow: t("kit.carousel.more.eyebrow"), heading: t("kit.carousel.more.heading"), body: [a.links.page, t("kit.carousel.more.awards", { funder: w.funder, link: awardsPage })] },
+  ];
+  return pages.map((p, i) => ({ ...p, alt: t("kit.carousel.alt", { page: i + 1, total: pages.length, heading: p.heading, text: p.body.join(" ") }) }));
+}
+
+const tagOf = (r: ProfileRow | undefined, name: string): SocialTag | null => {
+  const page = taggable(r);
+  return page ? { ...page, name } : null;
+};
+
+async function kitExtras(ctx: ServiceContext, row: Award, found: { award: PublicAward; funder: Ws }, audience: ShareAudience): Promise<KitExtras> {
+  const w = await wordsFor(ctx, row, found);
+  const a = found.award;
+  const awardsPage = `${ctx.config.webBaseUrl}/f/${found.funder.handle}/awards`;
+  const id = `awd_${row.id}`;
+  return {
+    creditLine: w.credit,
+    pressRelease: pressRelease(w, a, audience),
+    federalStatement: w.federal,
+    carousel: { pages: carouselPages(w, a, audience, awardsPage).map((p) => ({ heading: p.heading, alt: p.alt })), path: audience === "funder" ? `/gms/awards/${id}/sharing/carousel.pdf` : `/gms/my/awards/${id}/sharing/carousel.pdf`, fileName: `${a.slug}-carousel.pdf` },
+    // The front Worker serves the same card at a public address, under the award page's rules (apps/web/src/edge/front.ts).
+    portrait: { funder: w.funder, recipient: w.recipient, program: a.program, purpose: a.purpose, year: a.year, amount: a.amount, verified: funderVerified(found.funder), imageUrl: `${ctx.config.webBaseUrl}/og/f/${found.funder.handle}/awards/${a.slug}/portrait.png` },
+    tags: { funder: tagOf(w.profiles.get(row.workspace_id), w.funder), grantee: row.recipient_workspace_id ? tagOf(w.profiles.get(row.recipient_workspace_id), w.recipient) : null },
+  };
+}
+
+/** The carousel PDF for a public award, from the side asking; 404 for an award that is not public. */
+export async function carouselPdf(ctx: ServiceContext, awardId: string, audience: ShareAudience): Promise<{ bytes: Uint8Array; fileName: string }> {
+  const { award } = await sideAward(ctx, awardId, audience, "awards:read");
+  const found = await listedAwardBySlug(ctx, award.public_slug);
+  if (!found) throw new ApiError(409, "not_public", "This award is not listed publicly, so it has no carousel");
+  const w = await wordsFor(ctx, award, found);
+  const pages = carouselPages(w, found.award, audience, `${ctx.config.webBaseUrl}/f/${found.funder.handle}/awards`);
+  const t = emailT(w.locale);
+  const bytes = await renderCarouselPdf({ title: t("kit.carousel.cover.heading", { funder: w.funder, recipient: w.recipient }), pages, footer: found.award.links.page.replace(/^https?:\/\//, ""), createdAt: ctx.now().toISOString(), lang: INTL_LOCALE[w.locale] });
+  return { bytes, fileName: `${found.award.slug}-carousel.pdf` };
+}
+
+// ---- "Meet our grantees"
+
+/** The most awards one "Meet our grantees" post lists. */
+export const MEET_GRANTEES_MAX = 10;
+
+export interface MeetGrantee {
+  awardId: string;
+  recipient: string;
+  purpose: string;
+  link: string;
+  /** The grantee's page, only when it gave the link and agreed to be tagged. */
+  tag: SocialTag | null;
+}
+
+/**
+ * The awards of one of the funder's programs that may be public, newest first, for one post. An
+ * award is in it only when `isPubliclyListable` says so: never a confidential award, never one the
+ * funder does not list, never one whose grantee chose "Don't list us publicly".
+ */
+export async function meetOurGrantees(ctx: ServiceContext, programId: string): Promise<{ program: { id: string; name: string }; grantees: MeetGrantee[]; awardsPage: string }> {
+  const ws = await authorize(ctx, { scope: "awards:read", kind: "funder" });
+  const program = await ctx.repos.table("programs").one({ id: programId });
+  if (!program || program.workspace_id !== ws.id) throw notFound("Program");
+  const funder = await ctx.repos.table("workspaces").one({ id: ws.id });
+  if (!funder) throw notFound("Workspace");
+  const rows = await ctx.repos.table("awards").find({ workspace_id: ws.id, program_id: program.id, status: [...LISTABLE_STATUSES] }, { orderBy: "created_at", ascending: false, limit: LIST_LIMIT });
+  const parties = await partiesOf(ctx, rows);
+  const listed = rows
+    .filter((a) => isPubliclyListable(a, { funder, recipient: a.recipient_workspace_id ? parties.get(a.recipient_workspace_id) : null }))
+    .map((a) => ({ row: a, view: publicAwardView(ctx, a, funder, parties.get(a.recipient_workspace_id!)!, program.name) }))
+    .sort((x, y) => (x.view.awardDate === y.view.awardDate ? x.view.recipient.name.localeCompare(y.view.recipient.name) : x.view.awardDate < y.view.awardDate ? 1 : -1))
+    .slice(0, MEET_GRANTEES_MAX);
+  const profiles = await profilesOf(ctx, listed.map((x) => x.row.recipient_workspace_id!));
+  const grantees: MeetGrantee[] = listed.map(({ row, view }) => ({ awardId: `awd_${row.id}`, recipient: view.recipient.name, purpose: view.purpose, link: view.links.page, tag: tagOf(profiles.get(row.recipient_workspace_id!), view.recipient.name) }));
+  return { program: { id: program.id, name: cleanText(program.name) }, grantees, awardsPage: `${ctx.config.webBaseUrl}/f/${funder.handle}/awards` };
 }

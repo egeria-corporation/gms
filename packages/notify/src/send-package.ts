@@ -31,6 +31,8 @@ export interface PackageEmailContent {
   attachments: readonly string[];
   /** The workspace's "Powered by" setting: the footer line under the email. */
   footer: boolean;
+  /** E4: the applicant's "for funders" link the footer line ends with; the GMS address when absent. */
+  footerLink?: string;
   /** The sender's language, the package's (English when absent). What they typed stays as written. */
   locale?: Locale;
 }
@@ -51,7 +53,7 @@ export function sendPackageEmail(c: PackageEmailContent): RenderedEmail {
   const funder = c.funder ? cleanLine(c.funder) : null;
   const locale = c.locale ?? DEFAULT_LOCALE;
   const t = emailT(locale);
-  const footer = packageFooter(locale);
+  const footer = c.footerLink ? emailT(locale)("sendPackage.footerLink", { link: c.footerLink }) : packageFooter(locale);
   const subject = cleanLine(t("sendPackage.subject", { title, organization: org }));
   const facts = [
     t("sendPackage.organization", { value: org }),

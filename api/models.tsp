@@ -503,6 +503,10 @@ model GmsOpportunity {
   publish: PublishSettings;
   applicantOptions: ApplicantOptions;
   customFields: Record<unknown>;
+
+  /** The title, summary and eligibility labels in other languages (`customFields.translations`'s value); `{}` when none. */
+  translations: OpportunityTranslations;
+
   published: boolean;
   publishedAt: utcDateTime | null;
   createdAt: utcDateTime;
@@ -527,7 +531,12 @@ model GmsOpportunityInput {
   acceptedApplicantTypes?: string[];
   eligibilityRules?: EligibilityRule;
   publish?: PublishSettings;
+
+  /** `customFields.translations` is written through `translations` (422 otherwise). */
   customFields?: Record<unknown>;
+
+  /** The title, summary and eligibility labels in other languages. An assistant draft is refused (422): review it first. */
+  translations?: OpportunityTranslations;
 }
 
 model Stage {
@@ -693,6 +702,9 @@ model GmsForm {
 
   /** Per-field reviewer visibility, PII flags and limits */
   fieldMeta?: Record<unknown>;
+
+  /** The funder's text in other languages; `{}` when none. Lists omit it. */
+  translations?: FormTranslations;
 }
 
 model GmsFormInput {
@@ -705,6 +717,9 @@ model GmsFormInput {
   mappingFromCommonGrants?: Record<unknown>;
   mappingToCommonGrants?: Record<unknown>;
   fieldMeta?: Record<unknown>;
+
+  /** The funder's text in other languages. Texts for fields the form no longer has are dropped on save. */
+  translations?: FormTranslations;
 
   /** Start from an existing form (e.g. one from the shared library) */
   copyFrom?: {
@@ -1029,7 +1044,7 @@ model MemberNotification {
   read: boolean;
 }
 
-alias NotificationCategory = "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent" | "report";
+alias NotificationCategory = "application" | "decision" | "award" | "agreement" | "payment" | "requirement" | "submission" | "organization" | "approval" | "review" | "agent" | "report" | "social_reminder";
 
 model NotificationList {
   unread: int32;
@@ -2409,8 +2424,17 @@ model OpportunityPage {
     ...PublicOpportunityCard;
     publishedAt: utcDateTime | null;
 
-    /** The eligibility rules' plain-language labels */
+    /** The eligibility rules' plain-language labels, in the reader's language where the funder translated them */
     eligibility: string[];
+
+    /** The language `title` is shown in: the reader's (`?lang=`, the `gms_lang` cookie, Accept-Language) where the funder translated it, else the funder's. */
+    language: TranslationLanguage;
+
+    /** The funder's reviewed title and summary in each other language, for the page's meta and share card. */
+    translations: Record<{
+      title?: string;
+      description?: string;
+    }>;
 
     /** The opportunity's fund, through its program; null without one. */
     fund?: OpportunityFund | null;
@@ -3100,6 +3124,11 @@ union ConnectorProvider {
 
   /** Import source, read-only, through Composio. */
   airtable: "airtable",
+
+  /** Connected apps through Composio (v1.12.0): Slack alerts, an applicant's Google Drive, Salesforce import (read-only). */
+  slack: "slack",
+  googleDrive: "google_drive",
+  salesforce: "salesforce",
 }
 
 model ConnectorAccount {

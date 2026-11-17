@@ -86,6 +86,8 @@ const FAnalytics = lazy(() => import("../screens/funder/Analytics.tsx"));
 const FReportBuilder = lazy(() => import("../screens/funder/ReportBuilder.tsx"));
 const FCommunications = lazy(() => import("../screens/funder/Communications.tsx"));
 const ConnectorReturn = lazy(() => import("../screens/funder/GoogleWorkspace.tsx").then((m) => ({ default: m.ConnectorReturn })));
+// Connected apps (v1.12.0): Slack alerts, Google Calendar, Google Drive, Salesforce.
+const ConnectedApps = lazy(() => import("../screens/shared/ConnectedApps.tsx"));
 const FSettingsMcp = lazy(() => import("../screens/funder/SettingsMcp.tsx"));
 const FSettingsPublicPage = lazy(() => import("../screens/funder/SettingsPublicPage.tsx"));
 const FSettingsSecurity = lazy(() => import("../screens/funder/SettingsSecurity.tsx"));
@@ -93,6 +95,13 @@ const SettingsSocial = lazy(() => import("../screens/shared/SettingsSocial.tsx")
 const FFundSettings = lazy(() => import("../screens/funder/FundSettings.tsx"));
 const FundPage = publicScreen(() => import("../screens/public/FundPage.tsx"));
 const FApprovals = lazy(() => import("../screens/funder/Approvals.tsx"));
+// E4: funder loops (for funders, partners, co-branded onboarding, invite a funder, partner settings).
+const ForFunders = publicScreen(() => import("../screens/public/ForFunders.tsx"));
+const Partners = publicScreen(() => import("../screens/public/Partners.tsx"));
+const PartnersModeration = publicScreen(() => import("../screens/public/PartnersModeration.tsx"));
+const Join = publicScreen(() => import("../screens/public/Join.tsx"));
+const FInviteFunder = lazy(() => import("../screens/funder/InviteFunder.tsx"));
+const FPartnerSettings = lazy(() => import("../screens/funder/PartnerSettings.tsx"));
 const ADashboard = lazy(() => import("../screens/applicant/Dashboard.tsx"));
 const AOrganization = lazy(() => import("../screens/applicant/Organization.tsx"));
 const AFindFunding = lazy(() => import("../screens/applicant/FindFunding.tsx"));
@@ -284,6 +293,10 @@ function AppRoutes() {
         <Route path="/templates/:slug" element={<GalleryItem />} />
         {/* An email's "Stop getting this email" link: the signed token is the proof, so no sign-in. */}
         <Route path="/digests/unsubscribe" element={<DigestUnsubscribe />} />
+        {/* E4: funder loops. */}
+        <Route path="/for-funders" element={<ForFunders />} />
+        <Route path="/partners" element={<Partners />} />
+        <Route path="/join/:token" element={<Join />} />
 
         {/* Everything below needs a signed-in person. */}
         <Route element={<RequireAuth />}>
@@ -298,6 +311,7 @@ function AppRoutes() {
           <Route path="/account" element={<Navigate to="/account/agents" replace />} />
           <Route path="/account/agents" element={<AccountSettings />} />
           <Route path="/gallery/moderation" element={<GalleryModeration />} />
+          <Route path="/partners/moderation" element={<PartnersModeration />} />
 
           {/* Reviewer portal: external reviewers have no workspace rail. */}
           <Route path="/review/assignments" element={<FReviewerAssignments />} />
@@ -359,8 +373,12 @@ function AppRoutes() {
             {/* Social accounts (Zernio), both kinds of workspace; Zernio returns here after a connection. */}
             <Route path="settings/social" element={<SettingsSocial />} />
             <Route path="settings/funds" element={f(<FFundSettings />)} />
+            <Route path="settings/invite-funders" element={f(<FInviteFunder />)} />
+            <Route path="settings/partners" element={f(<FPartnerSettings />)} />
             {/* Where the API sends a person back to after a provider's sign-in (Google Workspace). */}
             <Route path="settings/connectors" element={<ConnectorReturn />} />
+            {/* Connected apps, both kinds of workspace; Composio returns here after a sign-in. */}
+            <Route path="settings/apps" element={<ConnectedApps />} />
             {/* Import from a spreadsheet: grant history in a funder workspace, applications in an applicant one. */}
             <Route path="import" element={<ImportWizard />} />
             <Route path="approvals" element={f(<FApprovals />)} />

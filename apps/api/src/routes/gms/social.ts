@@ -23,7 +23,7 @@ for (const p of ["/social", "/social/*"]) {
 
 const subjectQuery = (type: string | undefined, id: string | undefined) => {
   const r = social.subjectInput.safeParse({ type, id });
-  if (!r.success) throw new ApiError(400, "bad_request", "subjectType must be opportunity or award, and subjectId an id", [{ code: "invalid_parameter", field: "subjectType" }]);
+  if (!r.success) throw new ApiError(400, "bad_request", "subjectType must be opportunity, award or program, and subjectId an id", [{ code: "invalid_parameter", field: "subjectType" }]);
   return r.data;
 };
 
@@ -36,3 +36,5 @@ socialRoutes.post("/social/posts/preview", async (c) => c.json(ok(await social.p
 // Post: a signed-in person's click only (the service refuses agent and API-client tokens).
 socialRoutes.post("/social/posts", async (c) => c.json(created(await social.sendPost(await svc(c), parse(social.sendInput, await jsonBody(c)), c.req.header("Idempotency-Key"))), 201));
 socialRoutes.get("/social/posts", async (c) => c.json(ok(await social.reachReport(await svc(c), parse(social.reachQuery, { ...(c.req.query("subjectType") ? { subjectType: c.req.query("subjectType") } : {}), ...(c.req.query("subjectId") ? { subjectId: c.req.query("subjectId") } : {}) })))));
+// "Two weeks left": a funder admin dismisses a call's prompt (a person only; there is no MCP tool).
+socialRoutes.post("/social/reminders/:id/dismiss", async (c) => c.json(ok(await social.dismissReminder(await svc(c), bareUuid(c.req.param("id"), "Reminder")))));

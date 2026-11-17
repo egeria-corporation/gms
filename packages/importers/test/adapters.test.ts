@@ -11,7 +11,9 @@ import {
   FILE_ADAPTERS,
   FLUXX,
   FLUXX_PULL_COLUMNS,
+  FLUXX_REPORT_PULL_COLUMNS,
   HISTORY_TARGET,
+  PAST_REPORTS_TARGET,
   ZENGINE,
   ZENGINE_PULL_COLUMNS,
   adapterMapping,
@@ -201,13 +203,16 @@ describe("recognising an export", () => {
   });
 
   it("offers adapters for funder grant history only", () => {
-    expect(adaptersFor("award_history").map((a) => a.key)).toEqual(["good_grants", "sm_apply", "submittable", "foundant_glm", "smartsimple", "openwater", "fluxx", "zengine"]);
+    expect(adaptersFor("award_history").map((a) => a.key)).toEqual(["good_grants", "sm_apply", "submittable", "foundant_glm", "smartsimple", "openwater", "cybergrants", "fluxx", "zengine"]);
     expect(adaptersFor("outside_applications")).toEqual([]);
   });
 
   it("maps every required field of a Fluxx pull and a Zengine pull", () => {
     const fluxx = adapterMapping(FLUXX, HISTORY_TARGET, [...FLUXX_PULL_COLUMNS]);
     expect(fluxx).toMatchObject({ sourceId: "Fluxx ID", title: "Project title", recipientName: "Organization", awardedAmount: "Amount awarded", paidAmount: "Amount paid", paidDate: "Last paid on", startDate: "Grant begins", endDate: "Grant ends", awardDate: "Approved on" });
+    // Past reports from Fluxx's request_report, linked to the grant by its Fluxx id.
+    const reports = adapterMapping(FLUXX, PAST_REPORTS_TARGET, [...FLUXX_REPORT_PULL_COLUMNS]);
+    expect(reports).toEqual({ sourceId: "Report Fluxx ID", awardRef: "Grant Fluxx ID", awardTitle: "Project title", organizationName: "Organization", title: "Report type", dueDate: "Due on", status: "Status" });
     const zengine = adapterMapping(ZENGINE, HISTORY_TARGET, [...ZENGINE_PULL_COLUMNS, "Organization", "Amount Awarded", "Status"]);
     expect(zengine).toMatchObject({ sourceId: "Zengine record ID", title: "Record name", recipientName: "Organization", awardedAmount: "Amount Awarded" });
   });

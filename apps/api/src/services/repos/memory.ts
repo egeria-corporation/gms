@@ -25,6 +25,7 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
     mapping_from_cg: {},
     mapping_to_cg: {},
     field_meta: {},
+    translations: {},
     purpose: "application",
     published_at: null,
     supersedes_form_version: null,
@@ -74,7 +75,7 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   templates: () => ({ workspace_id: null, version: 1 }),
   approvals: () => ({ input: {}, summary: null, impact: null, subject_type: null, subject_id: null, status: "pending", side: "funder", error: null, decided_by: null, decided_at: null, decision_note: null, result: null, expires_at: null }),
   award_invitations: () => ({ message: null, sent_count: 1, accepted_at: null, accepted_by: null, accepted_workspace_id: null, declined_at: null, decline_reason: null, revoked_at: null }),
-  awards: () => ({ recipient_workspace_id: null, recipient_individual: null, application_id: null, opportunity_id: null, program_id: null, parent_award_id: null, description: null, status: "offered", cg_status: "awarded", funding: {}, key_dates: {}, conditions: [], passport_award_id: null, passport_synced_at: null, disbursed_at: null, cg: null, confidential: false, recipient_unlisted: false, public_slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12) }),
+  awards: () => ({ recipient_workspace_id: null, recipient_individual: null, application_id: null, opportunity_id: null, program_id: null, parent_award_id: null, description: null, status: "offered", cg_status: "awarded", funding: {}, key_dates: {}, conditions: [], passport_award_id: null, passport_synced_at: null, disbursed_at: null, cg: null, confidential: false, recipient_unlisted: false, public_slug: crypto.randomUUID().replace(/-/g, "").slice(0, 12), federally_funded: false, federal_amount: null, federal_percent: null, federal_source: null }),
   agreements: () => ({ template_id: null, version: 1, status: "draft", rendered_pdf_path: null, document_sha256: null, grantee_signature: null, funder_signature: null, executed_at: null }),
   payment_schedules: () => ({ currency: "USD", notes: null }),
   tranches: () => ({ currency: "USD", condition: { type: "manual" }, status: "scheduled", due_at: null, released_by: null, released_at: null, mode: null, passport_disbursement_id: null, passport_status: null, external: null, hold_reason: null, idempotency_key: null }),
@@ -160,6 +161,24 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   // 0041: opt-in content digests (all off until a person turns one on) and what was sent.
   digest_subscriptions: () => ({ new_matches: false, deadlines: false, funder_activity: false, prompt_dismissed_at: null }),
   digest_sends: () => ({ item_keys: [], message_id: null }),
+  // 0044: connected apps (Slack alerts, calendar links).
+  alert_subscriptions: (at) => ({ provider: "slack", events: [], enabled: true, locale: "en", alerts_from: at, created_by: null }),
+  alert_deliveries: () => ({ status: "sending", attempts: 1, slack_ts: null }),
+  calendar_links: () => ({ status: "pending", calendar_id: null, calendar_name: null, event_map: {}, last_sync_at: null }),
+  // 0045: a call's submission to a listing service (Philanthropy News Digest).
+  syndication_sends: () => ({ message_id: null, sent_at: null }),
+  // 0046: imported history (past applications, reviews and reports), written by the import only.
+  history_applications: () => ({ organization_workspace_id: null, award_id: null, program_id: null, program_name: null, call_title: null, submitted_on: null, outcome_label: null, currency: "USD", requested_amount_minor: null, awarded_amount_minor: null, answers: [], source_key: null, source_system: null, import_run_id: null }),
+  history_reviews: () => ({ application_id: null, application_key: null, application_title: null, organization_name: null, reviewer_name: null, scores: [], total_score: null, recommendation: null, comment: null, reviewed_on: null, source_key: null, source_system: null, import_run_id: null }),
+  history_reports: () => ({ award_id: null, organization_workspace_id: null, award_title: null, organization_name: null, due_on: null, submitted_on: null, report_state_label: null, source_key: null, source_system: null, import_run_id: null }),
+  // 0047: funder loops (E4).
+  peer_invitations: () => ({ status: "sending", sent_at: null, joined_count: 0, first_joined_at: null }),
+  referral_links: () => ({ logo_storage: null, logo_path: null, logo_mime: null, logo_sha256: null, logo_alt: null, revoked_at: null, created_by: null }),
+  referral_joins: () => ({ source_workspace_id: null, peer_invitation_id: null, referral_link_id: null }),
+  directory_listings: (at) => ({ status: "pending", submitted_at: at, decided_by: null, decided_at: null, decision_reason: null, withdrawn_at: null }),
+  // 0048: share-kit settings and the "Two weeks left" prompt.
+  share_kit_profiles: () => ({ page_url: null, tag_consent: false, consented_at: null, consented_by: null, credit_wording: "funded_by", standard_description: null, updated_by: null }),
+  social_reminder_prompts: (at) => ({ prompted_at: at, dismissed_at: null, dismissed_by: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -206,6 +225,18 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   package_sends: [{ columns: ["outside_application_id", "day", "slot"] }],
   digest_subscriptions: [{ columns: ["member_id"] }],
   digest_sends: [{ columns: ["workspace_id", "user_id", "digest", "iso_week"] }],
+  alert_subscriptions: [{ columns: ["workspace_id", "provider"] }],
+  alert_deliveries: [{ columns: ["subscription_id", "event_key"] }],
+  calendar_links: [{ columns: ["workspace_id", "user_id"] }],
+  // One submission per call and listing service (0045).
+  syndication_sends: [{ columns: ["opportunity_id", "target"] }],
+  // 0047: one invitation per address per workspace, the weekly places, one live link of each kind.
+  peer_invitations: [{ columns: ["workspace_id", "email_hash"] }, { columns: ["workspace_id", "week_start", "slot"] }, { columns: ["token_hash"] }],
+  referral_links: [{ columns: ["token"] }, { columns: ["workspace_id", "kind"], whereNull: "revoked_at" }],
+  referral_joins: [{ columns: ["joined_workspace_id"] }],
+  directory_listings: [{ columns: ["workspace_id"] }],
+  share_kit_profiles: [{ columns: ["workspace_id"] }],
+  social_reminder_prompts: [{ columns: ["opportunity_id"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };
@@ -252,10 +283,16 @@ export const SAME_WORKSPACE: Partial<Record<TableName, Record<string, TableName>
   package_sends: { outside_application_id: "outside_applications" },
   // 0041 checks this one with its own trigger (gms.digest_subscription_check), with the person too.
   digest_subscriptions: { member_id: "workspace_members" },
+  // 0045 checks this one with its own trigger (gms.syndication_sends_same_workspace).
+  syndication_sends: { opportunity_id: "opportunities" },
+  // 0046 checks these with its own trigger (gms.history_same_workspace), with the funder kind too.
+  history_applications: { award_id: "awards", program_id: "programs", import_run_id: "import_runs" },
+  history_reviews: { application_id: "history_applications", import_run_id: "import_runs" },
+  history_reports: { award_id: "awards", import_run_id: "import_runs" },
 };
 
 /** Tables whose primary key is not a generated `id` alone. */
-const NO_GENERATED_ID = new Set<TableName>(["oauth_refresh_tokens"]);
+const NO_GENERATED_ID = new Set<TableName>(["oauth_refresh_tokens", "share_kit_profiles"]);
 
 function matches(row: AnyRow, where: AnyRow, notNull: readonly string[] = []): boolean {
   for (const [k, v] of Object.entries(where)) {

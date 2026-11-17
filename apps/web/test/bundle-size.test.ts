@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The English bundle against v1.10.0, before internationalization (build/bundle-baseline.json):
 //   - the first page grows by less than 40 KB gzipped;
-//   - each area's catalog (public, shared, applicant, funder) is a chunk of its own, loaded only with
+//   - each area's catalog (public, shared, applicant, funder, extras) is a chunk of its own, loaded only with
 //     that area's screens (shared is the app shell's, so it comes with the first page);
 //   - everything an English visitor can download grows by less than 60 KB gzipped (the screens' text
 //     moved into the catalogs, so this is the framework plus what the catalogs add).
@@ -19,13 +19,14 @@ import enPublic from "@gms/i18n/catalogs/en/public.json";
 import enShared from "@gms/i18n/catalogs/en/shared.json";
 import enApplicant from "@gms/i18n/catalogs/en/applicant.json";
 import enFunder from "@gms/i18n/catalogs/en/funder.json";
+import enExtras from "@gms/i18n/catalogs/en/extras.json";
 
 /** The first page alone (the entry and what index.html preloads). */
 export const FIRST_PAGE_BUDGET_BYTES = 40 * 1024;
 /** Everything an English visitor can download (every screen's chunk). */
 export const BUDGET_BYTES = 60 * 1024;
-/** The areas whose catalogs are each a chunk of their own. */
-const AREAS = { public: enPublic, shared: enShared, applicant: enApplicant, funder: enFunder } as const;
+/** The areas whose catalogs are each a chunk of their own (`extras`: the parts both kinds use that no first page needs, v1.12.0). */
+const AREAS = { public: enPublic, shared: enShared, applicant: enApplicant, funder: enFunder, extras: enExtras } as const;
 const root = fileURLToPath(new URL("..", import.meta.url));
 const outDir = mkdtempSync(join(tmpdir(), "gms-web-size-"));
 let size: BundleSize;

@@ -32,7 +32,7 @@ describe("the footer switcher", () => {
     render(<Footer services={createMockServices({ session: null })} />);
     const nav = screen.getByRole("navigation", { name: "Language" });
     const en = screen.getByRole("link", { name: "English" });
-    const es = screen.getByRole("link", { name: "Español (beta)" });
+    const es = screen.getByRole("link", { name: "Español" });
     expect(nav).toContainElement(en);
     expect(en).toHaveAttribute("aria-current", "true");
     expect(es).toHaveAttribute("lang", "es");
@@ -45,7 +45,7 @@ describe("the footer switcher", () => {
     const services = createMockServices({ session: null });
     const save = vi.spyOn(services.api, "savePreferences");
     render(<Footer services={services} />);
-    await userEvent.click(screen.getByRole("link", { name: "Español (beta)" }));
+    await userEvent.click(screen.getByRole("link", { name: "Español" }));
     await waitFor(() => expect(getLocale()).toBe("es"));
     expect(cookie()).toBe("es");
     expect(document.documentElement.lang).toBe("es");
@@ -57,13 +57,13 @@ describe("the footer switcher", () => {
     const services = createMockServices({ session: demoSession() });
     const save = vi.spyOn(services.api, "savePreferences");
     render(<Footer services={services} />);
-    await screen.findByRole("link", { name: "Español (beta)" });
+    await screen.findByRole("link", { name: "Español" });
     // The session is read asynchronously; choose once it is known.
     await waitFor(async () => {
       await services.auth.getSession();
     });
     await act(async () => new Promise((r) => setTimeout(r, 0)));
-    await userEvent.click(screen.getByRole("link", { name: "Español (beta)" }));
+    await userEvent.click(screen.getByRole("link", { name: "Español" }));
     await waitFor(() => expect(save).toHaveBeenCalledWith({ locale: "es" }));
   });
 });
@@ -102,7 +102,7 @@ describe("the app in Spanish", () => {
       </MemoryRouter>,
     );
     expect(await screen.findByRole("link", { name: "Skip to main content" })).toBeInTheDocument();
-    await userEvent.click((await screen.findAllByRole("link", { name: "Español (beta)" }))[0]!);
+    await userEvent.click((await screen.findAllByRole("link", { name: "Español" }))[0]!);
     expect(await screen.findByRole("link", { name: "Saltar al contenido principal" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { level: 1, name: "Otorgue y gestione subvenciones, gratis. Regístrese con su correo." })).toBeInTheDocument();
   });

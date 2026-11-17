@@ -23,6 +23,15 @@ namespace GMS.Models {
   union ImportTarget {
     outsideApplications: "outside_applications",
     awardHistory: "award_history",
+
+    /** A funder's past applications from another system: read-only history (v1.12.0, history.tsp). */
+    historyApplications: "history_applications",
+
+    /** The reviews of those past applications (v1.12.0). */
+    historyReviews: "history_reviews",
+
+    /** The reports on its past grants (v1.12.0). */
+    historyReports: "history_reports",
   }
 
   union ImportSourceKind {
@@ -39,6 +48,9 @@ namespace GMS.Models {
 
     /** Read through Zengine's API with the funder's own token (grant history only), v1.9.0. */
     zengine: "zengine",
+
+    /** Salesforce through Composio, read only (v1.12.0). */
+    salesforce: "salesforce",
   }
 
   union ImportOutcome {
@@ -84,6 +96,12 @@ namespace GMS.Models {
 
     /** Whether the caller may connect it (workspace admins, signed in). */
     canConnect: boolean;
+
+    /** Salesforce: what can be read without writing a query. */
+    presets?: {
+      key: "npsp_grants" | "accounts";
+      label: string;
+    }[];
   }
 
   model ImportSources {
@@ -149,6 +167,7 @@ namespace GMS.Models {
     json: ImportJsonSource,
     fluxx: ImportFluxxSource,
     zengine: ImportZengineSource,
+    salesforce: ImportSalesforceSource,
   }
 
   model ImportReadInput {
@@ -330,9 +349,9 @@ namespace GMS.Models {
   }
 
   model ImportEntity {
-    type: "outside_application" | "award";
+    type: "outside_application" | "award" | "history_application" | "history_review" | "history_report";
 
-    /** An outside application's UUID, or an award's `awd_` id. */
+    /** An outside application's or a history record's UUID, or an award's `awd_` id. */
     id: string;
   }
 

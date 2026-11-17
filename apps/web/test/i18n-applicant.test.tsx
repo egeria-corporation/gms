@@ -33,7 +33,7 @@ describe("the form renderer in Spanish", () => {
     expect(screen.getAllByTitle("Obligatorio").length).toBeGreaterThan(0);
     expect(screen.getByText(/\/ 60 palabras/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Editar en Passport" })).toBeInTheDocument();
-    expect(screen.getAllByText("De Passport").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("De su perfil (verificado)").length).toBeGreaterThan(0);
     expect(screen.getByText("Borrador de un agente")).toBeInTheDocument();
     const staff = screen.getByRole("group", { name: /Key staff/ });
     expect(within(staff).getByRole("button", { name: /^Agregar key staff$/ })).toBeInTheDocument();

@@ -73,6 +73,8 @@ export interface ConnectedAccount {
   id: string;
   status: string;
   authConfigId: string | null;
+  /** The Composio entity the account belongs to (`user_id`), when the read names one. */
+  userId: string | null;
   /** Scopes the provider granted (`state.val.scope`) and the ones requested at initiation. */
   grantedScopes: string[];
   requestedScopes: string[];
@@ -140,6 +142,7 @@ export function mapConnectedAccount(body: unknown): ConnectedAccount {
     id,
     status: str(b.status) ?? "INITIALIZING",
     authConfigId: str(rec(b.auth_config).id),
+    userId: str(b.user_id),
     grantedScopes: normalizeScopes(val.scope ?? val.scopes),
     requestedScopes: normalizeScopes(b.requested_scopes),
   };
