@@ -21,6 +21,7 @@
 import { ADAPTERS, isPastTarget, rowKey, sha256Hex, type AdapterKey, type PastApplicationRecord, type PastReportRecord, type PastReviewRecord, type PastTargetKey } from "@gms/importers";
 import { z } from "zod";
 import { ApiError, notFound } from "../lib/errors.ts";
+import { parse } from "../lib/input.ts";
 import { apiId, bareUuid, uuidOf } from "../lib/ids.ts";
 import { awardImportContext, matchImportedRecipient, type AwardImportContext } from "./analytics.ts";
 import { authorize, guardWrite, type ServiceContext, type ServiceWorkspace } from "./context.ts";
@@ -236,7 +237,8 @@ async function writeReport(ctx: ServiceContext, wsId: string, run: Run, row: Log
  */
 export async function writePastRow(ctx: ServiceContext, wsId: string, run: Run, row: LogRow, deps: PastContext, id: string): Promise<"written" | "skipped"> {
   const target = run.target;
-  if (!isPastTarget(target)) throw new ApiError(422, "not_history", "This import is not imported history");
+  // Only imports.ts calls this, for a history target; anything else is a bug, not a person's mistake.
+  if (!isPastTarget(target)) throw new Error("writePastRow: the run is not a history import");
   if (await pastEntityExists(ctx, target, id, wsId)) return "written";
   if (target === "history_applications") return writeApplication(ctx, wsId, run, row, row.record as unknown as PastApplicationRecord, deps, id);
   if (target === "history_reviews") return writeReview(ctx, wsId, run, row, row.record as unknown as PastReviewRecord, id);
@@ -309,7 +311,7 @@ function reportView(r: HReport, awards: Map<string, Award>, file: Row<"documents
   };
 }
 
-export const historyQuery = z
+const historyQuery = z
   .object({
     /** An organization's applicant workspace id (the grantee page). */
     organization: z.string().uuid().optional(),
@@ -321,9 +323,14 @@ export const historyQuery = z
 
 const byDate = (x: string | null, y: string | null) => (x === y ? 0 : x === null ? 1 : y === null ? -1 : x < y ? 1 : -1);
 
-/** Imported history about one organization or one award: past applications (with how many reviews each has) and past reports. */
-export async function listHistory(ctx: ServiceContext, q: z.output<typeof historyQuery>) {
+/**
+ * Imported history about one organization or one award: past applications (with how many reviews
+ * each has) and past reports. `query` is the request's query string, checked after the caller is
+ * authorized, so a caller who may not read history learns nothing from a malformed request.
+ */
+export async function listHistory(ctx: ServiceContext, query: { organization?: string | undefined; award?: string | undefined }) {
   const ws = await access(ctx);
+  const q = parse(historyQuery, Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined)));
   const awardId = q.award ? uuidOf("award", q.award, "Award") : null;
   if (awardId && !(await ctx.repos.table("awards").one({ id: awardId, workspace_id: ws.id }))) throw notFound("Award");
   const where = awardId ? { workspace_id: ws.id, award_id: awardId } : { workspace_id: ws.id, organization_workspace_id: q.organization! };

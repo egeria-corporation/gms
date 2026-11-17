@@ -45,7 +45,7 @@ function Detail({ id }: { id: string }) {
   return (
     <div className="col" style={{ gap: "12px" }}>
       {a.answers.length > 0 ? (
-        <dl className="kv" aria-label={t("importedHistory.answersOf", { title: a.title })}>
+        <dl className="kv">
           {a.answers.map((x, i) => (
             <div key={i} style={{ display: "contents" }}>
               <dt>{x.question}</dt>
