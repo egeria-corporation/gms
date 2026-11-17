@@ -347,5 +347,11 @@
   "code.recipient_not_allowed": "A report can be sent only to members of this workspace who can read it",
   "code.sensitive_document": "Bank and tax paperwork is never kept in the document vault",
   "code.source_not_readable": "The source could not be read. Nothing was imported",
-  "code.unprocessable": "Some of what was entered is not valid"
+  "code.unprocessable": "Some of what was entered is not valid",
+  "code.pnd_already_sent": "This call was already sent to Philanthropy News Digest. Each call is sent once",
+  "code.pnd_sending": "This call is being sent to Philanthropy News Digest. Look again in a minute",
+  "code.pnd_not_listed": "Publish this call with its public page on before sending it to Philanthropy News Digest",
+  "code.pnd_call_closed": "This call is closed, so Philanthropy News Digest would not list it",
+  "code.pnd_too_late": "Philanthropy News Digest needs a call four weeks before its earliest deadline, and that date has passed",
+  "code.pnd_no_reply_to": "Add a public contact email in Settings, Public page, so Philanthropy News Digest can reply"
 }

@@ -347,5 +347,11 @@
   "code.recipient_not_allowed": "Un informe solo se puede enviar a miembros de este espacio de trabajo que puedan leerlo",
   "code.sensitive_document": "Los documentos bancarios y fiscales nunca se guardan en el archivo de documentos",
   "code.source_not_readable": "No se pudo leer el origen. No se importó nada",
-  "code.unprocessable": "Algunos de los datos ingresados no son válidos"
+  "code.unprocessable": "Algunos de los datos ingresados no son válidos",
+  "code.pnd_already_sent": "Esta convocatoria ya se envió a Philanthropy News Digest. Cada convocatoria se envía una sola vez",
+  "code.pnd_sending": "Esta convocatoria se está enviando a Philanthropy News Digest. Vuelva a revisar en un minuto",
+  "code.pnd_not_listed": "Publique esta convocatoria con su página pública activada antes de enviarla a Philanthropy News Digest",
+  "code.pnd_call_closed": "Esta convocatoria está cerrada, así que Philanthropy News Digest no la publicaría",
+  "code.pnd_too_late": "Philanthropy News Digest necesita recibir la convocatoria cuatro semanas antes de su primera fecha límite, y esa fecha ya pasó",
+  "code.pnd_no_reply_to": "Agregue un correo de contacto público en Configuración, Página pública, para que Philanthropy News Digest pueda responder"
 }

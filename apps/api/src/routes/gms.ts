@@ -43,6 +43,9 @@ import { workspaceRoutes } from "./gms/workspaces.ts";
 import { embedPages } from "./embed.ts";
 import { ssoRoutes } from "./gms/sso.ts";
 import { publicPages } from "./public.ts";
+// Syndication (E2): the public open-call feeds and the "Share this call" panel (docs/syndication.md).
+import { feedRoutes } from "./feeds.ts";
+import { syndicationRoutes } from "./gms/syndication.ts";
 
 export const gms = new Hono<AppEnv>();
 
@@ -145,6 +148,8 @@ gms.get("/ledger", requireRole(LEDGER_ROLES, "workspace:admin"), async (c) => {
 gms.route("/public", publicPages);
 // The embeddable apply widget's data, also public.
 gms.route("/public", embedPages);
+// Open-call feeds and the OpenGrants index feed, also public (docs/syndication.md).
+gms.route("/public", feedRoutes);
 // Opt-in content digests; their one-click unsubscribe needs no token, so they come before the routers below.
 gms.route("/", digestRoutes);
 // Registered first: its paths are more specific than the routers below (`/templates/usage` before `/templates/:id`).
@@ -181,6 +186,8 @@ gms.route("/", fundRoutes);
 // Send to the funder, and the guest reviewer loop (C4).
 gms.route("/", sendPackageRoutes);
 gms.route("/", guestReviewRoutes);
+// Share this call: feeds, the OpenGrants index and Philanthropy News Digest (E2).
+gms.route("/", syndicationRoutes);
 
 gms.all("*", (c) => {
   throw notImplemented(`${c.req.method} ${new URL(c.req.url).pathname}`);
