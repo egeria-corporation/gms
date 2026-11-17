@@ -73,6 +73,8 @@ export interface ImportsStore {
   written: Map<string, string>;
   mappings: Map<string, Record<string, string>>;
   connected: Record<ConnectedApp, boolean>;
+  /** Salesforce records read in mock mode, under the grants preset's column names. */
+  salesforce: Record<string, string>[];
   sheets: Record<string, Record<string, string[][]>>;
   airtable: Record<string, { tables: { id: string; name: string; fields: string[] }[]; records: Record<string, { id: string; fields: Record<string, unknown> }[]> }>;
   /** Grant history written in mock mode (there is no mock awards store to share). */
@@ -90,7 +92,11 @@ export function seedImportsStore(): ImportsStore {
     runs: [],
     written: new Map(),
     mappings: new Map(),
-    connected: { google_sheets: false, airtable: false },
+    connected: { google_sheets: false, airtable: false, salesforce: false },
+    salesforce: [
+      { "Record ID": "006000000000001AAA", "Grant name": "Youth mentoring", Funder: "Cedar Fund", StageName: "Prospecting", Ask: "15000", Deadline: "2027-08-01" },
+      { "Record ID": "006000000000002AAA", "Grant name": "Clinic van", Funder: "Harbor Trust", StageName: "Closed Won", Ask: "40000", Deadline: "2027-03-15" },
+    ],
     sheets: {
       [MOCK_SHEET_ID]: {
         "Pipeline 2027": [
@@ -135,7 +141,7 @@ export interface MockImportsOptions {
   now?: () => Date;
 }
 
-const SOURCE_LABEL = { csv: "CSV file", xlsx: "Excel workbook", google_sheets: "Google Sheets", airtable: "Airtable", json: "JSON export", fluxx: "Fluxx", zengine: "Zengine" } as const;
+const SOURCE_LABEL = { csv: "CSV file", xlsx: "Excel workbook", google_sheets: "Google Sheets", airtable: "Airtable", json: "JSON export", fluxx: "Fluxx", zengine: "Zengine", salesforce: "Salesforce" } as const;
 const PULLER_LABEL: Record<ImportPuller, string> = { fluxx: "Fluxx", zengine: "Zengine" };
 const clone = <T>(v: T): T => structuredClone(v);
 const invalid = (code: string, message: string) => new ApiError(422, message, [{ code }]);
@@ -184,6 +190,14 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
         const sheet = source.sheet ?? sheets[0]!;
         if (!book[sheet]) throw invalid("sheet_not_found", `The spreadsheet has no sheet named "${sheet}"`);
         return { table: tableFromGrid(book[sheet]!), label: `Google Sheets · ${sheet}`, ref: `${id}/${sheet}`, extra: { sheets, sheet } };
+      }
+      if (source.kind === "salesforce") {
+        // Salesforce in mock mode: the records as the grants preset names them. The server runs the
+        // full read-only check (@gms/importers, sources/salesforce.ts); the mock refuses the same clauses.
+        if (!store.connected.salesforce) throw new ApiError(409, "Connect Salesforce first", [{ code: "source_not_connected" }]);
+        const q = source.query ?? "";
+        if (!source.preset && (!/^\s*select\s/i.test(q) || /;|\bfor\s+(update|view|reference)\b|\bupdate\s+(tracking|viewstat)\b/i.test(q))) throw invalid("invalid_query", "Only a SELECT query can be run. FOR UPDATE, FOR VIEW, FOR REFERENCE and UPDATE TRACKING change records in Salesforce, so they cannot be used here");
+        return { table: tableFromRecords(store.salesforce.map((r) => ({ id: String(r["Record ID"]), fields: r })), []), label: "Salesforce", ref: source.preset ? `preset:${source.preset}` : "soql", extra: {} };
       }
       if (!store.connected.airtable) throw new ApiError(409, "Connect Airtable first", [{ code: "source_not_connected" }]);
       const baseId = /(app[A-Za-z0-9]{14})/.exec(source.url)?.[1];
@@ -243,6 +257,7 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
           { kind: "xlsx", label: SOURCE_LABEL.xlsx, connected: true, canConnect: false },
           { kind: "google_sheets", label: SOURCE_LABEL.google_sheets, connected: store.connected.google_sheets, canConnect: admin },
           { kind: "airtable", label: SOURCE_LABEL.airtable, connected: store.connected.airtable, canConnect: admin },
+          { kind: "salesforce", label: SOURCE_LABEL.salesforce, connected: store.connected.salesforce, canConnect: admin, presets: [{ key: "npsp_grants", label: "Grants (Nonprofit Success Pack Opportunities)" }, { key: "accounts", label: "Accounts (organizations)" }] },
           ...(target === "award_history" ? (["fluxx", "zengine"] as const).map((k) => ({ kind: k, label: PULLER_LABEL[k], connected: !!store.pullers[ws.id]?.[k], canConnect: admin })) : []),
         ],
         adapters: adaptersFor(target).map(adapterView),

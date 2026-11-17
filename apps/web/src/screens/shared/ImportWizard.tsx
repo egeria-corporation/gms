@@ -12,7 +12,8 @@
 // the zip is opened here, only its file names are sent to be matched, then each matched file.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router";
-import { ArrowLeft, ArrowRightLeft, Check, CircleCheck, CircleSlash, Database, FileArchive, FileSpreadsheet, Link2, Link2Off, Plug, ShieldCheck, Sheet, TriangleExclamationPoint, Unplug, Upload } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, Check, CircleCheck, CircleSlash, Cloud, Database, FileArchive, FileSpreadsheet, Link2, Link2Off, Plug, ShieldCheck, Sheet, TriangleExclamationPoint, Unplug, Upload } from "lucide-react";
+import { SALESFORCE_START, SalesforcePick, salesforceSource, type SalesforceChoice } from "./SalesforcePick.tsx";
 import { useCurrentWorkspace } from "../../app/workspace.tsx";
 import { fileSource, targetFor, toBase64, type ConnectedApp, type ImportAdapter, type ImportAdapterKey, type ImportCommitted, type ImportFilesMatch, type ImportPreview, type ImportPreviewRow, type ImportPuller, type ImportRead, type ImportRunDetail, type ImportSourceInput, type ImportTotal, type ZengineForm } from "../../api/imports.ts";
 import { useImportsApi, useImportsQuery } from "../../api/importsHooks.ts";
@@ -38,9 +39,9 @@ const STEP_KEY = {
   done: "importWizard.step.done",
 } as const satisfies Record<Step, string>;
 const STEP_LABEL = (step: Step): string => tr(STEP_KEY[step]);
-const APP_LABEL: Record<ConnectedApp | ImportPuller, string> = { google_sheets: "Google Sheets", airtable: "Airtable", fluxx: "Fluxx", zengine: "Zengine" };
+const APP_LABEL: Record<ConnectedApp | ImportPuller, string> = { google_sheets: "Google Sheets", airtable: "Airtable", salesforce: "Salesforce", fluxx: "Fluxx", zengine: "Zengine" };
 const isPuller = (c: Choice | null): c is ImportPuller => c === "fluxx" || c === "zengine";
-const isApp = (c: Choice | null): c is ConnectedApp => c === "google_sheets" || c === "airtable";
+const isApp = (c: Choice | null): c is ConnectedApp => c === "google_sheets" || c === "airtable" || c === "salesforce";
 /** Files read from a zip at once, and sent to be matched. */
 const MAX_ZIP_PATHS = 2000;
 const KIND_LABEL: Record<string, string> = {
@@ -401,12 +402,13 @@ export function ImportWizard() {
   const returned = params.get("connected");
   const sources = useImportsQuery((a) => a.sources(target), [target]);
 
-  const [choice, setChoice] = useState<Choice | null>(returned === "google_sheets" || returned === "airtable" ? returned : null);
+  const [choice, setChoice] = useState<Choice | null>(returned === "google_sheets" || returned === "airtable" || returned === "salesforce" ? returned : null);
   const [system, setSystem] = useState<ImportAdapterKey | null>(null);
   const [creds, setCreds] = useState({ instanceUrl: "", clientId: "", clientSecret: "", token: "" });
   const [forms, setForms] = useState<ZengineForm[] | null>(null);
   const [formId, setFormId] = useState("");
-  const [step, setStep] = useState<Step>(returned === "google_sheets" || returned === "airtable" ? "pick" : "source");
+  const [step, setStep] = useState<Step>(returned === "google_sheets" || returned === "airtable" || returned === "salesforce" ? "pick" : "source");
+  const [salesforce, setSalesforce] = useState<SalesforceChoice>(SALESFORCE_START);
   const [pasted, setPasted] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [link, setLink] = useState("");
@@ -460,6 +462,10 @@ export function ImportWizard() {
     if (choice === "zengine") return readSource({ kind: "zengine", formId });
     if (choice === "google_sheets") return readSource({ kind: "google_sheets", url: link });
     if (choice === "airtable") return readSource({ kind: "airtable", url: link });
+    if (choice === "salesforce") {
+      const src = salesforceSource(salesforce);
+      if (src) return readSource(src);
+    }
   }
 
   async function connectPuller(provider: ImportPuller) {
@@ -614,7 +620,7 @@ export function ImportWizard() {
                           {tr(k === "fluxx" ? "importWizard.readHistoryFluxx" : "importWizard.readHistoryToken", { system: APP_LABEL[k] })}
                         </SourceOption>
                       ))}
-                    {(["google_sheets", "airtable"] as const)
+                    {(["google_sheets", "airtable", "salesforce"] as const)
                       .filter((k) => option(k))
                       .map((k) => (
                         <SourceOption
@@ -622,7 +628,7 @@ export function ImportWizard() {
                           value={k}
                           chosen={choice}
                           onChoose={setChoice}
-                          icon={k === "google_sheets" ? <Sheet className="ic" aria-hidden="true" /> : <Database className="ic" aria-hidden="true" />}
+                          icon={k === "google_sheets" ? <Sheet className="ic" aria-hidden="true" /> : k === "salesforce" ? <Cloud className="ic" aria-hidden="true" /> : <Database className="ic" aria-hidden="true" />}
                           title={APP_LABEL[k]}
                           status={
                             option(k)!.connected ? (
@@ -638,7 +644,7 @@ export function ImportWizard() {
                             )
                           }
                         >
-                          {k === "google_sheets" ? tr("importWizard.pasteTheLinkToA") : tr("importWizard.pasteTheLinkToA2")}
+                          {k === "google_sheets" ? tr("importWizard.pasteTheLinkToA") : k === "salesforce" ? tr("salesforcePick.sourceHelp") : tr("importWizard.pasteTheLinkToA2")}
                         </SourceOption>
                       ))}
                   </fieldset>
@@ -767,7 +773,9 @@ export function ImportWizard() {
                   <span>
                     {choice === "google_sheets"
                       ? tr("importWizard.youSignInWithGoogle")
-                      : tr("importWizard.youSignInWithAirtable")}
+                      : choice === "salesforce"
+                        ? tr("salesforcePick.youSignIn")
+                        : tr("importWizard.youSignInWithAirtable")}
                   </span>
                 </p>
                 {option(choice)?.canConnect ? null : <Notice tone="info" title={tr("importWizard.askAWorkspaceAdminTo", { value: APP_LABEL[choice] })}>{tr("importWizard.onceItIsConnectedAnyone")}</Notice>}
@@ -789,12 +797,12 @@ export function ImportWizard() {
           {step === "pick" && choice && (
             <section className="card" aria-labelledby="imp-pick">
               <div className="card-h">
-                <h3 id="imp-pick">{choice === "file" ? tr("importWizard.chooseTheFile") : choice === "system" ? tr("importWizard.chooseTheExport", { value: adapterOf(system)?.system ?? "" }) : choice === "fluxx" ? tr("importWizard.readFromFluxx") : choice === "zengine" ? tr("importWizard.whichZengineForm") : choice === "google_sheets" ? tr("importWizard.whichSpreadsheet") : tr("importWizard.whichAirtableBase")}</h3>
+                <h3 id="imp-pick">{choice === "file" ? tr("importWizard.chooseTheFile") : choice === "system" ? tr("importWizard.chooseTheExport", { value: adapterOf(system)?.system ?? "" }) : choice === "fluxx" ? tr("importWizard.readFromFluxx") : choice === "zengine" ? tr("importWizard.whichZengineForm") : choice === "google_sheets" ? tr("importWizard.whichSpreadsheet") : choice === "salesforce" ? tr("salesforcePick.heading") : tr("importWizard.whichAirtableBase")}</h3>
               </div>
               <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {returned === choice && (
                   <Notice tone="ok" title={tr("importWizard.isConnected", { value: APP_LABEL[choice as ConnectedApp] })}>
-                    {tr("importWizard.pasteTheLinkToRead")}
+                    {choice === "salesforce" ? tr("salesforcePick.chooseWhatToRead") : tr("importWizard.pasteTheLinkToRead")}
                   </Notice>
                 )}
                 {isPuller(choice) ? (
@@ -836,6 +844,8 @@ export function ImportWizard() {
                       <textarea id="imp-paste" className="ta mono" style={{ minHeight: "110px", fontSize: "12px" }} value={pasted} onChange={(e) => setPasted(e.target.value)} />
                     </Field>
                   </>
+                ) : choice === "salesforce" ? (
+                  <SalesforcePick value={salesforce} onChange={setSalesforce} />
                 ) : (
                   <Field id="imp-link" label={choice === "google_sheets" ? tr("importWizard.spreadsheetLink") : tr("importWizard.airtableLink")} help={choice === "google_sheets" ? tr("importWizard.itStartsWithHttpsDocs") : tr("importWizard.itStartsWithHttpsAirtable")}>
                     <input id="imp-link" className="inp" value={link} onChange={(e) => setLink(e.target.value)} />
@@ -843,7 +853,7 @@ export function ImportWizard() {
                 )}
               </div>
               <div className="card-f">
-                <button type="button" className="btn btn-primary" disabled={busy === "read" || (choice === "file" || choice === "system" ? !file && !pasted.trim() : choice === "fluxx" ? false : choice === "zengine" ? !formId : !link.trim())} onClick={() => void pick()}>
+                <button type="button" className="btn btn-primary" disabled={busy === "read" || (choice === "file" || choice === "system" ? !file && !pasted.trim() : choice === "fluxx" ? false : choice === "zengine" ? !formId : choice === "salesforce" ? !salesforceSource(salesforce) : !link.trim())} onClick={() => void pick()}>
                   {busy === "read" ? tr("importWizard.reading") : choice === "file" || choice === "system" ? tr("importWizard.readTheFile") : choice === "fluxx" ? tr("importWizard.readGrantRequests") : choice === "zengine" ? tr("importWizard.readTheForm") : tr("importWizard.readIt")}
                 </button>
                 {isPuller(choice) && option(choice)?.canConnect && (

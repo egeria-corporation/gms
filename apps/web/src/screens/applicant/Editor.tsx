@@ -3,6 +3,7 @@
 // field by field (only changed paths are sent; the server merges), so teammates and a scoped
 // consultant can work at once. Passport-owned fields are read-only here. The submit dialog runs
 // the readiness checklist and submits; a 422 comes back as the list of fields to fix.
+import { DriveAttachButton } from "../../components/DriveAttach.tsx";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
@@ -533,6 +534,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                   }}
                 />
               </label>
+              <DriveAttachButton onFile={(file) => uploadFile(file)} />
             </div>
           </section>
 

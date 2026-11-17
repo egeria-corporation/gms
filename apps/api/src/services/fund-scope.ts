@@ -87,6 +87,10 @@ const RULES: { [T in TableName]: Rule } = {
   bank_transactions: parent("matched_tranche_id", "tranches", "Payment"),
   budgets: { kind: "check", allowed: async (r, v) => (r.award_id ? has(v, "awards", r.award_id) : has(v, "applications", r.application_id)) },
   calendar_feeds: OPEN,
+  // 0044: Slack alert settings and log are an admin's; a calendar link is its person's own.
+  alert_subscriptions: OPEN,
+  alert_deliveries: OPEN,
+  calendar_links: OPEN,
   // 0033: a competition's conflict-of-interest policy and its reviewers' signatures are that competition's.
   coi_policies: parent("competition_id", "competitions", "Competition"),
   coi_signatures: parent("competition_id", "competitions", "Competition"),

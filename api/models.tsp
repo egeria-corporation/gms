@@ -3100,6 +3100,11 @@ union ConnectorProvider {
 
   /** Import source, read-only, through Composio. */
   airtable: "airtable",
+
+  /** Connected apps through Composio (v1.12.0): Slack alerts, an applicant's Google Drive, Salesforce import (read-only). */
+  slack: "slack",
+  googleDrive: "google_drive",
+  salesforce: "salesforce",
 }
 
 model ConnectorAccount {

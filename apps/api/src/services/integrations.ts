@@ -2,7 +2,10 @@
 // Workspace integrations (build spec §9.2 "Integrations", §10.10): outbound webhooks, API
 // clients, MCP connections, funder-registered MCP servers, the Mercury / Google Workspace
 // connectors, and the import sources connected through Composio (Google Sheets, Airtable). Every secret is shown once at creation or stored as ciphertext; none is returned.
-import { ConnectorAuthError, ConnectorScopeError, ConnectorScopeUnverifiedError, ConnectorUnavailableError, isRegistrableMcpUrl, type TabularConnection, type TabularProvider } from "@gms/connectors";
+// Connected apps (v1.12.0, docs/connectors.md): Slack, Google Drive and Salesforce connect here like
+// the import sources; Drive also copies a picked file for an upload and saves an as-submitted PDF.
+// Slack alerts are in ./connector-alerts.ts, Google Calendar in ./calendar-sync.ts.
+import { APP_SCOPE_NAMES, ConnectorAuthError, ConnectorScopeError, ConnectorScopeUnverifiedError, ConnectorUnavailableError, DRIVE_FILE_ID, DriveFileRefusedError, isRegistrableMcpUrl, type Connection, type TabularConnection, type TabularProvider } from "@gms/connectors";
 import { printValue, renderApplicationSnapshot, type SnapshotForm } from "@gms/documents";
 import { decryptSecret, encryptSecret } from "@gms/passport-client";
 import { WEBHOOK_EVENT_TYPES, encryptSecret as encryptWebhookSecret, generateWebhookSecret, isDeliverableUrl } from "@gms/webhooks";
@@ -10,11 +13,18 @@ import { z } from "zod";
 import { generateClientSecret, hashSecret } from "../auth/crypto.ts";
 import { SCOPES, scopesForRole, type Scope } from "../auth/scopes.ts";
 import { ApiError, notFound } from "../lib/errors.ts";
+import { parse } from "../lib/input.ts";
 import { apiId, uuidOf } from "../lib/ids.ts";
 import { agreementPdf, awardLetterPdf } from "./agreements.ts";
 import { audit, authorize, type ServiceContext, type ServiceWorkspace } from "./context.ts";
 import { getApplicationDetail } from "./inbox.ts";
+import { outsideDocumentFile } from "./outside.ts";
 import { RepoError, type Row } from "./repos/types.ts";
+
+/** A person in the GMS, never an agent acting for them or an API client (human-only actions). */
+export function humanOnly(ctx: Pick<ServiceContext, "actor">): void {
+  if (ctx.actor.kind !== "user") throw new ApiError(403, "person_required", "This is done by a signed-in person in the GMS, never by an agent or an API client");
+}
 
 const admin = (ctx: ServiceContext, opts: { person?: boolean } = {}): Promise<ServiceWorkspace> => authorize(ctx, { scope: "workspace:admin", roles: ["admin"], ...(opts.person ? { person: true } : {}) });
 
@@ -229,7 +239,7 @@ export async function removeMcpServer(ctx: ServiceContext, id: string) {
 
 // ------------------------------------------------------------------------------------ connectors
 
-export const PROVIDERS = ["mercury", "google_workspace", "google_sheets", "airtable"] as const;
+export const PROVIDERS = ["mercury", "google_workspace", "google_sheets", "airtable", "slack", "google_drive", "salesforce"] as const;
 export type Provider = (typeof PROVIDERS)[number];
 export const connectorInput = z
   .object({
@@ -239,17 +249,27 @@ export const connectorInput = z
   })
   .strict();
 
-/** The import sources connected through Composio, read-only. Either kind of workspace may connect them. */
-const IMPORT_SOURCES: readonly Provider[] = ["google_sheets", "airtable"];
-const isImportSource = (p: Provider): p is TabularProvider => IMPORT_SOURCES.includes(p);
+/**
+ * Connections that live at Composio, one per workspace: the read-only import sources (Google
+ * Sheets, Airtable, Salesforce), Slack for alerts and an applicant's Google Drive. A workspace
+ * admin connects them, signed in; the GMS stores no credential.
+ */
+type ComposioProvider = TabularProvider | "slack" | "google_drive" | "salesforce";
+const COMPOSIO_SOURCES: readonly Provider[] = ["google_sheets", "airtable", "slack", "google_drive", "salesforce"];
+const isImportSource = (p: Provider): p is ComposioProvider => COMPOSIO_SOURCES.includes(p);
 /** What the connector_accounts row records for each: the scope names only, never a credential. */
-const IMPORT_SCOPES: Record<TabularProvider, string[]> = { google_sheets: ["spreadsheets.readonly"], airtable: ["data.records:read", "schema.bases:read"] };
-export const importSourcePort = (ctx: Pick<ServiceContext, "ports">, p: TabularProvider): TabularConnection | undefined => (p === "google_sheets" ? ctx.ports.sheets : ctx.ports.airtable);
-const IMPORT_LABEL: Record<TabularProvider, string> = { google_sheets: "Google Sheets", airtable: "Airtable" };
+const IMPORT_SCOPES: Record<ComposioProvider, string[]> = { google_sheets: ["spreadsheets.readonly"], airtable: ["data.records:read", "schema.bases:read"], slack: APP_SCOPE_NAMES.slack, google_drive: APP_SCOPE_NAMES.google_drive, salesforce: APP_SCOPE_NAMES.salesforce };
+export const importSourcePort = (ctx: Pick<ServiceContext, "ports">, p: ComposioProvider): TabularConnection | Connection | undefined =>
+  ({ google_sheets: ctx.ports.sheets, airtable: ctx.ports.airtable, slack: ctx.ports.slack, google_drive: ctx.ports.drive, salesforce: ctx.ports.salesforce })[p];
+const IMPORT_LABEL: Record<ComposioProvider, string> = { google_sheets: "Google Sheets", airtable: "Airtable", slack: "Slack", google_drive: "Google Drive", salesforce: "Salesforce" };
+/** Google Drive is the applicant's (a funder connects Google Workspace instead). */
+const KIND_OF: Partial<Record<ComposioProvider, "funder" | "applicant">> = { google_drive: "applicant" };
+/** The connected apps return to their settings page; the import sources to the import page. */
+const HOME_OF: Record<ComposioProvider, string> = { google_sheets: "import", airtable: "import", salesforce: "import", slack: "settings/apps", google_drive: "settings/apps" };
 
-/** A path in this workspace's pages, or the import page when the one given is not. */
-function importReturnTo(handle: string, returnTo: string | undefined): string {
-  const fallback = `/w/${handle}/import`;
+/** A path in this workspace's pages, or the provider's own page when the one given is not. */
+function importReturnTo(handle: string, returnTo: string | undefined, home = "import"): string {
+  const fallback = `/w/${handle}/${home}`;
   if (!returnTo) return fallback;
   return returnTo.startsWith(`/w/${handle}/`) && /^\/w\/[a-z0-9-]+\/[A-Za-z0-9/_?=&.-]*$/.test(returnTo) && !returnTo.includes("//", 1) ? returnTo : fallback;
 }
@@ -327,11 +347,14 @@ export async function connect(ctx: ServiceContext, provider: Provider, input: z.
 }
 
 export async function disconnect(ctx: ServiceContext, provider: Provider) {
-  const ws = await authorize(ctx, { scope: "workspace:admin", kind: isImportSource(provider) ? undefined : "funder", roles: ["admin"], person: true });
+  const ws = await authorize(ctx, { scope: "workspace:admin", kind: isImportSource(provider) ? KIND_OF[provider] : "funder", roles: ["admin"], person: true });
+  if (provider === "slack" || provider === "google_drive" || provider === "salesforce") humanOnly(ctx);
   const a = await account(ctx, ws.id, provider);
   if (!a) throw notFound("Connector");
   // An import source's connection lives at Composio too: removed there first, then the row is marked.
   if (isImportSource(provider)) await importSourcePort(ctx, provider)?.disconnect(ws.id).catch(googleWorkspaceError);
+  // Without Slack there is nowhere to post: the alert settings go with the connection, at once.
+  if (provider === "slack") await ctx.repos.table("alert_subscriptions").remove({ workspace_id: ws.id });
   // Google's credential lives at Composio, so the connection is removed there before the row is marked.
   if (provider === "google_workspace" && ctx.ports.workspaceApps?.disconnect) await ctx.ports.workspaceApps.disconnect(ws.id).catch(googleWorkspaceError);
   await ctx.repos.table("connector_accounts").update({ id: a.id }, { status: "revoked", secret_enc: null });
@@ -342,8 +365,8 @@ export async function disconnect(ctx: ServiceContext, provider: Provider) {
 // ---- import sources (Google Sheets, Airtable) through Composio ----
 
 /** Status of an import source. A read never starts a connection; an unreachable Composio reads as not connected. */
-async function getImportSource(ctx: ServiceContext, provider: TabularProvider) {
-  const ws = await authorize(ctx, { scope: "workspace:admin", roles: ["admin"] });
+async function getImportSource(ctx: ServiceContext, provider: ComposioProvider) {
+  const ws = await authorize(ctx, { scope: "workspace:admin", kind: KIND_OF[provider], roles: ["admin"] });
   const a = await account(ctx, ws.id, provider);
   const port = importSourcePort(ctx, provider);
   if (!port) return { ...accountView(a, provider), status: "not_configured" as const, connectUrl: null };
@@ -358,13 +381,15 @@ async function getImportSource(ctx: ServiceContext, provider: TabularProvider) {
  * Connect an import source: Composio returns a hosted sign-in link for this workspace's entity, with
  * read-only access. The GMS stores no credential; the row keeps the status and the scope names.
  */
-async function connectImportSource(ctx: ServiceContext, provider: TabularProvider, input: z.output<typeof connectorInput>) {
-  const ws = await authorize(ctx, { scope: "workspace:admin", roles: ["admin"], person: true });
+async function connectImportSource(ctx: ServiceContext, provider: ComposioProvider, input: z.output<typeof connectorInput>) {
+  const ws = await authorize(ctx, { scope: "workspace:admin", kind: KIND_OF[provider], roles: ["admin"], person: true });
+  // Connecting an account is a person's act in the GMS: never an agent's or an API client's.
+  if (provider === "slack" || provider === "google_drive" || provider === "salesforce") humanOnly(ctx);
   if (input.token) throw new ApiError(422, "token_not_accepted", `${IMPORT_LABEL[provider]} is connected by signing in, not with a token`);
   const port = importSourcePort(ctx, provider);
   if (!port) throw new ApiError(503, "connector_not_configured", `${IMPORT_LABEL[provider]} through Composio is not configured on this server`);
   const home = await ctx.repos.table("workspaces").one({ id: ws.id });
-  const s = await port.status(ws.id, { link: true, ...(home ? { returnTo: importReturnTo(home.handle, input.returnTo) } : {}) }).catch(googleWorkspaceError);
+  const s = await port.status(ws.id, { link: true, ...(home ? { returnTo: importReturnTo(home.handle, input.returnTo, HOME_OF[provider]) } : {}) }).catch(googleWorkspaceError);
   const existing = await account(ctx, ws.id, provider);
   const patch = { status: s.connected ? "active" : "pending", scopes: IMPORT_SCOPES[provider], external_id: ws.id, secret_enc: null };
   const row = existing ? (await ctx.repos.table("connector_accounts").update({ id: existing.id }, patch))[0]! : await ctx.repos.table("connector_accounts").insert({ workspace_id: ws.id, provider, ...patch });
@@ -489,6 +514,95 @@ export async function exportToDrive(ctx: ServiceContext, input: z.output<typeof 
   }
   await audit(ctx, "connector.drive_export", SUBJECT[input.documentKind], id, { provider: "google_workspace", documentKind: input.documentKind, fileName: file.filename, driveFileId: saved.id ?? null, bytes: file.bytes.byteLength });
   return { documentKind: input.documentKind, subjectId: apiId(SUBJECT[input.documentKind], id), fileId: saved.id ?? null, fileName: file.filename, name: file.filename, url: saved.url };
+}
+
+// ---- Google Drive (applicants): attach a picked file, save the as-submitted PDF ----
+
+/** The largest upload any attachment picker takes (applications, outside applications, the vault). */
+export const MAX_DRIVE_ATTACH_BYTES = 25 * 1024 * 1024;
+/** Who uses an applicant's Drive connection: the roles that may add files. */
+const DRIVE_ROLES = ["admin", "editor", "finance"] as const;
+
+export const driveFetchInput = z.object({ fileId: z.string().regex(DRIVE_FILE_ID) }).strict();
+export const driveSaveInput = z
+  .object({
+    /** `application`: an application submitted on this GMS. `outside`: an outside application's as-submitted PDF. */
+    kind: z.enum(["application", "outside"]),
+    id: z.string().min(1).max(100),
+    /** A folder the person chose in the Google Picker; My Drive when omitted. */
+    folderId: z.string().regex(DRIVE_FILE_ID).optional(),
+  })
+  .strict();
+
+function drivePort(ctx: ServiceContext) {
+  if (!ctx.ports.drive) throw new ApiError(503, "connector_not_configured", "Google Drive through Composio is not configured on this server");
+  return ctx.ports.drive;
+}
+
+function driveError(e: unknown): never {
+  if (e instanceof DriveFileRefusedError) throw new ApiError(e.reason === "too_large" ? 413 : 422, `drive_${e.reason}`, e.message);
+  if (e instanceof ConnectorAuthError) throw new ApiError(409, "drive_not_connected", "Connect Google Drive first (Settings, Connected apps)");
+  googleWorkspaceError(e);
+}
+
+/**
+ * Copy a file the person picked in the Google Picker, for an upload. The bytes come back to the
+ * browser, which hands them to the same upload as a file from the computer, with the same size
+ * and type checks. Nothing is stored here. A person only.
+ */
+export async function fetchFromDrive(ctx: ServiceContext, body: unknown) {
+  const ws = await authorize(ctx, { scope: "applications:write", kind: "applicant", roles: DRIVE_ROLES, person: true });
+  humanOnly(ctx);
+  // Authorized before the body is read: a caller who may not gets 403, never 400.
+  const input = parse(driveFetchInput, body);
+  const file = await drivePort(ctx).download(ws.id, input.fileId, MAX_DRIVE_ATTACH_BYTES).catch(driveError);
+  await audit(ctx, "connector.drive_copied", "workspace", ws.id, { provider: "google_drive", bytes: file.bytes.byteLength, mime: file.mimeType });
+  return file;
+}
+
+/** An application this workspace submitted on the GMS, printed form by form as it was submitted. */
+async function submittedApplicationPdf(ctx: ServiceContext, wsId: string, rawId: string): Promise<{ bytes: Uint8Array; filename: string }> {
+  const id = uuidOf("application", rawId, "Application");
+  const app = await ctx.repos.table("applications").one({ id, applicant_workspace_id: wsId });
+  if (!app) throw notFound("Application");
+  if (!app.submitted_at) throw new ApiError(409, "not_submitted", "This application has not been submitted yet");
+  const [me, funder, opportunity, responses] = await Promise.all([
+    ctx.repos.table("workspaces").one({ id: wsId }),
+    ctx.repos.table("workspaces").one({ id: app.workspace_id }),
+    ctx.repos.table("opportunities").one({ id: app.opportunity_id }),
+    ctx.repos.table("form_responses").find({ application_id: app.id }, { orderBy: "created_at" }),
+  ]);
+  const forms = responses.length ? await ctx.repos.table("forms").find({ id: [...new Set(responses.map((r) => r.form_id))] }) : [];
+  const printed: SnapshotForm[] = responses
+    .filter((r) => r.status !== "draft")
+    .map((r) => ({ title: forms.find((f) => f.id === r.form_id)?.title ?? "Form", status: r.status, fields: Object.entries((r.response ?? {}) as Record<string, unknown>).map(([k, v]): [string, string] => [k, printValue(v)]) }));
+  const bytes = await renderApplicationSnapshot(
+    { title: app.title ?? "Application", applicant: me?.display_name ?? "Applicant", opportunity: opportunity?.title ?? "", submittedAt: app.submitted_at, verificationLevel: app.verification_level_at_submit ?? null, forms: printed },
+    { funderName: funder?.display_name ?? "", createdAt: app.submitted_at, reference: apiId("application", app.id) },
+  );
+  return { bytes, filename: `As submitted - ${(app.title ?? "Application").slice(0, 150)}.pdf` };
+}
+
+/**
+ * "Save the as-submitted packet to Drive": the PDF of what was submitted, created in the person's
+ * Drive through `drive.file` (My Drive, or a folder they picked). A person only.
+ */
+export async function saveToDrive(ctx: ServiceContext, body: unknown) {
+  const ws = await authorize(ctx, { scope: "applications:read", kind: "applicant", roles: DRIVE_ROLES, person: true });
+  humanOnly(ctx);
+  const input = parse(driveSaveInput, body);
+  const port = drivePort(ctx);
+  let file: { bytes: Uint8Array; filename: string };
+  if (input.kind === "outside") {
+    const row = await ctx.repos.table("outside_applications").one({ id: input.id.replace(/^oap_/, ""), workspace_id: ws.id });
+    if (!row) throw notFound("Outside application");
+    if (!row.snapshot_document_id) throw new ApiError(409, "not_submitted", "Record the submission first: the as-submitted copy is made then");
+    const doc = await outsideDocumentFile(ctx, row.id, "snapshot");
+    file = { bytes: doc.bytes, filename: doc.filename };
+  } else file = await submittedApplicationPdf(ctx, ws.id, input.id);
+  const saved = await port.savePdf(ws.id, { name: file.filename, bytes: file.bytes, ...(input.folderId ? { folderId: input.folderId } : {}) }).catch(driveError);
+  await audit(ctx, "connector.drive_saved", input.kind === "outside" ? "outside_application" : "application", input.kind === "outside" ? input.id.replace(/^oap_/, "") : uuidOf("application", input.id, "Application"), { provider: "google_drive", fileName: file.filename, driveFileId: saved.id, bytes: file.bytes.byteLength });
+  return { fileId: saved.id, fileName: file.filename, url: saved.url };
 }
 
 export { apiId };

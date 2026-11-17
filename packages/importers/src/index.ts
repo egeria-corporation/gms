@@ -8,6 +8,7 @@ export * from "./adapters/index.ts";
 export * from "./csv.ts";
 export * from "./plan.ts";
 export * from "./sensitive.ts";
+export * from "./sources/salesforce.ts";
 export * from "./table.ts";
 export * from "./target.ts";
 export * from "./targets/history.ts";

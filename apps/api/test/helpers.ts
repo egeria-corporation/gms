@@ -18,6 +18,7 @@ import { FixtureOpenGrantsClient, MemoryFileStorage, MemorySessions, MemoryUserD
 import { MemoryRepos } from "../src/services/repos/memory.ts";
 import { MemoryPreferences } from "../src/services/preferences.ts";
 import { RepoMembershipStore } from "../src/services/repos/membership.ts";
+import type { ServicePorts } from "../src/services/context.ts";
 
 export const BASE = "https://gms.test";
 export const WEB = "https://app.gms.test";
@@ -54,6 +55,8 @@ export interface Harness {
   airtable: FixtureAirtableSource;
   /** Port names to leave out of the next requests, as on a server where that connection is not set up. */
   withoutPorts: Set<string>;
+  /** Ports a test adds to the next requests (connected apps: slack, calendar, drive, salesforce). */
+  extraPorts: Partial<ServicePorts>;
   mcpDirectory: FixtureMcpDirectory;
   /** The assistant's model. Off until a test sets `env.ASSISTANT_ENABLED = "true"`; `llmAnswer` is what it returns. */
   llm: FakeLlmClient;
@@ -165,6 +168,7 @@ export async function harness(): Promise<Harness> {
   directory.users.set(USER_ADMIN, { email: "helen.ortiz@riverbendcf.example", name: "Helen Ortiz" });
   directory.users.set(USER_OFFICER, { email: "dana.ortiz@riverbendcf.example", name: "Dana Ortiz" });
   const withoutPorts = new Set<string>();
+  const extraPorts: Partial<ServicePorts> = {};
   const deps: Deps = {
     auth,
     members,
@@ -176,7 +180,7 @@ export async function harness(): Promise<Harness> {
       return passport.fetch;
     },
     ports: () => {
-      const all = { mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, sheets, airtable, mcpDirectory, llm, sessions, preferences, creationLimiter, exports: { put: async (key: string, body: string) => void exported.set(key, body) }, exportFiles };
+      const all = { mailer, storage, openGrants, directory, identity, secondSteps, bank, workspaceApps, sheets, airtable, mcpDirectory, llm, sessions, preferences, creationLimiter, exports: { put: async (key: string, body: string) => void exported.set(key, body) }, exportFiles, ...extraPorts };
       for (const name of withoutPorts) delete (all as Record<string, unknown>)[name];
       return all;
     },
@@ -203,6 +207,7 @@ export async function harness(): Promise<Harness> {
     sheets,
     airtable,
     withoutPorts,
+    extraPorts,
     mcpDirectory,
     llm,
     llmAnswer,

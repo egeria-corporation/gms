@@ -47,6 +47,14 @@ export interface Env {
   COMPOSIO_GOOGLE_SHEETS_AUTH_CONFIG_ID?: string;
   /** Import from Airtable: a Composio auth config on the airtable toolkit with data.records:read and schema.bases:read only. */
   COMPOSIO_AIRTABLE_AUTH_CONFIG_ID?: string;
+  /** Slack alerts: a Composio auth config on the slack toolkit with chat:write and channels:read only. */
+  COMPOSIO_SLACK_AUTH_CONFIG_ID?: string;
+  /** Google Calendar: a Composio auth config on the googlecalendar toolkit with calendar.calendarlist.readonly and calendar.events.owned only. */
+  COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID?: string;
+  /** An applicant's Google Drive: a Composio auth config on the googledrive toolkit with drive.file only (the Picker's OAuth client). */
+  COMPOSIO_GOOGLE_DRIVE_AUTH_CONFIG_ID?: string;
+  /** Salesforce import, read only: a Composio auth config on the salesforce toolkit with the api scope (SOQL SELECT only). */
+  COMPOSIO_SALESFORCE_AUTH_CONFIG_ID?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
   RESEND_INBOUND_SECRET?: string;

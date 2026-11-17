@@ -208,6 +208,20 @@ export const ROUTES: Record<string, RouteCase[]> = {
   "/w/:ws/settings/social": [one(`${F}/settings/social`, "funder-admin"), one(`${A}/settings/social`, "applicant-admin")],
   "/w/:ws/settings/funds": [one(`${F}/settings/funds`, "funder-admin")],
   "/w/:ws/settings/connectors": [one(`${F}/settings/connectors`, "funder-admin")],
+  // Connected apps (v1.12.0): both kinds; the funder pass also opens the Slack settings once connected.
+  "/w/:ws/settings/apps": [
+    one(`${F}/settings/apps`, "funder-admin"),
+    one(`${A}/settings/apps`, "applicant-admin"),
+    {
+      path: `${F}/settings/apps`,
+      who: "funder-admin",
+      steps: async (page) => {
+        // The same steps run in English and Spanish.
+        await page.getByRole("button", { name: /^(Connect Slack|Conectar Slack)$/ }).click();
+        await page.getByRole("combobox", { name: /^(Channel|Canal)$/ }).waitFor();
+      },
+    },
+  ],
   "/w/:ws/import": [one(`${F}/import`, "funder-admin"), one(`${A}/import`, "applicant-admin")],
   "/w/:ws/approvals": [one(`${F}/approvals`, "funder-admin")],
 

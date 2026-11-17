@@ -82,7 +82,7 @@ select lives_ok($$
 $$, 'Fluxx and Zengine credentials are stored as ciphertext');
 
 select throws_ok($$
-  insert into public.connector_accounts (workspace_id, provider, status) values ('42000000-0000-7000-8000-000000000003', 'salesforce', 'active')
+  insert into public.connector_accounts (workspace_id, provider, status) values ('42000000-0000-7000-8000-000000000003', 'dropbox', 'active')
 $$, '23514', null, 'any other provider is refused');
 
 insert into public.documents (id, workspace_id, owner_workspace_id, subject_type, subject_id, name, mime, size, sha256, storage, path)

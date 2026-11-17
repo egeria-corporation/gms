@@ -347,5 +347,18 @@
   "code.recipient_not_allowed": "A report can be sent only to members of this workspace who can read it",
   "code.sensitive_document": "Bank and tax paperwork is never kept in the document vault",
   "code.source_not_readable": "The source could not be read. Nothing was imported",
-  "code.unprocessable": "Some of what was entered is not valid"
+  "code.unprocessable": "Some of what was entered is not valid",
+  "code.invalid_query": "Only a SOQL SELECT query can be run: the GMS only reads from Salesforce.",
+  "code.not_submitted": "This has not been submitted yet, so there is no as-submitted copy to save.",
+  "code.calendar_refused": "Google Calendar did not accept that. Try again, or choose another calendar.",
+  "code.calendar_not_connected": "Connect Google Calendar and choose a calendar first.",
+  "code.channel_not_found": "That channel is not one of the public channels the Slack connection can see.",
+  "code.event_not_available": "That alert is not available for this kind of workspace.",
+  "code.slack_refused": "Slack did not take the message. Invite the GMS app to the channel, or choose another channel.",
+  "code.slack_not_connected": "Connect Slack first.",
+  "code.drive_not_connected": "Connect Google Drive first, in Settings, Connected apps.",
+  "code.drive_too_large": "The file is larger than an upload may be.",
+  "code.drive_not_found": "Google Drive would not open that file for the GMS. Choose it again in the Google Picker, signed in as the Google account that connected.",
+  "code.drive_folder": "That is a folder. Choose a file.",
+  "code.drive_not_downloadable": "That kind of Google file cannot be copied. Choose a document, a spreadsheet, a presentation or a file."
 }

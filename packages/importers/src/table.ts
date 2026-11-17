@@ -11,9 +11,9 @@ export const MAX_IMPORT_COLUMNS = 200;
 /** A cell longer than this is cut (no field takes more). */
 export const MAX_CELL_LENGTH = 20_000;
 
-/** Files (CSV, XLSX, a JSON export), connected apps (Sheets, Airtable) and grants systems read through their API (Fluxx, Zengine). */
-export type SourceKind = "csv" | "xlsx" | "google_sheets" | "airtable" | "json" | "fluxx" | "zengine";
-export const SOURCE_KINDS: readonly SourceKind[] = ["csv", "xlsx", "google_sheets", "airtable", "json", "fluxx", "zengine"];
+/** Files (CSV, XLSX, a JSON export), connected apps (Sheets, Airtable, Salesforce) and grants systems read through their API (Fluxx, Zengine). */
+export type SourceKind = "csv" | "xlsx" | "google_sheets" | "airtable" | "json" | "fluxx" | "zengine" | "salesforce";
+export const SOURCE_KINDS: readonly SourceKind[] = ["csv", "xlsx", "google_sheets", "airtable", "json", "fluxx", "zengine", "salesforce"];
 
 export interface SourceRow {
   /** 1-based position in the source as a person sees it (the header is row 1 in a spreadsheet). */

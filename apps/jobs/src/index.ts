@@ -2,8 +2,8 @@
 // The jobs Worker: Cron Triggers and the GMS_EVENTS queue consumer. It holds no logic of its own:
 // each handler builds the same stores the API Worker uses and calls a function exported by
 // `@gms/api/jobs`, so scheduled work goes through the same services, state machines and ledger.
-import { MercuryBankFeed } from "@gms/connectors";
-import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, reconcileStuckReleases, sendDigests, sendKeepReminders, sendOutsideReminders, syncPassport, SupabasePreferences, SupabaseRepos, SupabaseUserDirectory, type BaseContext, type QueueMessage } from "@gms/api/jobs";
+import { connectedAppPorts, MercuryBankFeed } from "@gms/connectors";
+import { archiveLedger, deliverWebhooks, evaluateRequirements, evaluateTranchesDue, handleQueueMessage, pollBanks, reconcileStuckReleases, sendConnectorAlerts, sendDigests, sendKeepReminders, sendOutsideReminders, syncCalendars, syncPassport, SupabasePreferences, SupabaseRepos, SupabaseUserDirectory, type BaseContext, type QueueMessage } from "@gms/api/jobs";
 import type { DbClient } from "@gms/db";
 import { SupabaseLedgerStore } from "@gms/ledger";
 import { ResendMailer } from "@gms/notify";
@@ -32,6 +32,10 @@ export interface Env {
   OPENGRANTS_API_KEY?: string;
   LEDGER_ARCHIVE?: R2Bucket;
   EXPORTS?: R2Bucket;
+  /** Connected apps (the same names as the API Worker): Slack alerts and Google Calendar events. */
+  COMPOSIO_API_KEY?: string;
+  COMPOSIO_SLACK_AUTH_CONFIG_ID?: string;
+  COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID?: string;
 }
 
 const trim = (s: string) => s.replace(/\/+$/, "");
@@ -63,6 +67,8 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
       ...(env.RESEND_API_KEY ? { mailer: new ResendMailer(env.RESEND_API_KEY) } : {}),
       bank: new MercuryBankFeed(),
       ...openGrantsPort(env),
+      // Slack alerts and calendar events; the jobs never start a connection, so no return page is needed.
+      ...connectedAppPorts({ COMPOSIO_API_KEY: env.COMPOSIO_API_KEY, COMPOSIO_SLACK_AUTH_CONFIG_ID: env.COMPOSIO_SLACK_AUTH_CONFIG_ID, COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID: env.COMPOSIO_GOOGLE_CALENDAR_AUTH_CONFIG_ID }, () => trim(env.WEB_BASE_URL)),
       // Member addresses for notification email and digests.
       directory: new SupabaseUserDirectory(db as unknown as ConstructorParameters<typeof SupabaseUserDirectory>[0]),
       // Each person's language, so a scheduled email reaches them in it (docs/i18n.md); English without one.
@@ -75,14 +81,15 @@ export function baseFor(env: Env, now: () => Date = () => new Date()): BaseConte
 /** The one Cron Trigger. Cloudflare's free plan allows 5 per account, so every schedule is derived from this tick. */
 export const CRON = "*/5 * * * *";
 
-export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requirements" | "passport" | "mercury" | "org-changes" | "ledger-archive" | "digest-daily" | "digest-weekly" | "outside-deadlines" | "keep-reminders" | typeof CONTENT_DIGESTS_JOB;
+export type JobName = "webhooks" | "tranches" | "tranche-reconcile" | "requirements" | "passport" | "mercury" | "org-changes" | "ledger-archive" | "digest-daily" | "digest-weekly" | "outside-deadlines" | "keep-reminders" | "connector-alerts" | "calendar-sync" | typeof CONTENT_DIGESTS_JOB;
 
 /**
  * The jobs that are due at a tick, by its scheduled time in UTC. Each job appears at most once, so a
  * moment that several schedules share (00:00 is also a quarter hour and an hour) runs it once:
  *   every 5 min            webhooks
- *   :00 :15 :30 :45        tranches, tranche-reconcile, requirements
+ *   :00 :15 :30 :45        tranches, tranche-reconcile, requirements, then connector-alerts (Slack)
  *   top of every hour      passport
+ *   :30 every hour         calendar-sync (Google Calendar events)
  *   00:00 06:00 12:00 18:00 mercury
  *   02:30 daily            org-changes, ledger-archive
  *   14:30 daily            outside-deadlines (reminders for outside applications, before the daily digest)
@@ -95,8 +102,9 @@ export function jobsDue(at: Date): JobName[] {
   const m = at.getUTCMinutes();
   const h = at.getUTCHours();
   const due: JobName[] = ["webhooks"];
-  if (m % 15 === 0) due.push("tranches", "tranche-reconcile", "requirements");
+  if (m % 15 === 0) due.push("tranches", "tranche-reconcile", "requirements", "connector-alerts");
   if (m === 0) due.push("passport");
+  if (m === 30) due.push("calendar-sync");
   if (m === 0 && h % 6 === 0) due.push("mercury");
   if (h === 2 && m === 30) due.push("org-changes", "ledger-archive");
   if (h === 14 && m === 30) due.push("outside-deadlines");
@@ -131,6 +139,10 @@ export async function runJob(name: JobName, base: BaseContext, env: Pick<Env, "L
       return sendOutsideReminders(base);
     case "keep-reminders":
       return sendKeepReminders(base);
+    case "connector-alerts":
+      return sendConnectorAlerts(base);
+    case "calendar-sync":
+      return syncCalendars(base);
     case CONTENT_DIGESTS_JOB:
       return runContentDigests(base);
     case "ledger-archive": {

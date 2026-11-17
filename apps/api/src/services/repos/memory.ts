@@ -160,6 +160,10 @@ const DEFAULTS: Partial<Record<TableName, (at: string) => AnyRow>> = {
   // 0041: opt-in content digests (all off until a person turns one on) and what was sent.
   digest_subscriptions: () => ({ new_matches: false, deadlines: false, funder_activity: false, prompt_dismissed_at: null }),
   digest_sends: () => ({ item_keys: [], message_id: null }),
+  // 0044: connected apps (Slack alerts, calendar links).
+  alert_subscriptions: (at) => ({ provider: "slack", events: [], enabled: true, locale: "en", alerts_from: at, created_by: null }),
+  alert_deliveries: () => ({ status: "sending", attempts: 1, slack_ts: null }),
+  calendar_links: () => ({ status: "pending", calendar_id: null, calendar_name: null, event_map: {}, last_sync_at: null }),
 };
 
 /** Unique constraints (`columns`, optionally only among rows where `whereNull` is NULL, `whereNotNull` is not, or every `whereEquals` column has its value: a partial unique index). */
@@ -206,6 +210,9 @@ const UNIQUE: Partial<Record<TableName, { columns: string[]; whereNull?: string;
   package_sends: [{ columns: ["outside_application_id", "day", "slot"] }],
   digest_subscriptions: [{ columns: ["member_id"] }],
   digest_sends: [{ columns: ["workspace_id", "user_id", "digest", "iso_week"] }],
+  alert_subscriptions: [{ columns: ["workspace_id", "provider"] }],
+  alert_deliveries: [{ columns: ["subscription_id", "event_key"] }],
+  calendar_links: [{ columns: ["workspace_id", "user_id"] }],
   // `funder_records (workspace_id, lower(btrim(name)))` and `outside_applications (workspace_id,
   // source_ref) where source = 'opengrants'` are checked by the services before writing.
 };

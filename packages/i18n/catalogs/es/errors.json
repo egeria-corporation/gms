@@ -347,5 +347,18 @@
   "code.recipient_not_allowed": "Un informe solo se puede enviar a miembros de este espacio de trabajo que puedan leerlo",
   "code.sensitive_document": "Los documentos bancarios y fiscales nunca se guardan en el archivo de documentos",
   "code.source_not_readable": "No se pudo leer el origen. No se importó nada",
-  "code.unprocessable": "Algunos de los datos ingresados no son válidos"
+  "code.unprocessable": "Algunos de los datos ingresados no son válidos",
+  "code.invalid_query": "Solo se puede ejecutar una consulta SOQL SELECT: el GMS solo lee de Salesforce.",
+  "code.not_submitted": "Esto todavía no se ha enviado, así que no hay una copia tal como se envió para guardar.",
+  "code.calendar_refused": "Google Calendar no aceptó eso. Inténtelo de nuevo o elija otro calendario.",
+  "code.calendar_not_connected": "Primero conecte Google Calendar y elija un calendario.",
+  "code.channel_not_found": "Ese canal no es uno de los canales públicos que la conexión de Slack puede ver.",
+  "code.event_not_available": "Ese aviso no está disponible para este tipo de espacio de trabajo.",
+  "code.slack_refused": "Slack no aceptó el mensaje. Agregue el GMS al canal o elija otro canal.",
+  "code.slack_not_connected": "Primero conecte Slack.",
+  "code.drive_not_connected": "Primero conecte Google Drive, en Configuración, Aplicaciones conectadas.",
+  "code.drive_too_large": "El archivo supera el tamaño permitido para una carga.",
+  "code.drive_not_found": "Google Drive no permitió que el GMS abriera ese archivo. Vuelva a elegirlo en el selector de Google, con la sesión iniciada en la cuenta de Google que se conectó.",
+  "code.drive_folder": "Eso es una carpeta. Elija un archivo.",
+  "code.drive_not_downloadable": "Ese tipo de archivo de Google no se puede copiar. Elija un documento, una hoja de cálculo, una presentación o un archivo."
 }

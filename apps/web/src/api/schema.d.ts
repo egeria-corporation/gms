@@ -2088,6 +2088,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/gms/connected-apps/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description My Google Calendar link in this workspace. */
+        get: operations["ConnectedApps_calendar"];
+        /** @description Choose the calendar and write my deadlines now. Moving to another calendar removes them from the first. In person. */
+        put: operations["ConnectedApps_chooseCalendar"];
+        /** @description Start connecting my own Google Calendar: Composio's hosted sign-in. In person. */
+        post: operations["ConnectedApps_connectCalendar"];
+        /** @description Remove the events written, then the connection, then the link. In person. */
+        delete: operations["ConnectedApps_disconnectCalendar"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/connected-apps/calendar/calendars": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The calendars I own (events are written only there). 409 `calendar_not_connected`. */
+        get: operations["ConnectedApps_calendars"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/connected-apps/calendar/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Write my deadlines now instead of at the next hourly run. In person. */
+        post: operations["ConnectedApps_syncCalendar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/connected-apps/google-drive/fetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description The bytes of a file picked in the Google Picker, for the browser to upload like a file from
+         *     the computer (same size and type checks). Nothing is stored. Applicant admins, editors and
+         *     finance, in person. 413 `drive_too_large` over 25 MB; 422 `drive_not_found`, `drive_folder`.
+         */
+        post: operations["ConnectedApps_fetchDriveFile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/connected-apps/google-drive/save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Save the as-submitted PDF to Google Drive through `drive.file`. In person. 409 `not_submitted`. */
+        post: operations["ConnectedApps_saveToDrive"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/connected-apps/slack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The workspace's Slack alert settings, the events it can have and the latest alerts. Workspace admins. */
+        get: operations["ConnectedApps_slack"];
+        /** @description Choose the channel and events, or turn alerts on or off. Workspace admins, in person. 422 `channel_not_found`, `event_not_available`. */
+        put: operations["ConnectedApps_saveSlack"];
+        post?: never;
+        /** @description Stop the alerts and forget the settings. Workspace admins, in person. */
+        delete: operations["ConnectedApps_deleteSlack"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/gms/connected-apps/slack/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Public channels the Slack connection can see (read only). 409 `slack_not_connected`. */
+        get: operations["ConnectedApps_slackChannels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/gms/connectors/google_workspace/directory": {
         parameters: {
             query?: never;
@@ -12258,6 +12386,8 @@ export interface components {
             /** Format: date-time */
             savedAt: string;
         };
+        /** @enum {string} */
+        "Models.AlertEvent": "new_application" | "review_assigned" | "deadline_soon" | "report_due" | "payment_due";
         /**
          * @description Program headroom for a panel, in integer minor units. `budgetMinor` and `availableMinor` are
          *     null when the program has no budget set.
@@ -13318,6 +13448,38 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        "Models.CalendarChooseInput": {
+            calendarId: string;
+        };
+        "Models.CalendarConnectInput": {
+            /** @description A page of this workspace (`/w/<handle>/…`) Composio returns to after Google's sign-in. */
+            returnTo?: string;
+        };
+        "Models.CalendarConnectStarted": {
+            /** @description Google Calendar through Composio is set up on this server. */
+            configured: boolean;
+            connected: boolean;
+            /** @enum {string} */
+            status: "not_connected" | "pending" | "active" | "error";
+            calendar: {
+                id: string;
+                name: string;
+            } | null;
+            /**
+             * Format: int32
+             * @description How many deadlines are in the calendar.
+             */
+            events: number;
+            /** Format: date-time */
+            lastSyncAt: string | null;
+            /** @description Composio's hosted Google sign-in; null when already connected. */
+            connectUrl: string | null;
+        };
+        "Models.CalendarEntry": {
+            id: string;
+            name: string;
+            primary: boolean;
+        };
         "Models.CalendarFeedDeleted": {
             deleted: boolean;
         };
@@ -13333,6 +13495,57 @@ export interface components {
             createdAt: string | null;
             /** Format: date-time */
             rotatedAt: string | null;
+        };
+        "Models.CalendarLink": {
+            /** @description Google Calendar through Composio is set up on this server. */
+            configured: boolean;
+            connected: boolean;
+            /** @enum {string} */
+            status: "not_connected" | "pending" | "active" | "error";
+            calendar: {
+                id: string;
+                name: string;
+            } | null;
+            /**
+             * Format: int32
+             * @description How many deadlines are in the calendar.
+             */
+            events: number;
+            /** Format: date-time */
+            lastSyncAt: string | null;
+        };
+        "Models.CalendarSynced": {
+            /** @description Google Calendar through Composio is set up on this server. */
+            configured: boolean;
+            connected: boolean;
+            /** @enum {string} */
+            status: "not_connected" | "pending" | "active" | "error";
+            calendar: {
+                id: string;
+                name: string;
+            } | null;
+            /**
+             * Format: int32
+             * @description How many deadlines are in the calendar.
+             */
+            events: number;
+            /** Format: date-time */
+            lastSyncAt: string | null;
+            result: {
+                /** Format: int32 */
+                created: number;
+                /** Format: int32 */
+                updated: number;
+                /** Format: int32 */
+                deleted: number;
+                /** Format: int32 */
+                unchanged: number;
+                /**
+                 * Format: int32
+                 * @description Writes left for the next hourly run.
+                 */
+                pending: number;
+            };
         };
         /** @description Dynamic client registration request (RFC 7591). Public clients; PKCE S256 required. */
         "Models.ClientRegistrationRequest": {
@@ -13536,7 +13749,7 @@ export interface components {
             returnTo?: string;
         };
         /** @enum {string} */
-        "Models.ConnectorProvider": "google_workspace" | "mercury" | "google_sheets" | "airtable";
+        "Models.ConnectorProvider": "google_workspace" | "mercury" | "google_sheets" | "airtable" | "slack" | "google_drive" | "salesforce";
         "Models.ConnectorStart": {
             /**
              * Format: uri
@@ -13548,7 +13761,7 @@ export interface components {
         };
         "Models.ConnectorView": {
             /** @enum {string} */
-            provider: "mercury" | "google_workspace" | "google_sheets" | "airtable";
+            provider: "mercury" | "google_workspace" | "google_sheets" | "airtable" | "slack" | "google_drive" | "salesforce";
             connected: boolean;
             status: string;
             scopes: string[];
@@ -14247,6 +14460,25 @@ export interface components {
             documentKind: "letter" | "agreement" | "snapshot";
             subjectId: components["schemas"]["Models.PrefixedId"];
             fileId: string | null;
+            fileName: string;
+            url: string;
+        };
+        "Models.DriveFetchInput": {
+            /** @description The file's id from the Google Picker. */
+            fileId: string;
+        };
+        "Models.DriveSaveInput": {
+            /**
+             * @description `application`: an application submitted on this GMS. `outside`: an outside application's as-submitted PDF.
+             * @enum {string}
+             */
+            kind: "application" | "outside";
+            id: string;
+            /** @description A folder picked in the Google Picker; My Drive when left out. */
+            folderId?: string;
+        };
+        "Models.DriveSaved": {
+            fileId: string;
             fileName: string;
             url: string;
         };
@@ -16168,6 +16400,21 @@ export interface components {
         };
         /** @enum {string} */
         "Models.ImportRunStatus": "checked" | "importing" | "done" | "expired";
+        /** @description Salesforce, read only (v1.12.0): a preset, or a SOQL SELECT of the person's own. */
+        "Models.ImportSalesforceSource": {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "salesforce";
+            /**
+             * @description `npsp_grants`: Nonprofit Success Pack Opportunities with a grant record type; `accounts`: Accounts.
+             * @enum {string}
+             */
+            preset?: "npsp_grants" | "accounts";
+            /** @description One SELECT; FOR UPDATE, FOR VIEW, FOR REFERENCE and UPDATE TRACKING are refused (422 `invalid_query`). */
+            query?: string;
+        };
         "Models.ImportSheetsSource": {
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -16179,9 +16426,9 @@ export interface components {
             /** @description The tab to read; the first when left out. */
             sheet?: string;
         };
-        "Models.ImportSource": components["schemas"]["Models.ImportCsvSource"] | components["schemas"]["Models.ImportXlsxSource"] | components["schemas"]["Models.ImportSheetsSource"] | components["schemas"]["Models.ImportAirtableSource"] | components["schemas"]["Models.ImportJsonSource"] | components["schemas"]["Models.ImportFluxxSource"] | components["schemas"]["Models.ImportZengineSource"];
+        "Models.ImportSource": components["schemas"]["Models.ImportCsvSource"] | components["schemas"]["Models.ImportXlsxSource"] | components["schemas"]["Models.ImportSheetsSource"] | components["schemas"]["Models.ImportAirtableSource"] | components["schemas"]["Models.ImportJsonSource"] | components["schemas"]["Models.ImportFluxxSource"] | components["schemas"]["Models.ImportZengineSource"] | components["schemas"]["Models.ImportSalesforceSource"];
         /** @enum {string} */
-        "Models.ImportSourceKind": "csv" | "xlsx" | "google_sheets" | "airtable" | "json" | "fluxx" | "zengine";
+        "Models.ImportSourceKind": "csv" | "xlsx" | "google_sheets" | "airtable" | "json" | "fluxx" | "zengine" | "salesforce";
         "Models.ImportSourceOption": {
             kind: components["schemas"]["Models.ImportSourceKind"];
             label: string;
@@ -16189,6 +16436,12 @@ export interface components {
             connected: boolean;
             /** @description Whether the caller may connect it (workspace admins, signed in). */
             canConnect: boolean;
+            /** @description Salesforce: what can be read without writing a query. */
+            presets?: {
+                /** @enum {string} */
+                key: "npsp_grants" | "accounts";
+                label: string;
+            }[];
         };
         "Models.ImportSourceRead": {
             kind: components["schemas"]["Models.ImportSourceKind"];
@@ -16328,6 +16581,11 @@ export interface components {
             customMcp: boolean;
             /** @description Social posting through Zernio (ZERNIO_API_KEY and ZERNIO_WEBHOOK_SECRET set). */
             social: boolean;
+            /** @description Connected apps through Composio (v1.12.0), each with its own auth config: Slack alerts, Google Calendar, an applicant's Google Drive, Salesforce import. */
+            slack: boolean;
+            googleCalendar: boolean;
+            googleDrive: boolean;
+            salesforce: boolean;
         };
         /** @description What this server has switched on. Read before sign-in so the web app can hide controls. */
         "Models.InstallConfig": {
@@ -19920,6 +20178,71 @@ export interface components {
             reason: string | null;
             representativeId: string | null;
             verificationLevel: string | null;
+        };
+        "Models.SlackAlertSettings": {
+            channelId: string;
+            channelName: string;
+            events: components["schemas"]["Models.AlertEvent"][];
+            enabled: boolean;
+            /**
+             * @description The language messages are written in: the admin's when they saved the settings.
+             * @enum {string}
+             */
+            locale: "en" | "es";
+            /**
+             * Format: date-time
+             * @description Nothing that happened before this moment is alerted.
+             */
+            alertsFrom: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        "Models.SlackAlerts": {
+            /** @description Slack through Composio is set up on this server. */
+            configured: boolean;
+            connected: boolean;
+            /** @description The events this kind of workspace can hear about. */
+            events: components["schemas"]["Models.AlertEvent"][];
+            subscription: components["schemas"]["Models.SlackAlertSettings"] | null;
+            /** @description The latest alerts, newest first: the event and how it went. No message text is kept. */
+            recent: {
+                event: components["schemas"]["Models.AlertEvent"];
+                /** @enum {string} */
+                status: "sending" | "sent" | "failed";
+                /** Format: date-time */
+                at: string;
+            }[];
+        };
+        "Models.SlackAlertsInput": {
+            /** @description A public channel's id, from `GET /gms/connected-apps/slack/channels`. */
+            channelId: string;
+            events: components["schemas"]["Models.AlertEvent"][];
+            enabled: boolean;
+        };
+        "Models.SlackAlertsSaved": {
+            channelId: string;
+            channelName: string;
+            events: components["schemas"]["Models.AlertEvent"][];
+            enabled: boolean;
+            /**
+             * @description The language messages are written in: the admin's when they saved the settings.
+             * @enum {string}
+             */
+            locale: "en" | "es";
+            /**
+             * Format: date-time
+             * @description Nothing that happened before this moment is alerted.
+             */
+            alertsFrom: string;
+            /** Format: date-time */
+            updatedAt: string;
+            channelMember: boolean;
+        };
+        "Models.SlackChannel": {
+            id: string;
+            name: string;
+            /** @description Whether the GMS's Slack app is in the channel; Slack refuses posts to one it is not in. */
+            member: boolean;
         };
         "Models.SocialAccount": {
             id: components["schemas"]["CommonGrants.Types.uuid"];
@@ -28667,6 +28990,786 @@ export interface operations {
                         /** @description Response data */
                         data: components["schemas"]["Models.InstallConfig"];
                     } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+        };
+    };
+    ConnectedApps_calendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.CalendarLink"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ConnectedApps_chooseCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.CalendarChooseInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.CalendarSynced"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ConnectedApps_connectCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.CalendarConnectInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.CalendarConnectStarted"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ConnectedApps_disconnectCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.CalendarLink"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ConnectedApps_calendars: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.CalendarEntry"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ConnectedApps_syncCalendar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.CalendarSynced"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ConnectedApps_fetchDriveFile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.DriveFetchInput"];
+            };
+        };
+        responses: {
+            /** @description The bytes of a file picked in Google Drive, with its own type; the name is in `X-File-Name` (URI-encoded). */
+            200: {
+                headers: {
+                    "X-File-Name": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ConnectedApps_saveToDrive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.DriveSaveInput"];
+            };
+        };
+        responses: {
+            /** @description A 201 response with typed data */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DriveSaved"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ConnectedApps_slack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SlackAlerts"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ConnectedApps_saveSlack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Models.SlackAlertsInput"];
+            };
+        };
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SlackAlertsSaved"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description The server could not understand the request due to invalid syntax. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ConnectedApps_deleteSlack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.DeletedResult"];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+        };
+    };
+    ConnectedApps_slackChannels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A 200 response with typed data */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Response data */
+                        data: components["schemas"]["Models.SlackChannel"][];
+                    } & components["schemas"]["CommonGrants.Responses.Success"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommonGrants.Responses.Error"];
                 };
             };
         };

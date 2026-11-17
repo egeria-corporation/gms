@@ -41,6 +41,9 @@ export { MemoryRepos } from "./services/repos/memory.ts";
 export { RestOpenGrantsClient, R2FileStorage } from "./services/ports.ts";
 // The report builder's scheduled CSVs (apps/jobs/src/reports.ts).
 export { r2ReportStore, sendScheduledReports } from "./services/report-builder.ts";
+// Connected apps (v1.12.0): Slack alerts and Google Calendar events.
+export { sendConnectorAlerts } from "./services/connector-alerts.ts";
+export { syncCalendars } from "./services/calendar-sync.ts";
 
 const sys = (base: BaseContext, job: string, workspaceId: string): ServiceContext => systemContext(base, { job }, { id: workspaceId, kind: "funder" });
 
