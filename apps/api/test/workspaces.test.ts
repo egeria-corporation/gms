@@ -57,6 +57,10 @@ describe("workspaces", () => {
     const admin = await auth(h, USER_ADMIN);
     const officer = await auth(h, USER_OFFICER);
     expect((await h.request(`/gms/workspaces/${WS_FUNDER}/members`, { headers: officer })).status).toBe(403);
+    // The same person is an editor of the applicant workspace, and any member there can read the roster.
+    const applicantRoster = await h.request(`/gms/workspaces/${WS_APPLICANT}/members`, { headers: officer });
+    expect(applicantRoster.status).toBe(200);
+    expect((await h.request(`/gms/workspaces/${WS_APPLICANT}/invitations`, json(officer, { email: "new.editor@alder.example", role: "viewer" }))).status).toBe(403);
     const list = (await (await h.request(`/gms/workspaces/${WS_FUNDER}/members`, { headers: admin })).json()) as { items: { userId: string; email: string | null; name: string | null }[]; paginationInfo: { totalItems: number } };
     expect(list.paginationInfo.totalItems).toBe(3);
     // Names and emails come from the auth directory; a person it does not know is listed without them.

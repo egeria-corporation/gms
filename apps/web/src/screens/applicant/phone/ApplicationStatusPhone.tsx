@@ -16,7 +16,9 @@ import { RevisionDiff } from "../../../components/RevisionDiff.tsx";
 import { StatusBadge } from "../../../components/status.tsx";
 import { ErrorBanner } from "../../../components/ui.tsx";
 import { formatDate } from "../../../lib/format.ts";
+import { applicantAccess } from "../../../lib/roles.ts";
 import { describe, loadStatus, statusNext, WITHDRAWABLE } from "../ApplicationStatus.tsx";
+import { DecisionSection, InterviewSection } from "../statusExtras.tsx";
 import { t, useApplicantText } from "../i18n.ts";
 
 export default function ApplicationStatusPhone() {
@@ -40,7 +42,8 @@ export default function ApplicationStatusPhone() {
       <PhoneShell title={t("applicationStatusPhone.application")} active="Applications">
         <main className="main" style={{ flex: 1 }}>
           <Loaded query={query} label={t("applicationStatusPhone.loadingTheApplication")}>
-            {({ status, summary, thread }) => {
+            {({ status, summary, thread, awardId }) => {
+              const access = applicantAccess(ws.member.role);
               const funder = summary?.funder.name ?? t("applicationStatus.theFunder");
               const editable = status.status === "draft" || status.status === "revision_requested";
               const now = statusNext(status.status);
@@ -52,7 +55,7 @@ export default function ApplicationStatusPhone() {
                 if (!reply.trim()) return;
                 const next = await send.run(thread, reply.trim());
                 if (next) {
-                  query.set({ status, summary, thread: next });
+                  query.set({ status, summary, thread: next, awardId });
                   setReply("");
                 }
               };
@@ -77,6 +80,9 @@ export default function ApplicationStatusPhone() {
                       </Link>
                     )}
                   </div>
+
+                  <InterviewSection status={status} funder={funder} />
+                  <DecisionSection status={status} funder={funder} base={base} awardId={awardId} />
 
                   <section className="card" aria-labelledby="tl-h">
                     <div className="card-h" style={{ padding: "14px 16px" }}>
@@ -129,6 +135,7 @@ export default function ApplicationStatusPhone() {
                           </div>
                         ))}
                       </div>
+                      {access.messages ? (
                       <form className="composer" style={{ flexDirection: "column", alignItems: "stretch" }} onSubmit={onSend}>
                         <label className="sr" htmlFor="reply">
                           {t("applicationStatusPhone.replyTo", { funder })}
@@ -138,6 +145,9 @@ export default function ApplicationStatusPhone() {
                           {t("applicationStatusPhone.send")}
                         </button>
                       </form>
+                      ) : (
+                        <p className="small muted">{t("access.cannotSendMessages")}</p>
+                      )}
                       {send.error ? <ErrorBanner error={send.error} title={t("applicationStatusPhone.theMessageWasNotSent")} /> : null}
                     </div>
                   </section>
@@ -163,11 +173,13 @@ export default function ApplicationStatusPhone() {
                     </section>
                   )}
 
-                  {WITHDRAWABLE.includes(status.status) && (
+                  {WITHDRAWABLE.includes(status.status) && (access.draft ? (
                     <button className="btn btn-danger btn-lg btn-block" type="button" aria-haspopup="dialog" onClick={() => setConfirm(true)}>
                       {t("applicationStatusPhone.withdrawApplication")}
                     </button>
-                  )}
+                  ) : (
+                    <p className="small muted">{t("access.cannotWithdraw")}</p>
+                  ))}
                   {withdraw.error ? <ErrorBanner error={withdraw.error} title={t("applicationStatusPhone.theApplicationWasNotWithdrawn")} /> : null}
 
                   <Dialog open={confirm} onClose={() => setConfirm(false)} labelledBy="wd-title">

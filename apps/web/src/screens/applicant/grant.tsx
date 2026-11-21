@@ -14,7 +14,9 @@ import { useMoreMutation, useMoreQuery } from "../../api/applicantMoreHooks.ts";
 import type { Query } from "../../api/hooks.ts";
 import { LevelBadge } from "../../components/status.tsx";
 import { ErrorBanner, Field, SaveNote } from "../../components/ui.tsx";
+import { useWorkspace } from "../../app/workspace.tsx";
 import { formatDate, formatMinor, parseDollars } from "../../lib/format.ts";
+import { applicantAccess } from "../../lib/roles.ts";
 import { t } from "./i18n.ts";
 
 export interface GrantData {
@@ -381,7 +383,9 @@ export function ActualsForm({ data, onSaved }: { data: GrantData; onSaved: () =>
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [problem, setProblem] = useState<string | null>(null);
   const save = useMoreMutation((api, lines: { category: string; label: string; amountMinor: number }[]) => api.reportActuals(data.award.id, { periodStart: start, periodEnd: end, lines }));
+  const canWrite = applicantAccess(useWorkspace("applicant").member.role).awards;
   if (!categories.length) return null;
+  if (!canWrite) return <p className="card-b small muted">{t("access.cannotChangeAward")}</p>;
   return (
     <form
       className="card-b"
@@ -455,6 +459,7 @@ export function AmendmentsCard({ data, onSaved }: { data: GrantData; onSaved: ()
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
   const send = useMoreMutation((api) => api.requestAmendment(data.award.id, { type, reason: reason.trim(), ...(type === "extension" && endDate ? { request: { newEndDate: endDate } } : {}) }));
+  const canWrite = applicantAccess(useWorkspace("applicant").member.role).awards;
   const current = AMENDMENT_TYPES().find((a) => a.key === type)!;
   return (
     <div className="card" id="amendments">
@@ -480,6 +485,9 @@ export function AmendmentsCard({ data, onSaved }: { data: GrantData; onSaved: ()
           ))}
         </ul>
       )}
+      {!canWrite ? (
+        <p className="card-b small muted">{t("access.cannotChangeAward")}</p>
+      ) : (
       <form
         className="card-b"
         style={{ display: "flex", flexDirection: "column", gap: "12px" }}
@@ -518,6 +526,7 @@ export function AmendmentsCard({ data, onSaved }: { data: GrantData; onSaved: ()
           <span className="help">{funder ? t("grant.approvesOrDeclines", { funder }) : t("grant.approvesOrDeclinesYourFunder")}</span>
         </div>
       </form>
+      )}
     </div>
   );
 }

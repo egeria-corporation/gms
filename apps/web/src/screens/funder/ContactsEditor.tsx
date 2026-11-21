@@ -41,6 +41,7 @@ export function ContactsEditor({ canEdit = true }: { canEdit?: boolean }) {
         }}
       >
         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {!canEdit && <p className="small muted">{t("contactsEditor.adminsOnly")}</p>}
           {q.status === "loading" && <Loading label={t("contactsEditor.loadingContacts")} />}
           {(q.status === "error" || save.error !== null) && <ErrorBanner error={q.error ?? save.error} onRetry={q.reload} />}
           {q.status === "ready" && list.length === 0 && <p className="small muted">{t("contactsEditor.noContactsListedApplicants")}</p>}

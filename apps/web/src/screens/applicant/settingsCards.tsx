@@ -12,8 +12,10 @@ import { CopyButton } from "../../components/CopyButton.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { Loaded, timeAgo } from "../../components/applicant.tsx";
 import { ErrorBanner, Field, Notice } from "../../components/ui.tsx";
+import { useWorkspace } from "../../app/workspace.tsx";
 import { downloadBlob, downloadCsv } from "../../lib/browser.ts";
 import { formatDate } from "../../lib/format.ts";
+import { applicantAccess } from "../../lib/roles.ts";
 import { t } from "./i18n.ts";
 
 function CreateTokenDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (token: NewApiToken) => void }) {
@@ -67,7 +69,8 @@ function CreateTokenDialog({ onClose, onCreated }: { onClose: () => void; onCrea
 }
 
 export function TokensCard({ base }: { base: string }) {
-  const query = useFullQuery((api) => api.apiTokens(), []);
+  const admin = applicantAccess(useWorkspace("applicant").member.role).admin;
+  const query = useFullQuery((api) => (admin ? api.apiTokens() : Promise.resolve([])), [admin]);
   const revoke = useFullMutation((api, id: string) => api.revokeApiToken(id));
   const [creating, setCreating] = useState(false);
   const [fresh, setFresh] = useState<NewApiToken | null>(null);
@@ -133,6 +136,7 @@ export function TokensCard({ base }: { base: string }) {
                       <td>{formatDate(tok.createdAt)}</td>
                       <td>{tok.lastUsedAt ? timeAgo(tok.lastUsedAt) : t("settingsCards.never")}</td>
                       <td>
+                        {admin ? (
                         <button
                           type="button"
                           className="btn btn-sm btn-danger"
@@ -143,6 +147,7 @@ export function TokensCard({ base }: { base: string }) {
                         >
                           {t("settingsCards.revoke")}
                         </button>
+                        ) : null}
                       </td>
                     </tr>
                   ))}
@@ -158,10 +163,14 @@ export function TokensCard({ base }: { base: string }) {
         </div>
       ) : null}
       <div className="card-f" style={{ gap: "12px", flexWrap: "wrap" }}>
+        {admin ? (
         <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
           <Key className="ic" aria-hidden="true" />
           {t("settingsCards.createToken")}
         </button>
+        ) : (
+          <p className="small muted">{t("access.adminTokens")}</p>
+        )}
         <span className="help">{t("settingsCards.theSecretIsShownOnceAt")}</span>
       </div>
       {creating ? (
@@ -179,6 +188,7 @@ export function TokensCard({ base }: { base: string }) {
 }
 
 export function ExportsCard({ handle }: { handle: string }) {
+  const access = applicantAccess(useWorkspace("applicant").member.role);
   const bundle = useFullMutation((api) => api.exportWorkspace());
   const reports = useMoreMutation((api) => api.requirements());
   const [done, setDone] = useState<string | null>(null);
@@ -203,14 +213,20 @@ export function ExportsCard({ handle }: { handle: string }) {
         </div>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {access.admin ? (
         <button type="button" className="btn btn-secondary" style={{ justifyContent: "flex-start" }} disabled={bundle.state === "saving"} onClick={() => void exportAll()}>
           <Download className="ic" aria-hidden="true" />
           {t("settingsCards.exportAllApplicationsCommongrantsJson")}
         </button>
+        ) : (
+          <p className="small muted">{t("access.adminTokens")}</p>
+        )}
+        {access.readReports ? (
         <button type="button" className="btn btn-secondary" style={{ justifyContent: "flex-start" }} disabled={reports.state === "saving"} onClick={() => void exportReports()}>
           <Download className="ic" aria-hidden="true" />
           {t("settingsCards.exportReportsCsv")}
         </button>
+        ) : null}
         <span className="help">{t("settingsCards.yourOrganizationRecordLivesInPassport")}</span>
         {done ? (
           <span className="help" role="status">

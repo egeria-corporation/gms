@@ -12,6 +12,7 @@ import { minorOf } from "../../api/outside.ts";
 import type { OutsideAward } from "../../api/writeKeep.ts";
 import { useWKQuery } from "../../api/writeKeepHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
+import { applicantAccess } from "../../lib/roles.ts";
 import { accentOf, FunderChip, isNotFound, Loaded } from "../../components/applicant.tsx";
 import { Dialog } from "../../components/Dialog.tsx";
 import { NotFound } from "../../components/NotFound.tsx";
@@ -170,6 +171,7 @@ export default function GrantOffered() {
   // Where Passport lists verified representatives, the person accepting types their legal name and it must match one.
   const reps = useLaunchQuery((api) => api.representatives(), [ws.id]);
   const verified = reps.data?.state === "ok" ? reps.data.items.filter((r) => r.verified).map((r) => r.name) : [];
+  const canAccept = applicantAccess(ws.member.role).awards;
   const [acceptName, setAcceptName] = useState("");
   const accept = useApplicantMutation((api, id: string) => api.acceptAward(id, acceptName.trim() || undefined));
   if (query.status === "error" && isNotFound(query.error)) return <NotFound />;
@@ -279,7 +281,7 @@ export default function GrantOffered() {
                           </div>
                         </div>
                         {accept.error ? <ErrorBanner error={accept.error} title={t("grantOffered.theAwardWasNotAccepted")} /> : null}
-                        {award.status === "offered" && verified.length > 0 && (
+                        {award.status === "offered" && canAccept && verified.length > 0 && (
                           <div className="fld" style={{ maxWidth: "460px" }}>
                             <label className="lbl" htmlFor="accept-name">
                               {t("grantOffered.yourFullLegalName")}
@@ -302,6 +304,7 @@ export default function GrantOffered() {
                                 {first ? ` ${t("grantOffered.firstTranche", { amount: formatMinor(first.amountMinor, first.currency) })}` : ""}
                               </div>
                             </div>
+                            {canAccept ? (
                             <button
                               className="btn btn-primary act"
                               type="button"
@@ -313,6 +316,9 @@ export default function GrantOffered() {
                             >
                               {accept.state === "saving" ? t("grantOffered.accepting") : t("grantOffered.acceptAward")}
                             </button>
+                            ) : (
+                              <p className="small muted act">{t("access.cannotChangeAward")}</p>
+                            )}
                           </div>
                         )}
                         <div className="row" style={{ gap: "14px", flexWrap: "wrap" }}>
@@ -362,12 +368,14 @@ export default function GrantOffered() {
                                 {agreement.funderSignature && <span>· {t("grantOffered.countersignedBy", { name: agreement.funderSignature.name, date: formatDate(agreement.funderSignature.at) })}</span>}
                               </div>
                               {agreement.status === "sent" && award.status === "offered" && <p className="small muted">{t("grantOffered.acceptTheAwardToSignThe")}</p>}
-                              {agreement.status === "sent" && (
+                              {agreement.status === "sent" && (canAccept ? (
                                 <button className="btn btn-primary btn-lg" type="button" aria-haspopup="dialog" style={{ alignSelf: "flex-start" }} onClick={() => setSigning(true)}>
                                   <PenLine className="ic" aria-hidden="true" />
                                   {t("grantOffered.reviewAndSign")}
                                 </button>
-                              )}
+                              ) : (
+                                <p className="small muted">{t("access.cannotChangeAward")}</p>
+                              ))}
                               {agreement.status === "signed_by_grantee" && <p className="small muted">{t("grantOffered.waitingCountersign", { funder: award.funder.name })}</p>}
                             </>
                           )}

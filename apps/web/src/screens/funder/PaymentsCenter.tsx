@@ -360,7 +360,7 @@ function Reconcile({ unmatched, matched, rows, feed, base, onMatch }: { unmatche
           icon={Landmark}
           title={t("paymentsCenter.bankFeedNotConnected")}
           actions={
-            <Link to={`${base}/settings/mcp#connectors`} className="btn btn-secondary">
+            <Link to={`${base}/settings/mcp#integrations`} className="btn btn-secondary">
               {t("paymentsCenter.connectMercuryReadOnly")}
             </Link>
           }

@@ -39,10 +39,12 @@ function Editor({ requirement, data, onChanged }: { requirement: MyRequirement; 
           <ReportLoading report={report} />
           {report.status === "idle" && !l && (
             <>
-              <p className="small muted">{t("reportsPhone.startingFillsInWhatPassportAnd")}</p>
+              <p className="small muted">{report.canWrite ? t("reportsPhone.startingFillsInWhatPassportAnd") : t("access.cannotWriteReports")}</p>
+              {report.canWrite && (
               <button className="btn btn-primary btn-lg btn-block" type="button" onClick={report.start}>
                 {actionFor(requirement)?.label ?? t("reportsPhone.startReport")}
               </button>
+              )}
             </>
           )}
           {l && (
@@ -60,6 +62,7 @@ function Editor({ requirement, data, onChanged }: { requirement: MyRequirement; 
                 </p>
               )}
               {report.submit.error && !blockers.length ? <ErrorBanner error={report.submit.error} title={t("reportsPhone.theReportWasNotSubmitted")} /> : null}
+              {!report.canWrite && <p className="small muted">{t("access.cannotWriteReports")}</p>}
               {report.editable && (
                 <button className="btn btn-primary btn-lg btn-block" type="button" disabled={report.submit.state === "sending" || !l.def} onClick={() => void report.send()}>
                   {report.submit.state === "sending" ? t("reportsPhone.submitting") : l.submission.status === "returned" ? t("reportsPhone.resubmitReport") : t("reportsPhone.submitReport")}

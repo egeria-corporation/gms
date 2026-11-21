@@ -30,6 +30,7 @@ const OPTIONAL = (): [string, string, string][] => [
 export function HumanGates() {
   const { facilitatedPayments } = useAppConfig();
   const ws = useWorkspace("funder");
+  const canEdit = ws.member.role === "admin";
   const record = useApiQuery((api) => api.workspaceRecord(ws.id), [ws.id]);
   const save = useApiMutation((api, gatedTools: string[]) => api.updateWorkspace(ws.id, { settings: { ...(record.data?.settings ?? {}), gatedTools } }));
   const saved = ((record.data?.settings as { gatedTools?: unknown } | undefined)?.gatedTools as string[] | undefined) ?? [];
@@ -88,7 +89,7 @@ export function HumanGates() {
                       <span className="mono">{tool}</span> · {why}
                     </div>
                   </div>
-                  <button type="button" className={on ? "tog on" : "tog"} role="switch" aria-checked={on} aria-label={t("humanGates.requiresApproval", { label })} disabled={save.state === "saving"} onClick={() => void toggle(tool)}></button>
+                  <button type="button" className={on ? "tog on" : "tog"} role="switch" aria-checked={on} aria-label={t("humanGates.requiresApproval", { label })} disabled={!canEdit || save.state === "saving"} onClick={() => void toggle(tool)}></button>
                 </div>
               );
             })}
@@ -97,7 +98,7 @@ export function HumanGates() {
       </div>
       <div className="card-f small muted">
         <Info className="ic" aria-hidden="true" />
-        {t("humanGates.aGateYouAdd")}
+        {canEdit ? t("humanGates.aGateYouAdd") : t("humanGates.adminsOnly")}
       </div>
     </section>
   );

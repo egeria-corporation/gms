@@ -12,6 +12,7 @@ import { Loaded, timeAgo } from "../../components/applicant.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { EmptyState, ErrorBanner, Field, problemFor, SaveNote } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { applicantAccess } from "../../lib/roles.ts";
 import { countText } from "../../lib/outside.ts";
 import { STALE_AFTER_MONTHS, VARIANT_KEYS, VARIANT_WORDS, type VariantKey, type Variants } from "../../lib/writeKeep.ts";
 import { AdaptPanel } from "./answerAdapt.tsx";
@@ -165,6 +166,7 @@ function AnswerEditor({ answer, onSaved, onCancel }: { answer: Answer | null; on
 export default function AnswerLibrary() {
   useApplicantText();
   const ws = useWorkspace("applicant");
+  const canEdit = applicantAccess(ws.member.role).library;
   const applicant = useApplicantApi();
   // The library with each answer's last check, versions and tags (v1.6).
   const query = useWKQuery<LibraryAnswer[]>((api) => libraryWithMeta(() => applicant.answers(), api), [ws.id, applicant]);
@@ -185,10 +187,14 @@ export default function AnswerLibrary() {
               </div>
             </div>
             <div className="actions">
+              {canEdit ? (
               <button className="btn btn-primary" type="button" onClick={() => setSelected("new")}>
                 <Plus className="ic" aria-hidden="true" />
                 {t("answerLibrary.newAnswer")}
               </button>
+              ) : (
+                <p className="small muted">{t("access.cannotChangeLibrary")}</p>
+              )}
             </div>
           </div>
           <Loaded query={query} label={t("answerLibrary.loadingYourAnswers")}>
@@ -201,9 +207,13 @@ export default function AnswerLibrary() {
                     icon={BookOpen}
                     title={t("answerLibrary.noSavedAnswersYet")}
                     actions={
+                      canEdit ? (
                       <button className="btn btn-primary" type="button" onClick={() => setSelected("new")}>
                         {t("answerLibrary.writeYourFirstAnswer")}
                       </button>
+                      ) : (
+                        <p className="small muted">{t("access.cannotChangeLibrary")}</p>
+                      )
                     }
                   >
                     {t("answerLibrary.missionNeedEvaluationApproachTheParagraphs")}
@@ -247,7 +257,7 @@ export default function AnswerLibrary() {
                     })}
                   </ul>
                   <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                    {editing && (
+                    {editing && canEdit && (
                       <AnswerEditor
                         answer={current}
                         onCancel={() => setSelected(answers[0]?.id ?? null)}
@@ -259,7 +269,8 @@ export default function AnswerLibrary() {
                         }}
                       />
                     )}
-                    {selected !== "new" && current ? <KeepCurrent
+                    {selected !== "new" && current && !canEdit ? <p className="small muted">{current.body}</p> : null}
+                    {selected !== "new" && current && canEdit ? <KeepCurrent
                         key={`${current.id}-${current.lastVerifiedAt ?? ""}`}
                         answer={current}
                         onChanged={(saved) => {
@@ -267,7 +278,7 @@ export default function AnswerLibrary() {
                           query.reload();
                         }}
                       /> : null}
-                    {selected !== "new" && current ? <AdaptPanel key={current.id} answer={current} /> : null}
+                    {selected !== "new" && current && canEdit ? <AdaptPanel key={current.id} answer={current} /> : null}
                   </div>
                 </div>
               );

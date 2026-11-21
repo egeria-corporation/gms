@@ -15,7 +15,9 @@ import type { Query } from "../../api/hooks.ts";
 import { Dialog } from "../../components/Dialog.tsx";
 import { ErrorBanner, Loading, problemsOf } from "../../components/ui.tsx";
 import { FormView } from "../../forms/FormView.tsx";
+import { useWorkspace } from "../../app/workspace.tsx";
 import { daysUntil, formatDate } from "../../lib/format.ts";
+import { applicantAccess } from "../../lib/roles.ts";
 import { t } from "./i18n.ts";
 
 export interface ReportsData {
@@ -111,6 +113,8 @@ export interface ReportState {
   loaded: Loaded | null;
   status: "idle" | "loading" | "error";
   error: unknown;
+  /** True while this role can start, edit, submit, or share a report. */
+  canWrite: boolean;
   /** True while the report can be edited (a draft, or returned by the funder). */
   editable: boolean;
   response: JsonObject;
@@ -203,13 +207,15 @@ export function useReport(requirement: MyRequirement | null, onChanged: () => vo
   }, [more, submissionId, formId]);
 
   const errors = useMemo(() => (loaded?.def ? validateResponse(loaded.def, response).validationErrors : (loaded?.form.validationErrors ?? [])), [loaded, response]);
-  const editable = !!loaded && (loaded.submission.status === "draft" || loaded.submission.status === "returned");
+  const canWrite = applicantAccess(useWorkspace("applicant").member.role).reports;
+  const editable = canWrite && !!loaded && (loaded.submission.status === "draft" || loaded.submission.status === "returned");
   const sections = useMemo(() => (loaded?.def ? sectionsOf(loaded.def, { ...loaded.form, response }, errors) : []), [loaded, response, errors]);
 
   return {
     loaded,
     status,
     error,
+    canWrite,
     editable,
     response,
     errors,
@@ -218,14 +224,19 @@ export function useReport(requirement: MyRequirement | null, onChanged: () => vo
     save,
     submit,
     sections,
-    start: () => void load(true),
+    start: () => {
+      if (canWrite) void load(true);
+    },
     change: (next) => {
+      if (!canWrite) return;
       local.current = next;
       setResponse(next);
     },
-    autosave: () => void push(),
+    autosave: () => {
+      if (canWrite) void push();
+    },
     send: async () => {
-      if (!submissionId) return;
+      if (!canWrite || !submissionId) return;
       setShowAll(true);
       setSubmit({ state: "sending" });
       await push();
@@ -321,8 +332,10 @@ export function ShareReport({ loaded, requirement, funders, onShared }: { loaded
   const [note, setNote] = useState("");
   const [done, setDone] = useState<ShareResult | null>(null);
   const share = useMoreMutation((api) => api.shareReport(loaded.submission.id, { funderHandle: funder, ...(picked.length < fields.length ? { fields: picked } : {}), ...(note.trim() ? { note: note.trim() } : {}) }));
+  const canWrite = applicantAccess(useWorkspace("applicant").member.role).reports;
   const target = others.find((f) => f.handle === funder);
   if (loaded.submission.status !== "accepted") return null;
+  if (!canWrite) return <p className="small muted">{t("access.cannotWriteReports")}</p>;
   return (
     <div className="card" id="share">
       <div className="card-h">

@@ -13,7 +13,9 @@ import type { Checklist } from "../../api/types.ts";
 import { Avatar, timeAgo } from "../../components/applicant.tsx";
 import { StatusBadge } from "../../components/status.tsx";
 import { ErrorBanner, ReadinessChecklist } from "../../components/ui.tsx";
+import { useWorkspace } from "../../app/workspace.tsx";
 import { formatDate, formatMinor } from "../../lib/format.ts";
+import { applicantAccess } from "../../lib/roles.ts";
 import { t } from "./i18n.ts";
 
 const shortHash = (h: string | null | undefined) => (h ? `${h.slice(0, 4)}…${h.slice(-4)}` : t("grantExtras.notRecorded"));
@@ -76,6 +78,7 @@ export function GrantMessages({ award }: { award: AwardDetail }) {
     const m = await a.postMessage(open.id, body);
     return { ...open, messages: [...open.messages, m] };
   });
+  const canMessage = applicantAccess(useWorkspace("applicant").member.role).messages;
   const thread = query.status === "ready" ? query.data : null;
   const onSend = async (e: FormEvent) => {
     e.preventDefault();
@@ -115,6 +118,7 @@ export function GrantMessages({ award }: { award: AwardDetail }) {
                 </div>
               </div>
             ))}
+            {canMessage ? (
             <form className="composer" onSubmit={onSend}>
               <label className="sr" htmlFor="grant-reply">
                 {t("grantExtras.messageTo", { funder })}
@@ -125,6 +129,9 @@ export function GrantMessages({ award }: { award: AwardDetail }) {
                 {t("grantExtras.send")}
               </button>
             </form>
+            ) : (
+              <p className="small muted">{t("access.cannotSendMessages")}</p>
+            )}
             {send.error ? <ErrorBanner error={send.error} title={t("grantExtras.theMessageWasNotSent")} /> : null}
           </>
         )}

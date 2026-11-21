@@ -14,6 +14,8 @@ interface Port {
   workspace: { id: string | null };
   /** The mock's data, when the port is the mock (tests reach in to set a scene). */
   store: LaunchStore | null;
+  /** The role the mock reads on each call, so a later workspace switch is seen. */
+  actor?: { role: string | null };
 }
 const ports = new WeakMap<object, Port>();
 
@@ -28,7 +30,8 @@ function portFor(services: Pick<Services, "auth" | "mock">): Port {
     const workspace = { id: null as string | null };
     if (services.mock) {
       const store = seedLaunchStore();
-      port = { api: createMockLaunchApi({ session: () => services.auth.getSession(), store }), workspace, store };
+      const actor = { role: null as string | null };
+      port = { api: createMockLaunchApi({ session: () => services.auth.getSession(), store, role: () => actor.role }), workspace, store, actor };
     } else {
       port = { api: createHttpLaunchApi({ baseUrl: env.apiBaseUrl, token: async () => (await services.auth.getSession())?.accessToken ?? null, workspaceId: () => workspace.id }), workspace, store: null };
     }
@@ -46,7 +49,10 @@ export function useLaunchApi(): LaunchApi {
   const services = useServices();
   const workspace = useCurrentWorkspace();
   const port = portFor(services);
-  if (workspace) port.workspace.id = workspace.id;
+  if (workspace) {
+    port.workspace.id = workspace.id;
+    if (port.actor) port.actor.role = workspace.member.role ?? null;
+  }
   return port.api;
 }
 
@@ -119,9 +125,11 @@ export function useLaunchMutation<A extends unknown[], R>(write: (api: LaunchApi
  * Install-wide switches. While loading, and if the read fails, payments through Passport count
  * as off: the screens then offer only what is always safe (recording a payment made elsewhere).
  */
-export function useAppConfig(): AppConfig {
+export function useAppConfig(): AppConfig & { ready: boolean } {
   const q = useLaunchQuery((api) => api.config(), []);
-  return q.status === "ready" ? q.data : { facilitatedPayments: false };
+  if (q.status === "loading") return { facilitatedPayments: false, ready: false };
+  if (q.status === "error") return { facilitatedPayments: false, ready: true };
+  return { ...q.data, ready: true };
 }
 
 /** Passport switches. All off until the server has answered, so nothing flashes up and vanishes. */

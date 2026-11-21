@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { CircleCheck, Plug, Unplug } from "lucide-react";
 import { callbackFrom, type SocialAccount, type SocialPlatform } from "../../api/social.ts";
+import { useAppConfig } from "../../api/launchHooks.ts";
 import { useSocialMutation, useSocialQuery } from "../../api/socialHooks.ts";
 import { useCurrentWorkspace } from "../../app/workspace.tsx";
 import { ApplicantShell, FunderShell } from "../../components/shells.tsx";
@@ -50,6 +51,7 @@ function Frame({ children }: { children: ReactNode }) {
 
 export default function SettingsSocial() {
   const ws = useCurrentWorkspace()!;
+  const config = useAppConfig();
   const location = useLocation();
   const navigate = useNavigate();
   const q = useSocialQuery((api) => api.settings(), []);
@@ -101,14 +103,20 @@ export default function SettingsSocial() {
           {finish.error !== null && <ErrorBanner error={finish.error} title={t("settingsSocial.theAccountWasNotConnected")} />}
           {connect.error !== null && <ErrorBanner error={connect.error} title={t("settingsSocial.connectingCouldNotStart")} />}
           {disconnect.error !== null && <ErrorBanner error={disconnect.error} title={t("settingsSocial.theAccountWasNotDisconnected")} />}
-          {q.status === "loading" && <Loading label={t("settingsSocial.loadingSocialAccounts")} />}
-          {q.status === "error" && <ErrorBanner error={q.error} onRetry={q.reload} />}
-          {q.status === "ready" && !q.data && (
+          {!config.ready && <Loading label={t("settingsSocial.loadingSocialAccounts")} />}
+          {config.ready && config.available?.social === false && (
             <Notice tone="neu" title={t("settingsSocial.socialPostingIsNotSet")}>
               {t("settingsSocial.thePersonWhoRunsThis")}
             </Notice>
           )}
-          {q.status === "ready" && q.data && (
+          {config.ready && config.available?.social !== false && q.status === "loading" && <Loading label={t("settingsSocial.loadingSocialAccounts")} />}
+          {config.ready && config.available?.social !== false && q.status === "error" && <ErrorBanner error={q.error} onRetry={q.reload} />}
+          {config.ready && config.available?.social !== false && q.status === "ready" && !q.data && (
+            <Notice tone="neu" title={t("settingsSocial.socialPostingIsNotSet")}>
+              {t("settingsSocial.thePersonWhoRunsThis")}
+            </Notice>
+          )}
+          {config.ready && config.available?.social !== false && q.status === "ready" && q.data && (
             <>
               <div>
                 <h3 style={{ fontSize: "14px", marginBottom: "8px" }}>{t("settingsSocial.connected")}</h3>

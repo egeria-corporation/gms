@@ -5,7 +5,7 @@ import { SaveToDriveButton } from "../../components/DriveAttach.tsx";
 import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowRight, Calendar, Eye, LogOut, Pencil, RotateCcw, Send, type LucideIcon } from "lucide-react";
-import type { ApplicantApi, ApplicationEvent, Thread } from "../../api/applicant.ts";
+import type { ApplicantApi, ApplicationEvent, Award, Thread } from "../../api/applicant.ts";
 import { useApplicantMutation, useApplicantQuery } from "../../api/applicantHooks.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { accentOf, Avatar, FunderChip, isNotFound, Loaded, timeAgo } from "../../components/applicant.tsx";
@@ -16,12 +16,13 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { StatusBadge, statusLook } from "../../components/status.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
+import { applicantAccess } from "../../lib/roles.ts";
 import { DecisionSection, InterviewSection } from "./statusExtras.tsx";
 import { t, useApplicantText } from "./i18n.ts";
 
 export const loadStatus = async (api: ApplicantApi, id: string) => {
-  const [status, list, threads] = await Promise.all([api.applicationStatus(id), api.applications(), api.threads(id)]);
-  return { status, summary: list.find((a) => a.id === status.id), thread: threads[0] ?? null };
+  const [status, list, threads, awards] = await Promise.all([api.applicationStatus(id), api.applications(), api.threads(id), api.awards().catch(() => [] as Award[])]);
+  return { status, summary: list.find((a) => a.id === status.id), thread: threads[0] ?? null, awardId: awards.find((a) => a.applicationId === status.id)?.id ?? null };
 };
 
 const EVENT: Record<string, { icon: LucideIcon; text: (e: ApplicationEvent) => string; cls: string }> = {
@@ -84,7 +85,8 @@ export default function ApplicationStatus() {
       <ApplicantShell active="Applications">
         <main className="main">
           <Loaded query={query} label={t("applicationStatus.loadingTheApplication")}>
-            {({ status, summary, thread }) => {
+            {({ status, summary, thread, awardId }) => {
+              const access = applicantAccess(ws.member.role);
               const funder = summary?.funder.name ?? t("applicationStatus.theFunder");
               const editable = status.status === "draft" || status.status === "revision_requested";
               const now = statusNext(status.status);
@@ -94,7 +96,7 @@ export default function ApplicationStatus() {
                 if (!reply.trim()) return;
                 const next = await send.run(thread, reply.trim());
                 if (next) {
-                  query.set({ status, summary, thread: next });
+                  query.set({ status, summary, thread: next, awardId });
                   setReply("");
                 }
               };
@@ -135,11 +137,13 @@ export default function ApplicationStatus() {
                         </Link>
                       )}
                       {status.submittedAt && <SaveToDriveButton kind="application" id={status.id} />}
-                      {WITHDRAWABLE.includes(status.status) && (
+                      {WITHDRAWABLE.includes(status.status) && (access.draft ? (
                         <button className="btn btn-danger" type="button" aria-haspopup="dialog" onClick={() => setConfirm(true)}>
                           {t("applicationStatus.withdrawApplication")}
                         </button>
-                      )}
+                      ) : (
+                        <p className="small muted">{t("access.cannotWithdraw")}</p>
+                      ))}
                     </div>
                   </div>
 
@@ -190,6 +194,7 @@ export default function ApplicationStatus() {
                             </div>
                           </div>
                         ))}
+                        {access.messages ? (
                         <form className="composer" onSubmit={onSend}>
                           <label className="sr" htmlFor="reply">
                             {t("applicationStatus.reply")}
@@ -200,6 +205,9 @@ export default function ApplicationStatus() {
                             {t("applicationStatus.send")}
                           </button>
                         </form>
+                        ) : (
+                          <p className="small muted">{t("access.cannotSendMessages")}</p>
+                        )}
                         {send.error ? <ErrorBanner error={send.error} title={t("applicationStatus.theMessageWasNotSent")} /> : null}
                         <p className="small muted">{t("applicationStatus.internalNotesTheFunderWritesAre")}</p>
                       </div>
@@ -239,7 +247,7 @@ export default function ApplicationStatus() {
                       )}
 
                       <InterviewSection status={status} funder={funder} />
-                      <DecisionSection status={status} funder={funder} base={base} />
+                      <DecisionSection status={status} funder={funder} base={base} awardId={awardId} />
 
                       <section className="card" aria-labelledby="tl-h">
                         <div className="card-h">
