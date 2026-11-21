@@ -42,7 +42,7 @@ export function ApplicationsStep({ opportunity, competition, base, publicPath, o
     );
   }
 
-  const competitionPath = `${base}/opportunities/${opportunity.id}/competition`;
+  const competitionPath = competition ? `${base}/competitions/${competition.id}` : `${base}/opportunities/${opportunity.id}/competition`;
   const formId = (result?.competition.id === competition?.id ? result?.form?.id : undefined) ?? Object.keys(competition?.stages[0]?.forms ?? {})[0];
   const ready = check.status === "ready" && check.data?.ready === true;
   const runSetup = async () => {

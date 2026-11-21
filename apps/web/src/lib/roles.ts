@@ -12,7 +12,7 @@ const READ_ONLY = new Set(["observer", "auditor"]);
 
 /** Funder rail entries by label that a role is not shown. Admins and staff see everything. */
 export function hiddenFunderRailItems(role: string): ReadonlySet<string> {
-  if (isReviewOnly(role)) return new Set(["Programs", "Opportunities", "Awards", "Payments", "Reporting", "Grantees", "Analytics", "Communications", "Approvals", "Settings"]);
+  if (isReviewOnly(role)) return new Set(["Programs", "Opportunities", "Awards", "Payments", "Reporting", "Grantees", "Analytics", "Communications", "Approvals", "Settings", "Panel & decisions"]);
   if (READ_ONLY.has(role)) return new Set(["Communications", "Approvals", "Settings"]);
   return new Set();
 }

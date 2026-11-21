@@ -111,7 +111,7 @@ export default function Panel() {
   return (
     <>
       <title>{t("funderPanel.panel", { title: competition.data?.title ?? t("funderPanel.competition"), name: ws.name })}</title>
-      <FunderShell active="Reviews">
+      <FunderShell active="Panel & decisions">
         <main className="main">
           <PageHeader
             crumbs={[{ label: ws.name, to: base }, { label: competition.data?.title ?? t("funderPanel.competition"), to: `${base}/competitions/${compId}` }, { label: t("funderPanel.panel2") }]}

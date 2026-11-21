@@ -100,6 +100,10 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
 
   const editableForms = app.forms.filter((f) => !f.lockedAt);
   const lockedForms = app.forms.filter((f) => f.lockedAt);
+  const role = ws.member.role ?? "admin";
+  // Viewers and finance can open an application and cannot change it. Admins and owners submit.
+  const readOnly = role === "viewer" || role === "finance";
+  const canSubmit = role === "admin" || role === "owner";
   // One form is edited at a time; most stages have exactly one.
   const [activeFormId, setActiveFormId] = useState(editableForms[0]?.formId ?? "");
   const [forms, setForms] = useState<Record<string, AppForm>>(() => Object.fromEntries(app.forms.map((f) => [f.formId, f])));
@@ -111,11 +115,14 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   const [peers, setPeers] = useState<Peer[]>([]);
   const [tab, setTab] = useState<PanelTab>("validation");
   const [showAll, setShowAll] = useState(false);
-  const [submitOpen, setSubmitOpen] = useState(openSubmit);
+  const [submitOpen, setSubmitOpen] = useState(openSubmit && canSubmit);
   const [submit, setSubmit] = useState<{ state: "idle" | "sending"; error?: unknown }>({ state: "idle" });
   const [libraryOpen, setLibraryOpen] = useState(false);
   // Phone: the validation, comments and assignments panel is a sheet above the bottom tabs.
-  const [sheetOpen, setSheetOpen] = useState(false);
+  // It starts open when this stage already has something to fix, so the errors are not hidden.
+  const phoneErrors = phone && editableForms.some((f) => (f.validationErrors?.length ?? 0) > 0);
+  const [sheetOpen, setSheetOpen] = useState(phoneErrors);
+  const sawErrors = useRef(phoneErrors);
   const sheetSlot = usePhoneSheetSlot();
   const dock = (panel: ReactElement) => (phone && sheetSlot ? createPortal(panel, sheetSlot) : panel);
 
@@ -137,6 +144,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
 
   const push = useCallback(
     (formId: string): Promise<void> => {
+      if (readOnly) return saving.current;
       // Saves run one after another so each patch is computed against the server's latest answer.
       saving.current = saving.current.then(async () => {
         const sent = local.current[formId];
@@ -155,7 +163,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
       });
       return saving.current;
     },
-    [api, app.id, adopt],
+    [api, app.id, adopt, readOnly],
   );
 
   // Presence, and a re-read when a teammate saves.
@@ -190,7 +198,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   const goTo = (label: string) => document.getElementById(slug(label))?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   // Inviting someone into this draft (admins), and the one-time note after the first application.
-  const consultant = ws.member.role === "consultant";
+  const consultant = role === "consultant";
   const invites = useDraftInvites("application", app.id, !consultant);
   const inviteList = invites.status === "ready" ? invites.data : null;
   const [inviting, setInviting] = useState<{ section: string | null } | null>(null);
@@ -237,6 +245,11 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   };
 
   const stageErrors = editableForms.flatMap((f) => (forms[f.formId]?.validationErrors ?? []).map((e) => ({ formId: f.formId, ...e })));
+  useEffect(() => {
+    if (!phone) return;
+    if (stageErrors.length > 0 && !sawErrors.current) setSheetOpen(true);
+    sawErrors.current = stageErrors.length > 0;
+  }, [phone, stageErrors.length]);
   const eligibility = app.eligibility;
   const closes = closesPhrase(summary?.stage.closes);
   const checklist: Checklist = useMemo(() => {
@@ -372,9 +385,11 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               {t("editor.preview")}
             </Link>
           )}
-          <button className="btn btn-primary" type="button" aria-haspopup="dialog" onClick={() => setSubmitOpen(true)}>
-            {t("editor.submit")}
-          </button>
+          {canSubmit && (
+            <button className="btn btn-primary" type="button" aria-haspopup="dialog" onClick={() => setSubmitOpen(true)}>
+              {t("editor.submit")}
+            </button>
+          )}
         </div>
       </div>
 
@@ -474,10 +489,12 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
             </Notice>
           )}
           <div className="row" style={{ gap: "10px", flexWrap: "wrap" }}>
-            <button className="btn btn-sm btn-secondary" type="button" aria-haspopup="dialog" onClick={() => setLibraryOpen(true)} disabled={!data.answers.length || !textFields.length}>
-              <BookOpen className="ic" aria-hidden="true" />
-              {t("editor.insertFromAnswerLibrary")}
-            </button>
+            {!readOnly && (
+              <button className="btn btn-sm btn-secondary" type="button" aria-haspopup="dialog" onClick={() => setLibraryOpen(true)} disabled={!data.answers.length || !textFields.length}>
+                <BookOpen className="ic" aria-hidden="true" />
+                {t("editor.insertFromAnswerLibrary")}
+              </button>
+            )}
             {!showAll && errors.length > 0 && (
               <button className="btn btn-sm btn-ghost" type="button" onClick={() => setShowAll(true)}>
                 {t("editor.showEverythingLeftToFix")}
@@ -488,14 +505,18 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
             <FormView
               form={def}
               response={active.response}
-              mode="edit"
+              mode={readOnly ? "funder" : "edit"}
               provenance={active.provenance}
               showAllErrors={showAll}
-              onChange={(r) => {
-                local.current[activeFormId] = r;
-              }}
-              onAutosave={() => void push(activeFormId)}
-              uploadFile={uploadFile}
+              onChange={
+                readOnly
+                  ? undefined
+                  : (r) => {
+                      local.current[activeFormId] = r;
+                    }
+              }
+              onAutosave={readOnly ? undefined : () => void push(activeFormId)}
+              uploadFile={readOnly ? undefined : uploadFile}
               {...(data.org?.editUrl ? { passportUrl: data.org?.editUrl } : {})}
               profileUrl={`${base}/settings#organization-details`}
               passportLinked={data.readiness?.linked}

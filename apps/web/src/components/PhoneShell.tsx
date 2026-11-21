@@ -6,7 +6,7 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Bell, Menu, X } from "lucide-react";
 import { useWorkspace } from "../app/workspace.tsx";
-import { APPLICANT_RAIL, APPLICANT_TABS, railLabel, tenantStyle } from "./shells.tsx";
+import { APPLICANT_RAIL, APPLICANT_TABS, ApplicantRoleNotice, railLabel, tenantStyle } from "./shells.tsx";
 import { LanguageSwitcher } from "./LanguageSwitcher.tsx";
 
 import { translator } from "../i18n/index.tsx";
@@ -82,7 +82,10 @@ export function PhoneShell({ title, active, sheet, overlay, children }: PhoneShe
       )}
       {/* The page scrolls inside the frame; the sheet and the tabs are siblings below it, not overlays. */}
       <PhoneSheetSlot.Provider value={slot}>
-        <div className="phone-scroll">{children}</div>
+        <div className="phone-scroll">
+          <ApplicantRoleNotice padding="16px 16px 0" />
+          {children}
+        </div>
       </PhoneSheetSlot.Provider>
       {sheet}
       <div ref={setSlot} />

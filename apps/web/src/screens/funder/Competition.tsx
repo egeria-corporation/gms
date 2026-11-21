@@ -2,8 +2,8 @@
 // Competition: the stages an opportunity runs through, the forms and rubric pinned to each, and
 // the launch checklist that gates opening. Reached by competition id, by the opportunity's slug,
 // or from `/opportunities/:oppId/competition`. Application counts per stage join with phase 2.
-import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { useRef, useState } from "react";
+import { Link, Navigate, useParams } from "react-router";
 import { Check, ExternalLink, Layers, Pencil, Plus, Trash2 } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import { ReviewerPool } from "./ReviewerPool.tsx";
@@ -228,6 +228,9 @@ export default function Competition() {
   const base = `/w/${ws.handle}`;
   const { compId, oppId } = useParams();
   const [editing, setEditing] = useState(false);
+  // The opportunity URL stays while a competition is being created on it. A visit that already
+  // has one moves to `/competitions/:id`, the address the rest of the funder workspace uses.
+  const arrivedWithout = useRef<boolean | null>(null);
 
   const data = useApiQuery<Loaded | null>(async (api) => {
     const [opportunities, competitions, own, library, rubrics] = await Promise.all([api.listOpportunities(), api.listCompetitions(), api.listForms(), api.listFormLibrary(), api.listRubrics()]);
@@ -245,7 +248,11 @@ export default function Competition() {
   const open = useApiMutation((api, id: string) => api.openCompetition(id));
   const close = useApiMutation((api, id: string) => api.closeCompetition(id));
 
+  if (data.status === "ready" && arrivedWithout.current === null) arrivedWithout.current = data.data === null || !data.data.competition;
   if (data.status === "ready" && data.data === null) return <NotFound />;
+  if (data.status === "ready" && data.data?.competition && arrivedWithout.current === false && (oppId || compId !== data.data.competition.id)) {
+    return <Navigate to={`${base}/competitions/${data.data.competition.id}`} replace />;
+  }
   const loaded = data.status === "ready" ? data.data : null;
   const competition = loaded?.competition ?? null;
   const opportunity = loaded?.opportunity;
@@ -256,7 +263,7 @@ export default function Competition() {
   const writeError = create.error ?? open.error ?? close.error;
 
   return (
-    <FunderShell active="Opportunities">
+    <FunderShell active="">
       <title>{t("funderCompetition.competition", { title: opportunity?.title ?? t("funderCompetition.competition2") })}</title>
       <main className="main">
         {data.status === "loading" && <Loading label={t("funderCompetition.loadingTheCompetition")} />}

@@ -18,7 +18,7 @@ import { NotFound } from "../../components/NotFound.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { ErrorBanner, Notice, PageHeader, TabPanel, Tabs } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
-import { canMarkSubmitted, canReopen, decisionOutcomes, plainMoves, type OutsideStage } from "../../lib/outside.ts";
+import { canMarkSubmitted, canReopen, decisionOutcomes, outsidePrimary, plainMoves, type OutsideStage } from "../../lib/outside.ts";
 import { moveLabel, stageLabel } from "./labels.ts";
 import { ChecklistTab } from "./outside/ChecklistTab.tsx";
 import { GoNoGoCard, NextCycleCard } from "./outside/decide.tsx";
@@ -94,6 +94,7 @@ export default function OutsideApplication() {
               const busy = move.state === "saving" || reopen.state === "saving" || archive.state === "saving";
               // A consultant invited into this draft writes its answers; the rest is the team's.
               const cowriter = detail.cowriter === true;
+              const primary = outsidePrimary(detail.stage, detail.questions);
               return (
                 <>
                   <PageHeader
@@ -137,14 +138,20 @@ export default function OutsideApplication() {
                     actions={
                       cowriter ? undefined : (
                       <>
+                        {primary === "questions" && (
+                          <button type="button" className="btn btn-primary" onClick={() => setTab("questions")}>
+                            {t("outsideApplication.tab.questions")}
+                          </button>
+                        )}
+                        {primary === "send" && <SendToFunderButton applicationId={detail.id} primary />}
                         {!archived && canMarkSubmitted(detail.stage) && (
-                          <button type="button" className="btn btn-primary" aria-haspopup="dialog" onClick={() => setDialog("submit")}>
+                          <button type="button" className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("submit")}>
                             <Send className="ic" aria-hidden="true" />
                             {t("outsideApplication.markAsSubmitted")}
                           </button>
                         )}
                         {outcomes.length > 0 && (
-                          <button type="button" className={detail.stage === "submitted" ? "btn btn-primary" : "btn btn-secondary"} aria-haspopup="dialog" onClick={() => setDialog("decide")}>
+                          <button type="button" className={primary === "decision" ? "btn btn-primary" : "btn btn-secondary"} aria-haspopup="dialog" onClick={() => setDialog("decide")}>
                             <Scale className="ic" aria-hidden="true" />
                             {t("outsideApplication.recordDecision")}
                           </button>
@@ -182,7 +189,7 @@ export default function OutsideApplication() {
                             </select>
                           </>
                         )}
-                        <SendToFunderButton applicationId={detail.id} />
+                        {primary !== "send" && <SendToFunderButton applicationId={detail.id} />}
                         <button type="button" className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("help")}>
                           <HandHelping className="ic" aria-hidden="true" />
                           {t("outsideApplication.getHelpWritingThis")}

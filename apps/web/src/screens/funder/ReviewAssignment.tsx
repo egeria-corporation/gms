@@ -14,6 +14,7 @@ import { EmptyState, ErrorBanner, Field, Loading, Notice, PageHeader } from "../
 import { usePeople, type Person } from "./shared.tsx";
 import { VerificationBadge } from "../../components/status.tsx";
 import { ReviewSettingsCard } from "./ReviewParity.tsx";
+import { readyToCommit } from "../../lib/panelNav.ts";
 import { t, useFunderMessages } from "./i18n.ts";
 
 const REVIEWER_ROLES = ["reviewer", "external_reviewer", "program_officer", "admin", "finance"];
@@ -148,6 +149,7 @@ export default function ReviewAssignment() {
   const cell = (appId: string, userId: string) => all.filter((a) => a.applicationId === appId && a.reviewerUserId === userId).sort((p, q) => (p.status === "recused" ? 1 : 0) - (q.status === "recused" ? 1 : 0))[0];
   const active = (appId: string) => all.filter((a) => a.applicationId === appId && a.status !== "recused").length;
   const loading = competitions.status === "loading" || apps.status === "loading" || assignments.status === "loading";
+  const ready = readyToCommit(competitions.data ?? []);
 
   return (
     <>
@@ -198,6 +200,20 @@ export default function ReviewAssignment() {
               ) : undefined
             }
           />
+          {ready.length > 1 && (
+            <section id="panels" className="card" aria-labelledby="panels-h">
+              <div className="card-h">
+                <h2 id="panels-h">{t("funderPanel.panelAndDecisions")}</h2>
+              </div>
+              <ul className="card-b" style={{ margin: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
+                {ready.map((c) => (
+                  <li key={c.id}>
+                    <Link to={`${base}/competitions/${c.id}/panel`}>{c.title}</Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {note && (
             <div className="bnr bnr-ok" role="status">
               <div className="t">{note}</div>

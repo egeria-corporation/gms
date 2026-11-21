@@ -9,7 +9,7 @@ import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { DataTable, EmptyState, ErrorBanner, Loading, PageHeader, type Column } from "../../components/ui.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
-import { OpportunityStatusBadge, publishedNotTaking } from "./applicationsStatus.tsx";
+import { competitionOf, OpportunityStatusBadge, publishedNotTaking } from "./applicationsStatus.tsx";
 import { t, useFunderMessages } from "./i18n.ts";
 
 export default function Opportunities() {
@@ -32,14 +32,16 @@ export default function Opportunities() {
       key: "go",
       header: "",
       numeric: true,
-      cell: (o) => (
+      cell: (o) => {
+        const comp = data.status === "ready" ? competitionOf(o.id, data.data.competitions) : undefined;
+        return (
         <span className="row" style={{ justifyContent: "flex-end", gap: "6px" }}>
           {data.status === "ready" && publishedNotTaking(o, data.data.competitions) && (
             <Link to={`${base}/opportunities/${o.id}/edit#applications`} className="btn btn-sm btn-primary" aria-label={t("funderOpportunities.setUpApplicationsFor", { title: o.title })}>
               {t("funderOpportunities.setUpApplications")}
             </Link>
           )}
-          <Link to={`${base}/opportunities/${o.id}/competition`} className="btn btn-sm btn-secondary" aria-label={t("funderOpportunities.competitionFor", { title: o.title })}>
+          <Link to={comp ? `${base}/competitions/${comp.id}` : `${base}/opportunities/${o.id}/competition`} className="btn btn-sm btn-secondary" aria-label={t("funderOpportunities.competitionFor", { title: o.title })}>
             {t("funderOpportunities.competition")}
           </Link>
           {o.published && (
@@ -48,7 +50,8 @@ export default function Opportunities() {
             </Link>
           )}
         </span>
-      ),
+        );
+      },
     },
   ];
 

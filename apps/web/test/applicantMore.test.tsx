@@ -322,9 +322,10 @@ describe("phone layouts follow the 390px artboards", () => {
     const pills = await screen.findByRole("navigation", { name: "Sections" });
     expect(within(pills).getAllByRole("link").length).toBeGreaterThan(1);
     const sheet = screen.getByRole("button", { name: /^Validation/ });
-    expect(sheet).toHaveAttribute("aria-expanded", "false");
+    const hasErrors = /to fix/.test(sheet.textContent ?? "");
+    expect(sheet).toHaveAttribute("aria-expanded", hasErrors ? "true" : "false");
     await user.click(sheet);
-    expect(sheet).toHaveAttribute("aria-expanded", "true");
+    expect(sheet).toHaveAttribute("aria-expanded", hasErrors ? "false" : "true");
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
   });
 });

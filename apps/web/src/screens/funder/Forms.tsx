@@ -68,7 +68,7 @@ export default function Forms() {
   );
 
   return (
-    <FunderShell active="Opportunities">
+    <FunderShell active="">
       <title>{t("funderForms.forms", { name: ws.name })}</title>
       <main className="main">
         <PageHeader crumbs={[{ label: ws.name, to: base }, { label: t("funderForms.opportunities"), to: `${base}/opportunities` }, { label: t("funderForms.forms2") }]} title={t("funderForms.forms2")} meta={<span>{t("funderForms.applicationReportAndLetter")}</span>} actions={<>{gallery}{blank}</>} />

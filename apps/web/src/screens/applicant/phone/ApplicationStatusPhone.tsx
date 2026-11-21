@@ -16,7 +16,7 @@ import { RevisionDiff } from "../../../components/RevisionDiff.tsx";
 import { StatusBadge } from "../../../components/status.tsx";
 import { ErrorBanner } from "../../../components/ui.tsx";
 import { formatDate } from "../../../lib/format.ts";
-import { describe, loadStatus, WITHDRAWABLE } from "../ApplicationStatus.tsx";
+import { describe, loadStatus, statusNext, WITHDRAWABLE } from "../ApplicationStatus.tsx";
 import { t, useApplicantText } from "../i18n.ts";
 
 export default function ApplicationStatusPhone() {
@@ -43,6 +43,7 @@ export default function ApplicationStatusPhone() {
             {({ status, summary, thread }) => {
               const funder = summary?.funder.name ?? t("applicationStatus.theFunder");
               const editable = status.status === "draft" || status.status === "revision_requested";
+              const now = statusNext(status.status);
               const requests = status.timeline.filter((e) => e.type === "request_revision");
               const responses = status.timeline.filter((e) => e.type === "submit" && e.revision);
               const current = status.stages.find((s) => s.state === "current");
@@ -68,6 +69,7 @@ export default function ApplicationStatusPhone() {
                       <span className="mono muted">{status.id.slice(0, 12)}…</span>
                       {status.submittedAt && <span className="small muted">{t("applicationStatus.submittedOn", { date: formatDate(status.submittedAt) })}</span>}
                     </div>
+                    {now && <p className="small" style={{ margin: 0 }}>{now}</p>}
                     {editable && (
                       <Link to={`${base}/applications/${status.id}/edit`} className="btn btn-primary btn-lg btn-block">
                         <Pencil className="ic" aria-hidden="true" />
