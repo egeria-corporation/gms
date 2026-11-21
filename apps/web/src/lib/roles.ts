@@ -25,3 +25,37 @@ export const canResendInvitation = (role: string): boolean => canGiveDirectAward
 
 /** Who may cancel (withdraw) an award: cancel keeps its own roles, the same two as giving one. */
 export const canCancelAward = (role: string): boolean => role === "admin" || role === "program_officer";
+
+/**
+ * What an applicant role may change. Mirrors `APPLICANT_ROLE_SCOPES` in the API: the screen hides
+ * a control the role's scopes will refuse, and says who can do it.
+ */
+export function applicantAccess(role: string | null | undefined) {
+  const admin = role === "admin" || role === "owner";
+  const editor = role === "editor";
+  const finance = role === "finance";
+  const viewer = role === "viewer";
+  const consultant = role === "consultant";
+  return {
+    /** workspace:admin, applications:submit, awards:write, agreements:write */
+    admin,
+    /** applications:write */
+    applications: admin || editor || consultant,
+    /** applications:submit */
+    submit: admin,
+    /** awards:write and agreements:write */
+    awards: admin,
+    /** requirements:write */
+    reports: admin || editor || finance,
+    /** messages:write */
+    messages: admin || editor || finance,
+    /** library:write */
+    library: admin || editor,
+    /** admin or editor: withdraw, email a package, calendar feed, vault writes, import */
+    draft: admin || editor,
+    /** discovery, which every applicant role has except a consultant */
+    discovery: admin || editor || finance || viewer,
+    /** requirements:read */
+    readReports: admin || editor || finance || viewer,
+  };
+}

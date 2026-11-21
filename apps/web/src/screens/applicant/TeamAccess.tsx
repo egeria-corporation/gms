@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import { Bot, Check, ShieldCheck, UserPlus, X } from "lucide-react";
 import type { ApplicantApi, ApplicantMember, Approval, Consent } from "../../api/applicant.ts";
+import { ApiError } from "../../api/client.ts";
 import { useApplicantMutation, useApplicantQuery } from "../../api/applicantHooks.ts";
 import type { ApplicantMoreApi, McpConnection } from "../../api/applicantMore.ts";
 import { useMoreApi, useMoreMutation } from "../../api/applicantMoreHooks.ts";
@@ -15,13 +16,22 @@ import { Avatar, FunderChip, Loaded, timeAgo } from "../../components/applicant.
 import { Dialog } from "../../components/Dialog.tsx";
 import { ApplicantShell } from "../../components/shells.tsx";
 import { DataTable, EmptyState, ErrorBanner, Field, problemFor, SaveNote, TabPanel, Tabs, type Column } from "../../components/ui.tsx";
+import { applicantAccess } from "../../lib/roles.ts";
 import { canRead } from "./organizationExtras.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { t, useApplicantText } from "./i18n.ts";
 
+const emptyIfForbidden = <T,>(empty: T) => (e: unknown) => (e instanceof ApiError && e.status === 403 ? empty : Promise.reject(e));
+
 const load = async (api: ApplicantApi, more: ApplicantMoreApi) => {
   // Connected agents are a convenience on this screen; a failure there must not hide the team.
-  const [members, consents, approvals, agents] = await Promise.all([api.members(), api.consents(), api.approvals(), more.connections().catch(() => [] as McpConnection[])]);
+  // Consents and approvals need scopes a consultant does not have; the roster still loads.
+  const [members, consents, approvals, agents] = await Promise.all([
+    api.members(),
+    api.consents().catch(emptyIfForbidden([] as Consent[])),
+    api.approvals().catch(emptyIfForbidden([] as Approval[])),
+    more.connections().catch(() => [] as McpConnection[]),
+  ]);
   return { members, consents, approvals, agents: agents.filter((c) => !c.revokedAt) };
 };
 
@@ -100,6 +110,8 @@ function InviteForm({ onInvited }: { onInvited: (email: string) => void }) {
 export default function TeamAccess() {
   useApplicantText();
   const ws = useWorkspace("applicant");
+  const access = applicantAccess(ws.member.role);
+  const canDecide = access.admin || access.applications || access.reports || access.messages;
   const more = useMoreApi();
   const query = useApplicantQuery((api) => load(api, more), [ws.id, more]);
   const activity = useLaunchQuery((api) => api.memberActivity(ws.id), [ws.id]);
@@ -184,18 +196,19 @@ export default function TeamAccess() {
     {
       key: "act",
       header: "",
-      cell: (c) => (
-        <button
-          type="button"
-          className="btn btn-sm btn-danger"
-          aria-label={c.clientName ? t("teamAccess.disconnectName", { name: c.clientName }) : t("teamAccess.disconnectAgent")}
-          onClick={async () => {
-            if (await disconnect.run(c.id)) query.reload();
-          }}
-        >
-          {t("teamAccess.disconnect")}
-        </button>
-      ),
+      cell: (c) =>
+        access.admin || c.mine ? (
+          <button
+            type="button"
+            className="btn btn-sm btn-danger"
+            aria-label={c.clientName ? t("teamAccess.disconnectName", { name: c.clientName }) : t("teamAccess.disconnectAgent")}
+            onClick={async () => {
+              if (await disconnect.run(c.id)) query.reload();
+            }}
+          >
+            {t("teamAccess.disconnect")}
+          </button>
+        ) : null,
     },
   ];
 
@@ -252,7 +265,7 @@ export default function TeamAccess() {
                         </h2>
                         <DataTable label={t("teamAccess.teamMembers")} columns={memberColumns} rows={staff} rowKey={(m) => m.userId} empty={<EmptyState icon={UserPlus} title={t("teamAccess.justYouSoFar")} />} />
                       </section>
-                      <InviteForm onInvited={setInvited} />
+                      {access.admin ? <InviteForm onInvited={setInvited} /> : <p className="small muted">{t("access.adminInvites")}</p>}
                     </div>
                   </TabPanel>
 
@@ -270,12 +283,12 @@ export default function TeamAccess() {
                           rowKey={(m) => m.userId}
                           empty={
                             <EmptyState icon={UserPlus} title={t("teamAccess.noConsultants")}>
-                              {t("teamAccess.inviteOneWithTheConsultantRole")}
+                              {access.admin ? t("teamAccess.inviteOneWithTheConsultantRole") : t("access.adminInvites")}
                             </EmptyState>
                           }
                         />
                       </section>
-                      <InviteForm onInvited={setInvited} />
+                      {access.admin ? <InviteForm onInvited={setInvited} /> : <p className="small muted">{t("access.adminInvites")}</p>}
                     </div>
                   </TabPanel>
 
@@ -323,10 +336,12 @@ export default function TeamAccess() {
                                   <td>
                                     {c.revokedAt ? (
                                       <span className="tag">{t("teamAccess.removed")}</span>
-                                    ) : (
+                                    ) : access.admin ? (
                                       <button className="btn btn-sm btn-danger" type="button" aria-haspopup="dialog" onClick={() => setRevoking(c)}>
                                         {t("teamAccess.removeAccess")}
                                       </button>
+                                    ) : (
+                                      <span className="small muted">{t("access.adminRemovesAccess")}</span>
                                     )}
                                   </td>
                                 </tr>
@@ -345,6 +360,7 @@ export default function TeamAccess() {
                           <h2 id="agents-h" style={{ fontSize: "18px" }}>
                             {t("teamAccess.agents")}
                           </h2>
+                          {!access.admin && <p className="small muted">{t("access.adminDisconnects")}</p>}
                           {disconnect.error ? <ErrorBanner error={disconnect.error} title={t("teamAccess.theAgentIsStillConnected")} /> : null}
                           <DataTable
                             label={t("teamAccess.connectedAgents")}
@@ -389,7 +405,7 @@ export default function TeamAccess() {
                                     </div>
                                   )}
                                 </div>
-                                {a.status === "pending" && (
+                                {a.status === "pending" && canDecide && (
                                   <div className="ft">
                                     <button
                                       className="btn btn-primary btn-sm"
@@ -415,6 +431,7 @@ export default function TeamAccess() {
                                     </button>
                                   </div>
                                 )}
+                                {a.status === "pending" && !canDecide && <p className="small muted">{t("access.adminOnly")}</p>}
                               </div>
                             ))}
                           </div>

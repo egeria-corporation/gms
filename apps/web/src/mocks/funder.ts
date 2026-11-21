@@ -28,6 +28,7 @@ import type {
 } from "../api/funder.ts";
 import type { Rubric } from "../api/types.ts";
 import { MOCK_USER } from "./fixtures.ts";
+import { bindImportedAwards } from "./importedAwards.ts";
 import { LOI_PROVENANCE, LOI_RESPONSE } from "./forms.ts";
 import { IDS, type WorkspaceData } from "./store.ts";
 import { anonymizeDetail, assignmentAsSeen, cleared, createMockParityApi, isAnonymized, seedParity, type ParityState } from "./reviewParity.ts";
@@ -301,6 +302,43 @@ export function createMockFunderApi(ctx: MockFunderCtx): FunderApi {
     if (!states.has(w.record.id)) states.set(w.record.id, w.record.id === IDS.riverbend ? seed() : empty());
     return { w, s: states.get(w.record.id)! };
   }
+  bindImportedAwards({
+    award: async (row, recipientWorkspaceId) => {
+      const { w, s } = await st();
+      const id = (row.id.startsWith("awd_") ? row.id : `awd_${row.id}`) as AwardDetail["id"];
+      if (s.awards.some((a) => a.id === id)) return;
+      const sample = seed().awards[0];
+      if (!sample) return;
+      const handle = row.recipientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "imported";
+      s.awards.push({
+        ...clone(sample),
+        id,
+        title: row.title,
+        description: row.programName,
+        status: row.status,
+        requestedAmountMinor: row.amountMinor,
+        awardedAmountMinor: row.amountMinor,
+        disbursedAmountMinor: row.paidMinor ?? 0,
+        disbursedAt: null,
+        keyDates: {},
+        conditions: ["imported"],
+        applicationId: null,
+        opportunityId: null,
+        programId: null,
+        parentAwardId: null,
+        funder: { workspaceId: w.record.id as AwardDetail["funder"]["workspaceId"], name: w.record.displayName, handle: w.record.handle, brand: null },
+        recipient: { workspaceId: recipientWorkspaceId as NonNullable<AwardDetail["recipient"]>["workspaceId"], name: row.recipientName, handle, level: null, verification: null },
+        recipientIndividual: null,
+        passport: { awardId: null, syncedAt: null, mirror: "not_applicable" },
+        agreement: null,
+        tranches: [],
+        requirements: [],
+        amendments: [],
+        createdAt: ctx.now(),
+        updatedAt: ctx.now(),
+      });
+    },
+  });
   const missing = (what: string) => ctx.fail(404, `${what} not found`) as MockError;
   const find = <T extends { id: string }>(rows: T[], id: string, what: string): T => {
     const row = rows.find((r) => r.id === id || r.id.replace(/^[a-z]{3}_/, "") === id);

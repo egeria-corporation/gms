@@ -15,7 +15,7 @@ Supabase stack.
   human gates and approvals, inbound Passport and Resend webhooks, outbound webhooks with replay.
 - **Jobs Worker:** due evaluators, reminders, digests, webhook delivery, Passport sync, award-mirror
   retry, stuck-release reconcile, Mercury poll, nightly ledger archive.
-- **Web app:** 46 of 67 design artboards are fully live, 7 are partial, 14 are reference boards
+- **Web app:** 53 of 67 design artboards are live and none are partial; 14 are reference boards
   (email, PDF, styleguide). Sign-in with MFA, workspace switcher, form renderer and builder, six
   phone layouts matching the 390px artboards. Coverage table: `apps/web/README.md`.
 - **Database:** 50+ tables with RLS, 14 migrations, seed, pgTAP.
@@ -68,13 +68,41 @@ Supabase stack.
 - OpenGrants MCP: tool names are guesses; the endpoint was unreachable from the build environment.
 - Anthropic, Supabase Auth, Supabase Realtime, R2, Queues, KV: never exercised live.
 
-**Seven partial screens** (details in `apps/web/README.md`)
-- Need a Passport change: representatives on the organization screen and the signer check against a
-  representative (Passport shares representatives with member sessions only).
-- No data source: account sessions, members' last-active time.
-- Not built: budget category mapping, program owner and outcome totals, named funder contacts,
-  interview slot picking in the web app (the API has propose and confirm routes), signature IP in
-  the agreement response, `contactEmail` on the public funder record.
+**Screens that still depend on Passport or a field the API does not return**
+- Representatives on the organization screen, and the signer check against a representative, need
+  Passport to share representatives with consented apps. Until then those states are explained on
+  the screen.
+- Account sessions and members' last-active time show what the API returns. There is no richer
+  activity source.
+- The agreement records the signature IP. The API does not return it, so the screen does not show it.
+- `contactEmail` on the public funder record can be empty.
+
+Budget category mapping, program owners and outcome totals, named funder contacts, and interview
+slot picking are built. The phone application status screen includes the same interview and decision
+sections as the desktop screen, and an accepted application links to that offer.
+
+**What a staging walk still needs**
+
+These are configuration. The product does not stand in for them.
+
+- Passport client credentials and `PASSPORT_AWARD_WRITE`. Until that flag is on, the agreement
+  mirror stays pending, and both a facilitated release and "record what was paid elsewhere" stop
+  on readiness. When the flag is on, mirroring an award also calls Passport `linkNonprofit`, so
+  payment alerts for a destination change or a level drop can reach that funder. A 409 means the
+  link is already there.
+- `PAYMENTS_FACILITATED` for a payment sent through Passport. Without it the GMS only records a
+  payment the funder made elsewhere.
+- `RESEND_FROM` (and the Resend key). Commit, bulk send, report reminders, and syndication email
+  succeed or return 503 depending on mail. The panel says when an award was created and the letter
+  was not sent.
+- The exports bucket, for the board docket.
+- The jobs Worker cron: reminders, the award-mirror retry, and digests.
+- Composio, Mercury, Zernio, and a custom MCP server stay "not set up on this server" until their
+  secrets exist. An SSO domain stays pending until an operator activates it. That is the expected
+  settings state, not a failed step.
+
+Nothing in this list has been verified on live Passport, Resend, or Supabase. The keyboard-only
+applicant pass in `docs/acceptance.md` is still open.
 
 **Other**
 - The mock stores for funder and applicant are separate, so the cross-side e2e flows use each
@@ -94,4 +122,4 @@ Supabase stack.
 
 1. Provide credentials; register the GMS client at Passport with `payee:read` in its allowed scopes.
 2. Deploy to a test environment and run `docs/acceptance.md` item by item; fix what real services reveal.
-3. Close the seven partial screens once the decisions above are made.
+3. Turn on the staging flags above and walk `docs/acceptance.md` on that install.

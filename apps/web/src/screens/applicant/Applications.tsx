@@ -20,6 +20,7 @@ import { StatusBadge } from "../../components/status.tsx";
 import { DataTable, EmptyState, ErrorBanner, type Column } from "../../components/ui.tsx";
 import { downloadBlob } from "../../lib/browser.ts";
 import { daysUntil, formatDate } from "../../lib/format.ts";
+import { applicantAccess } from "../../lib/roles.ts";
 import { NewApplicationDialog } from "./outside/NewApplicationDialog.tsx";
 import { DEADLINE_LABELS, DeadlineText, moneyText, nextDeadline } from "./outside/shared.tsx";
 import { t, useApplicantText } from "./i18n.ts";
@@ -255,6 +256,7 @@ function Archived({ base }: { base: string }) {
 export default function Applications() {
   useApplicantText();
   const ws = useWorkspace("applicant");
+  const access = applicantAccess(ws.member.role);
   const base = `/w/${ws.handle}`;
   const applicant = useApplicantApi();
   const { meState } = useServices();
@@ -330,14 +332,22 @@ export default function Applications() {
               </div>
             </div>
             <div className="actions">
+              {access.applications ? (
               <button type="button" className="btn btn-primary" aria-haspopup="dialog" onClick={() => setDialog("new")}>
                 <Plus className="ic" aria-hidden="true" />
                 {t("pipeline.newApplication")}
               </button>
+              ) : (
+                <p className="small muted">{t("access.cannotStart")}</p>
+              )}
+              {access.draft ? (
               <Link to={`${base}/import`} className="btn btn-secondary">
                 <Upload className="ic" aria-hidden="true" />
                 {t("pipeline.import")}
               </Link>
+              ) : (
+                <p className="small muted">{t("access.cannotImport")}</p>
+              )}
               <label className="sr" htmlFor="apps-export">
                 {t("pipeline.export")}
               </label>
@@ -433,9 +443,13 @@ export default function Applications() {
                       title={t("pipeline.noApplicationsYet")}
                       actions={
                         <>
+                          {access.applications ? (
                           <button type="button" className="btn btn-primary" onClick={() => setDialog("new")}>
                             {t("pipeline.newApplication")}
                           </button>
+                          ) : (
+                            <p className="small muted">{t("access.cannotStart")}</p>
+                          )}
                           <Link to={`${base}/find`} className="btn btn-secondary">
                             {t("pipeline.findFunding")}
                           </Link>

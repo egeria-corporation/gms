@@ -4,6 +4,8 @@
 import { useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { useOutsideMutation } from "../../../api/outsideHooks.ts";
+import { useWorkspace } from "../../../app/workspace.tsx";
+import { applicantAccess } from "../../../lib/roles.ts";
 import { CopyButton } from "../../../components/CopyButton.tsx";
 import { ErrorBanner, Notice } from "../../../components/ui.tsx";
 import { t } from "../i18n.ts";
@@ -16,6 +18,7 @@ export function CalendarFeedCard() {
     await api.deleteCalendarFeed();
     return true;
   });
+  const canChange = applicantAccess(useWorkspace("applicant").member.role).draft;
   const busy = create.state === "saving" || remove.state === "saving";
   return (
     <section className="card" aria-labelledby="calfeed-h">
@@ -50,6 +53,8 @@ export function CalendarFeedCard() {
         ) : (
           <p className="small muted">{t("outsideCalendarFeedCard.ifYouMadeALinkBefore")}</p>
         )}
+        {!canChange && <p className="small muted">{t("access.cannotChangeCalendar")}</p>}
+        {canChange && (
         <div className="row" style={{ gap: "8px", flexWrap: "wrap" }}>
           <button
             type="button"
@@ -79,6 +84,7 @@ export function CalendarFeedCard() {
             {t("outsideCalendarFeedCard.turnOffTheCalendarLink")}
           </button>
         </div>
+        )}
         {create.error ? <ErrorBanner error={create.error} title={t("outsideCalendarFeedCard.theLinkWasNotMade")} /> : null}
         {remove.error ? <ErrorBanner error={remove.error} title={t("outsideCalendarFeedCard.theLinkWasNotTurnedOff")} /> : null}
       </div>

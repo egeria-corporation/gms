@@ -59,6 +59,7 @@ function Editor({ requirement, data, onChanged }: { requirement: MyRequirement; 
             )}
             {report.save.state === "error" && t("reports.notSaved")}
           </span>
+          {!report.canWrite && <p className="small muted">{t("access.cannotWriteReports")}</p>}
           {report.editable && (
             <button className="btn btn-primary" type="button" disabled={report.submit.state === "sending" || !l?.def} onClick={() => void report.send()}>
               {report.submit.state === "sending" ? t("reports.submitting") : l?.submission.status === "returned" ? t("reports.resubmitReport") : t("reports.submitReport")}
@@ -76,9 +77,13 @@ function Editor({ requirement, data, onChanged }: { requirement: MyRequirement; 
             icon={ClipboardCheck}
             title={t("reports.notStarted", { title: requirement.title })}
             actions={
+              report.canWrite ? (
               <button className="btn btn-primary" type="button" onClick={report.start}>
                 {actionFor(requirement)?.label ?? t("reports.startReport")}
               </button>
+              ) : (
+                <p className="small muted">{t("access.cannotWriteReports")}</p>
+              )
             }
           >
             {t("reports.startingFillsInWhatPassportAnd")}

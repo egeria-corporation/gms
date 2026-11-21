@@ -22,6 +22,7 @@ export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceI
   const record = useApiQuery((api) => api.workspaceRecord(workspaceId), [workspaceId]);
   const save = useApiMutation((api, profile: SelfDeclaredProfile) => api.updateProfile(workspaceId, toPatch(profile)));
   const canEdit = ws?.member.role === "admin";
+  const funder = ws?.kind === "funder";
 
   let body;
   if (record.status === "loading") body = <Loading label={t("organizationProfileCard.loadingYourOrganizationDetails")} />;
@@ -52,13 +53,14 @@ export function OrganizationProfileCard({ workspaceId, connectTo }: { workspaceI
       body = (
         <>
           <Notice tone="info" title={t("organizationProfileCard.notVerified")}>
-            {t("organizationProfileCard.theseDetailsAreEnteredBy")}
+            {t(funder ? "organizationProfileCard.enteredHereNotVerified" : "organizationProfileCard.theseDetailsAreEnteredBy")}
             {flags.linking && ` ${t("organizationProfileCard.linkingPassportVerifiesItFills")}`}
           </Notice>
           {canEdit ? (
             <ProfileForm
               key={JSON.stringify(r.profile ?? null)}
               idPrefix="settings-profile"
+              contactHelp={funder ? t("profileForm.shownOnYourPublicPage") : undefined}
               initial={r.profile ?? { legalName: r.legalName ?? r.displayName }}
               submitLabel={t("organizationProfileCard.saveDetails")}
               busy={save.state === "saving"}

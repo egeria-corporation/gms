@@ -246,6 +246,17 @@ describe("Awarded funding (was My grants)", () => {
       </MemoryRouter>,
     );
     expect(screen.getByText(/The award and its agreement are under Awarded funding\./)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open the award" })).toHaveAttribute("href", `${A}/grants`);
+  });
+
+  it("an accepted decision with an offer opens that offer", () => {
+    const status = { status: "accepted", timeline: [{ id: "e1", type: "accept", fromStatus: "under_review", toStatus: "accepted", fromStage: null, toStage: null, at: "2027-06-12T17:00:00Z", message: null }] } as unknown as ApplicationStatusView;
+    render(
+      <MemoryRouter>
+        <DecisionSection status={status} funder="Riverbend Community Foundation" base={A} awardId="awd_1" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("link", { name: "Open the award" })).toHaveAttribute("href", `${A}/grants/awd_1/offer`);
   });
 });
 

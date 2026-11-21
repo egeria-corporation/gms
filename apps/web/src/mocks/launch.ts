@@ -48,7 +48,7 @@ function passportSwitch(): boolean {
 export function seedLaunchStore(): LaunchStore {
   const on = passportSwitch();
   return {
-    config: { facilitatedPayments: false, passport: { signIn: on, linking: on, payments: false }, available: { openGrants: true, assistant: true, googleWorkspace: true, mercury: true, customMcp: true, slack: true, googleCalendar: true, googleDrive: true, salesforce: true } },
+    config: { facilitatedPayments: false, passport: { signIn: on, linking: on, payments: false }, available: { openGrants: true, assistant: true, googleWorkspace: true, mercury: true, customMcp: true, social: true, slack: true, googleCalendar: true, googleDrive: true, salesforce: true } },
     sessions: [
       { id: "5e000000-0000-7000-8000-000000000001", createdAt: "2027-04-20T15:02:00Z", lastActiveAt: "2027-04-20T16:40:00Z", device: "Chrome on macOS", ip: "203.0.113.24", mfa: true, current: true },
       { id: "5e000000-0000-7000-8000-000000000002", createdAt: "2027-04-18T02:11:00Z", lastActiveAt: "2027-04-19T21:05:00Z", device: "Safari on iPhone", ip: "198.51.100.7", mfa: true, current: false },
@@ -113,6 +113,8 @@ export interface MockLaunchOptions {
   session: () => Promise<Session | null>;
   store?: LaunchStore;
   now?: () => Date;
+  /** When set, contact edits follow the signed-in role. Absent, any signed-in person can save. */
+  role?: () => string | null;
 }
 
 const clone = <T>(v: T): T => structuredClone(v);
@@ -218,6 +220,7 @@ export function createMockLaunchApi(opts: MockLaunchOptions): LaunchApi {
     },
     async putContacts(contacts) {
       await me();
+      if (opts.role && opts.role() !== "admin") throw new ApiError(403, "Only a workspace admin can change these contacts");
       for (const c of contacts) {
         if (!c.name.trim()) throw new ApiError(400, "Each contact needs a name", [{ field: "name", message: "Enter a name" }]);
         if (!/^\S+@\S+\.\S+$/.test(c.email)) throw new ApiError(400, "Each contact needs an email address", [{ field: "email", message: "Enter an email address" }]);

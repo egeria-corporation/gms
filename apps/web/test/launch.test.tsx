@@ -26,6 +26,7 @@ import { MONEY_IDS } from "../src/mocks/funderMoney.ts";
 import { createMockLaunchApi, seedLaunchStore, type LaunchStore } from "../src/mocks/launch.ts";
 import { IDS } from "../src/mocks/store.ts";
 import { DriveExportButton } from "../src/screens/funder/GoogleWorkspace.tsx";
+import { viewport } from "./setup.ts";
 
 const left = vi.hoisted(() => ({ to: [] as string[] }));
 vi.mock("../src/lib/browser.ts", async (original) => ({ ...(await original<typeof Browser>()), leaveTo: (url: string) => void left.to.push(url) }));
@@ -186,6 +187,23 @@ describe("interview times", () => {
     expect(await section.findByText("Time confirmed")).toBeInTheDocument();
     expect(launch.interviews[CLINIC_APP]!.confirmed?.slot).toBe("2027-05-05T20:30:00Z");
     expect(section.queryByRole("radio")).not.toBeInTheDocument();
+  });
+
+  it("on a phone, the status screen includes the interview, the decision, and the offer", async () => {
+    viewport.phone = true;
+    try {
+      const id = `app_${APPLICANT_IDS.appHealth}`;
+      applicant(`${A}/applications/${id}`, (store, _f, l) => {
+        store.applications.find((a) => a.uuid === APPLICANT_IDS.appHealth)!.status = "accepted";
+        l.interviews[id] = structuredClone(offered);
+      });
+      const interview = within(await screen.findByRole("region", { name: "Interview scheduling" }));
+      expect(interview.getAllByRole("radio")).toHaveLength(2);
+      const decision = screen.getByRole("region", { name: "Decision" });
+      expect(within(decision).getByRole("link", { name: "Open the award" })).toHaveAttribute("href", `${A}/grants/awd_${APPLICANT_IDS.awardHealth}/offer`);
+    } finally {
+      viewport.phone = false;
+    }
   });
 
   it("the funder offers times from the application", async () => {

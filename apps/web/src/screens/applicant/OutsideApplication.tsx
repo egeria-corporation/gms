@@ -19,6 +19,7 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { ErrorBanner, Notice, PageHeader, TabPanel, Tabs } from "../../components/ui.tsx";
 import { formatDate } from "../../lib/format.ts";
 import { canMarkSubmitted, canReopen, decisionOutcomes, outsidePrimary, plainMoves, type OutsideStage } from "../../lib/outside.ts";
+import { applicantAccess } from "../../lib/roles.ts";
 import { moveLabel, stageLabel } from "./labels.ts";
 import { ChecklistTab } from "./outside/ChecklistTab.tsx";
 import { GoNoGoCard, NextCycleCard } from "./outside/decide.tsx";
@@ -87,7 +88,9 @@ export default function OutsideApplication() {
         <main className="main">
           <Loaded query={query} label={t("outsideApplication.openingTheApplication")}>
             {({ detail, record, records, members, answers, org, settings }) => {
+              const access = applicantAccess(ws.member.role);
               const archived = !!detail.archivedAt;
+              const locked = archived || !access.applications;
               const moves = archived ? [] : plainMoves(detail.stage);
               const outcomes = archived ? [] : decisionOutcomes(detail.stage);
               const owner = detail.owner ? (members.find((m) => m.userId === detail.owner!.userId)?.name ?? detail.owner.name ?? t("outsideApplication.aTeammate")) : null;
@@ -138,31 +141,31 @@ export default function OutsideApplication() {
                     actions={
                       cowriter ? undefined : (
                       <>
-                        {primary === "questions" && (
+                        {!locked && primary === "questions" && (
                           <button type="button" className="btn btn-primary" onClick={() => setTab("questions")}>
                             {t("outsideApplication.tab.questions")}
                           </button>
                         )}
                         {primary === "send" && <SendToFunderButton applicationId={detail.id} primary />}
-                        {!archived && canMarkSubmitted(detail.stage) && (
+                        {!locked && canMarkSubmitted(detail.stage) && (
                           <button type="button" className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("submit")}>
                             <Send className="ic" aria-hidden="true" />
                             {t("outsideApplication.markAsSubmitted")}
                           </button>
                         )}
-                        {outcomes.length > 0 && (
+                        {!locked && outcomes.length > 0 && (
                           <button type="button" className={primary === "decision" ? "btn btn-primary" : "btn btn-secondary"} aria-haspopup="dialog" onClick={() => setDialog("decide")}>
                             <Scale className="ic" aria-hidden="true" />
                             {t("outsideApplication.recordDecision")}
                           </button>
                         )}
-                        {!archived && canReopen(detail.stage) && detail.previousStage && (
+                        {!locked && canReopen(detail.stage) && detail.previousStage && (
                           <button type="button" className="btn btn-secondary" disabled={busy} onClick={async () => after(await reopen.run(), t("outsideApplication.reopenedAt", { stage: stageLabel(detail.previousStage!) }))}>
                             <RotateCcw className="ic" aria-hidden="true" />
                             {t("outsideApplication.reopen")}
                           </button>
                         )}
-                        {moves.length > 0 && (
+                        {!locked && moves.length > 0 && (
                           <>
                             <label className="sr" htmlFor="oa-move">
                               {t("outsideApplication.moveToAnotherStage")}
@@ -190,20 +193,25 @@ export default function OutsideApplication() {
                           </>
                         )}
                         {primary !== "send" && <SendToFunderButton applicationId={detail.id} />}
+                        {!locked && (
                         <button type="button" className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("help")}>
                           <HandHelping className="ic" aria-hidden="true" />
                           {t("outsideApplication.getHelpWritingThis")}
                         </button>
-                        {!archived && (
+                        )}
+                        {!locked && (
                           <button type="button" className="btn btn-ghost" aria-haspopup="dialog" onClick={() => setDialog("edit")}>
                             <Pencil className="ic" aria-hidden="true" />
                             {t("outsideApplication.editDetails")}
                           </button>
                         )}
+                        {access.applications && (
                         <button type="button" className="btn btn-ghost" disabled={busy} onClick={async () => after(await archive.run(!archived), archived ? t("outsideApplication.unarchivedNote") : t("outsideApplication.archivedNote"))}>
                           {archived ? <ArchiveArrowUp className="ic" aria-hidden="true" /> : <Archive className="ic" aria-hidden="true" />}
                           {archived ? t("outsideApplication.unarchive") : t("outsideApplication.archive")}
                         </button>
+                        )}
+                        {!access.applications && <p className="small muted">{t("access.cannotChangeApplication")}</p>}
                       </>
                       )
                     }
@@ -230,7 +238,7 @@ export default function OutsideApplication() {
                   )}
                   {[move.error, reopen.error, archive.error].map((e, i) => (e ? <ErrorBanner key={i} error={e} title={t("outsideApplication.thatChangeWasNotMade")} /> : null))}
                   {!cowriter && <NextCycleCard detail={detail} />}
-                  {!cowriter && <GoNoGoCard detail={detail} settings={settings} members={members} readOnly={archived} onDone={(a, message) => after(a, message)} />}
+                  {!cowriter && <GoNoGoCard detail={detail} settings={settings} members={members} readOnly={locked} onDone={(a, message) => after(a, message)} />}
                   {detail.stage === "awarded" && !cowriter && (
                     <div className="bnr bnr-ok" role="region" aria-label={t("outsideApplication.awarded")}>
                       <Award className="ic" aria-hidden="true" />
@@ -257,18 +265,18 @@ export default function OutsideApplication() {
                     ].filter((x) => !cowriter || x.key === "questions").map((x) => (x.count === undefined ? { key: x.key as Tab, label: x.label } : { key: x.key as Tab, label: x.label, count: x.count }))}
                   />
                   <TabPanel idPrefix="oa" tab="questions" active={cowriter ? "questions" : tab}>
-                    <QuestionsTab detail={detail} members={members} answers={answers} org={org} readOnly={archived} onChanged={query.reload} />
+                    <QuestionsTab detail={detail} members={members} answers={answers} org={org} readOnly={locked && !cowriter} onChanged={query.reload} />
                   </TabPanel>
                   {!cowriter && (
                   <>
                   <TabPanel idPrefix="oa" tab="checklist" active={tab}>
-                    <ChecklistTab detail={detail} members={members} readOnly={archived} onChanged={query.reload} />
+                    <ChecklistTab detail={detail} members={members} readOnly={locked} onChanged={query.reload} />
                   </TabPanel>
                   <TabPanel idPrefix="oa" tab="submission" active={tab}>
-                    <SubmissionTab detail={detail} record={record} base={base} readOnly={archived} onMarkSubmitted={() => setDialog("submit")} />
+                    <SubmissionTab detail={detail} record={record} base={base} readOnly={locked} onMarkSubmitted={() => setDialog("submit")} />
                   </TabPanel>
                   <TabPanel idPrefix="oa" tab="notes" active={tab}>
-                    <NotesTab detail={detail} record={record} base={base} readOnly={archived} onChanged={query.reload} />
+                    <NotesTab detail={detail} record={record} base={base} readOnly={locked} onChanged={query.reload} />
                   </TabPanel>
                   <TabPanel idPrefix="oa" tab="activity" active={tab}>
                     <ActivityTab detail={detail} members={members} />

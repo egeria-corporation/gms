@@ -213,26 +213,40 @@ export default function Panel() {
               </Field>
             )}
             {(propose.error !== null || commit.error !== null) && <ErrorBanner error={commit.error ?? propose.error} />}
-            {result && (
-              <div className="bnr bnr-ok" role="status">
-                <Check className="ic" aria-hidden="true" />
+            {result && (() => {
+              const lettersUnsent = result.results.some((r) => r.ok && r.letterSent === false);
+              const trouble = result.failed > 0 || lettersUnsent;
+              const who = (applicationId: string) => rows.find((x) => x.applicationId === applicationId)?.applicant ?? t("funderPanel.theApplicant");
+              return (
+              <div className={trouble ? "bnr bnr-warn" : "bnr bnr-ok"} role="status">
+                {trouble ? <TriangleExclamationPoint className="ic" aria-hidden="true" /> : <Check className="ic" aria-hidden="true" />}
                 <div>
                   <div className="t">
                     {t("funderPanel.decisionsCommitted", { count: result.committed })}
                   </div>
+                  {result.failed > 0 && <div className="d">{t("funderPanel.decisionsFailed", { count: result.failed })}</div>}
+                  {lettersUnsent && <div className="d">{t("funderPanel.lettersNotSent")}</div>}
                   <div className="d">
                     {result.results
                       .filter((r) => r.awardId)
                       .map((r) => (
                         <Link key={r.decisionId} to={`${base}/awards/${r.awardId}/agreement`} style={{ marginRight: "12px" }}>
-                          {t("funderPanel.openAwardFor", { name: rows.find((x) => x.applicationId === r.applicationId)?.applicant ?? t("funderPanel.theApplicant") })}
+                          {t("funderPanel.openAwardFor", { name: who(r.applicationId) })}
                         </Link>
                       ))}
                     {result.override && <span>{t("funderPanel.overrideRecorded", { reason: result.override.reason })}</span>}
                   </div>
+                  {result.results
+                    .filter((r) => !r.ok)
+                    .map((r) => (
+                      <div className="d" key={r.decisionId}>
+                        {t("funderPanel.decisionFailedLine", { name: who(r.applicationId), message: r.message ?? "" })}
+                      </div>
+                    ))}
                 </div>
               </div>
-            )}
+              );
+            })()}
           </section>
 
           {ranking.status === "loading" && <Loading label={t("funderPanel.loadingTheRanking")} />}
