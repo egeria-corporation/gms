@@ -139,21 +139,22 @@ function RailList({ ws, items, active }: { ws: Workspace; items: RailItem[]; act
 }
 
 function funderRail(ws: Workspace): RailItem[] {
-  // A role is shown only what it can use; the API still decides access.
+  // Labels are English identity keys (role hiding and the current item compare them).
+  // railLabel() is what the person reads, in their language. The API still decides access.
   const hidden = hiddenFunderRailItems(ws.member.role ?? "admin");
   return [
-    { label: t("shells.rail.dashboard"), icon: LayoutDashboard, path: "" },
-    { label: t("shells.rail.programs"), icon: Briefcase, path: "/programs" },
-    { label: t("shells.rail.opportunities"), icon: Layers, path: "/opportunities" },
-    { label: t("shells.rail.applications"), icon: Inbox, path: "/applications" },
-    { label: t("shells.rail.reviews"), icon: ClipboardCheck, path: "/reviews/assign" },
-    { label: t("shells.rail.awards"), icon: Award, path: "/awards" },
-    { label: t("shells.rail.payments"), icon: Banknote, path: "/payments/due" },
-    { label: t("shells.rail.reporting"), icon: FileText, path: "/reporting" },
-    { label: t("shells.rail.grantees"), icon: Users, path: "/grantees" },
-    { label: t("shells.rail.analytics"), icon: ChartColumn, path: "/analytics" },
-    { label: t("shells.rail.communications"), icon: Mail, path: "/communications" },
-    { label: t("shells.rail.approvals"), icon: Bot, path: "/approvals", count: ws.pendingApprovals },
+    { label: "Dashboard", icon: LayoutDashboard, path: "" },
+    { label: "Programs", icon: Briefcase, path: "/programs" },
+    { label: "Opportunities", icon: Layers, path: "/opportunities" },
+    { label: "Applications", icon: Inbox, path: "/applications" },
+    { label: "Reviews", icon: ClipboardCheck, path: "/reviews/assign" },
+    { label: "Awards", icon: Award, path: "/awards" },
+    { label: "Payments", icon: Banknote, path: "/payments/due" },
+    { label: "Reporting", icon: FileText, path: "/reporting" },
+    { label: "Grantees", icon: Users, path: "/grantees" },
+    { label: "Analytics", icon: ChartColumn, path: "/analytics" },
+    { label: "Communications", icon: Mail, path: "/communications" },
+    { label: "Approvals", icon: Bot, path: "/approvals", count: ws.pendingApprovals },
     { label: "Settings", icon: Settings, path: "/settings" },
   ].filter((item) => !hidden.has(item.label));
 }

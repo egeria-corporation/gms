@@ -194,6 +194,9 @@ export default function Applications() {
   const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   const tags = [...new Set(rows.flatMap((r) => r.tags))];
   const filtered = FILTER_KEYS.some((k) => params.get(k)) || viewKey !== "all";
+  // Nothing in the inbox yet: send the funder to a competition they can still open.
+  // When every competition is already open, the opportunities list is where the next one starts.
+  const toOpen = (competitions.data ?? []).find((c) => c.status === "draft") ?? (competitions.data ?? []).find((c) => c.status !== "open");
 
   const select = (k: FilterKey, label: string, options: [string, string][]) => (
     <label className={params.get(k) ? "fchip on" : "fchip"}>
@@ -399,7 +402,7 @@ export default function Applications() {
                     {t("funderApplications.changeOrClearThe")}
                   </EmptyState>
                 ) : (
-                  <EmptyState icon={Inbox} title={t("funderApplications.noApplicationsYet")} actions={<Link to={`/w/${ws.handle}/opportunities`}>{t("funderApplications.goToOpportunities")}</Link>}>
+                  <EmptyState icon={Inbox} title={t("funderApplications.noApplicationsYet")} actions={<Link to={toOpen ? `/w/${ws.handle}/competitions/${toOpen.id}` : `/w/${ws.handle}/opportunities`}>{toOpen ? t("funderCompetition.openCompetition") : t("funderApplications.goToOpportunities")}</Link>}>
                     {t("funderApplications.applicationsArriveHereOnce")}
                   </EmptyState>
                 )

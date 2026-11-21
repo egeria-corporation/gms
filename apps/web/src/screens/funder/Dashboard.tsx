@@ -331,7 +331,7 @@ export default function Dashboard() {
                   <section className="card" aria-labelledby="activity-h">
                     <div className="card-h">
                       <h3 id="activity-h">{t("funderDashboard.recentActivity")}</h3>
-                      <Link to={`${base}/settings/mcp#ledger`} className="small b">
+                      <Link to={`${base}/payments/ledger`} className="small b">
                         {t("funderDashboard.ledger")}
                       </Link>
                     </div>

@@ -44,6 +44,7 @@ describe("dashboard", () => {
     expect(await screen.findByRole("article", { name: /Approval request: Decline 2 applications/ })).toBeInTheDocument();
     expect(await screen.findByText("Harbor Light Shelter · destination change pending")).toBeInTheDocument();
     expect(await screen.findByRole("checkbox", { name: /Done: Countersign the Alder Creek agreement/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ledger" })).toHaveAttribute("href", "/w/riverbend/payments/ledger");
   });
 });
 
@@ -107,6 +108,18 @@ describe("applications inbox", () => {
     vi.spyOn(services.api, "listPrograms").mockResolvedValue([]);
     open("/w/riverbend/applications", services);
     expect(await screen.findByRole("heading", { name: /No applications yet|Start with a program|program/i, level: 3 })).toBeInTheDocument();
+    expect(screen.queryByText("No competitions yet")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Columns" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Import applications from CSV" })).toHaveAttribute("href", "/w/riverbend/import");
+  });
+
+  it("points an empty inbox at a competition that is not open yet", async () => {
+    const services = await riverbend();
+    vi.spyOn(services.api, "listApplications").mockResolvedValue({ items: [], total: 0, counts: {} });
+    const comps = await services.api.listCompetitions();
+    vi.spyOn(services.api, "listCompetitions").mockResolvedValue(comps.map((c) => ({ ...c, status: "draft" })));
+    open("/w/riverbend/applications", services);
+    expect(await screen.findByRole("link", { name: "Open competition" })).toHaveAttribute("href", `/w/riverbend/competitions/${comps[0]!.id}`);
   });
 });
 

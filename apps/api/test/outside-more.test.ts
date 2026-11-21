@@ -294,6 +294,35 @@ describe("discovery", () => {
     expect(found.find((c) => c.opportunity.id === opp.id)).toEqual(expect.objectContaining({ acceptingApplications: false, competitionId: null, eligibility: null }));
   });
 
+  it("lists the calls a public funder page lists, with the same accepting label, and leaves the rest out", async () => {
+    type Row = { competitionId: string | null; acceptingApplications: boolean; eligibility: unknown; opportunity: { id: string } };
+    await h.repos.table("opportunities").update({ id: s.uuid.opp }, { publish: { publicPage: false, openGrantsIndex: true, sitemap: true } });
+    const hidden = await data<Row[]>(s.applicant, "GET", "/gms/discover/competitions");
+    expect(hidden.find((c) => c.opportunity.id === s.oppId)).toBeUndefined();
+
+    await h.repos.table("opportunities").update({ id: s.uuid.opp }, { publish: { publicPage: true, openGrantsIndex: true, sitemap: true } });
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { status: "suspended" });
+    const inactive = await data<Row[]>(s.applicant, "GET", "/gms/discover/competitions");
+    expect(inactive.find((c) => c.opportunity.id === s.oppId)).toBeUndefined();
+    await h.repos.table("workspaces").update({ id: WS_FUNDER }, { status: "active" });
+
+    const forecast = await data<{ id: string }>(s.funder, "POST", "/gms/opportunities", { title: "Fall cycle forecast", description: "Opens in September." });
+    await data(s.funder, "POST", `/gms/opportunities/${forecast.id}/publish`, { status: "forecasted" });
+    const closed = await data<{ id: string }>(s.funder, "POST", "/gms/opportunities", { title: "Closed cycle", description: "The last cycle." });
+    await data(s.funder, "POST", `/gms/opportunities/${closed.id}/publish`);
+    await data(s.funder, "POST", `/gms/opportunities/${closed.id}/close`);
+
+    const found = await data<Row[]>(s.applicant, "GET", "/gms/discover/competitions");
+    const openCall = found.find((c) => c.opportunity.id === s.oppId);
+    const forecastCall = found.find((c) => c.opportunity.id === forecast.id);
+    const closedCall = found.find((c) => c.opportunity.id === closed.id);
+    expect(openCall).toMatchObject({ acceptingApplications: true, competitionId: s.uuid.comp });
+    expect(forecastCall).toEqual(expect.objectContaining({ acceptingApplications: false, competitionId: null, eligibility: null }));
+    expect(closedCall).toEqual(expect.objectContaining({ acceptingApplications: false, competitionId: null, eligibility: null }));
+    expect(found.indexOf(openCall!)).toBeLessThan(found.indexOf(forecastCall!));
+    expect(found.indexOf(openCall!)).toBeLessThan(found.indexOf(closedCall!));
+  });
+
   it("reads one OpenGrants listing for the details dialog", async () => {
     h.env.OPENGRANTS_API_KEY = "test-key-not-real";
     const listing = await data<{ id: string; title: string; gms: unknown }>(s.applicant, "GET", "/gms/discover/opengrants/og-1");

@@ -13,6 +13,7 @@ import { createMockServices, type Services } from "../src/app/services.tsx";
 import { changeLocale } from "../src/i18n/current.ts";
 import { downloadBlob } from "../src/lib/browser.ts";
 import { demoSession } from "../src/mocks/auth.ts";
+import { MOCK_MEMBERSHIPS } from "../src/mocks/fixtures.ts";
 import { MOCK_IDS } from "../src/mocks/funder.ts";
 import type * as Browser from "../src/lib/browser.ts";
 import { csvInPageLanguage, localizeDataSet } from "../src/screens/funder/reportWords.ts";
@@ -35,6 +36,23 @@ function open(path: string, services: Services) {
   return services;
 }
 const spanish = () => act(() => changeLocale("es"));
+
+describe("the funder rail in Spanish", () => {
+  it("marks the current item and hides what a reviewer cannot use", async () => {
+    await spanish();
+    try {
+      const memberships = MOCK_MEMBERSHIPS.map((m) => (m.handle === "riverbend" ? { ...m, role: "reviewer", requiresMfa: false } : m));
+      open("/w/riverbend", createMockServices({ session: demoSession(), memberships }));
+      const nav = await screen.findByRole("navigation", { name: "Espacio de trabajo del financiador" });
+      expect(within(nav).getByRole("link", { name: "Panel principal" })).toHaveAttribute("aria-current", "page");
+      expect(within(nav).getByRole("link", { name: "Solicitudes" })).toBeInTheDocument();
+      expect(within(nav).queryByRole("link", { name: "Pagos" })).toBeNull();
+      expect(within(nav).queryByRole("link", { name: "Configuración" })).toBeNull();
+    } finally {
+      await act(() => changeLocale("en"));
+    }
+  });
+});
 
 describe("the reviewer portal in Spanish", () => {
   it("scores an assignment: Spanish words, the rubric as the funder wrote it, a Spanish date", async () => {
