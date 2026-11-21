@@ -21,14 +21,18 @@ import {
   LayoutDashboard,
   Mail,
   Search,
+  Gavel,
   Settings,
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { useApiQuery } from "../api/hooks.ts";
 import { useWorkspace, type Workspace } from "../app/workspace.tsx";
+import { panelDecisionsPath } from "../lib/panelNav.ts";
 import { hiddenFunderRailItems } from "../lib/roles.ts";
 import { WorkspaceMenu } from "./WorkspaceMenu.tsx";
 import { FundSwitcher } from "./FundSwitcher.tsx";
+import { Notice } from "./ui.tsx";
 
 import { translator, type Key } from "../i18n/index.tsx";
 
@@ -45,6 +49,7 @@ const RAIL_LABEL: Record<string, Key<"shared">> = {
   "Opportunities": "shells.rail.opportunities",
   "Applications": "shells.rail.applications",
   "Reviews": "shells.rail.reviews",
+  "Panel & decisions": "shells.rail.panelDecisions",
   "Awards": "shells.rail.awards",
   "Payments": "shells.rail.payments",
   "Reporting": "shells.rail.reporting",
@@ -138,16 +143,20 @@ function RailList({ ws, items, active }: { ws: Workspace; items: RailItem[]; act
   );
 }
 
-function funderRail(ws: Workspace): RailItem[] {
+function funderRail(ws: Workspace, panelPath: string | null): RailItem[] {
   // Labels are English identity keys (role hiding and the current item compare them).
   // railLabel() is what the person reads, in their language. The API still decides access.
   const hidden = hiddenFunderRailItems(ws.member.role ?? "admin");
-  return [
+  const items: RailItem[] = [
     { label: "Dashboard", icon: LayoutDashboard, path: "" },
     { label: "Programs", icon: Briefcase, path: "/programs" },
     { label: "Opportunities", icon: Layers, path: "/opportunities" },
     { label: "Applications", icon: Inbox, path: "/applications" },
     { label: "Reviews", icon: ClipboardCheck, path: "/reviews/assign" },
+  ];
+  // Shown only when a competition is open and a stage asks for a decision.
+  if (panelPath) items.push({ label: "Panel & decisions", icon: Gavel, path: panelPath });
+  items.push(
     { label: "Awards", icon: Award, path: "/awards" },
     { label: "Payments", icon: Banknote, path: "/payments/due" },
     { label: "Reporting", icon: FileText, path: "/reporting" },
@@ -156,7 +165,28 @@ function funderRail(ws: Workspace): RailItem[] {
     { label: "Communications", icon: Mail, path: "/communications" },
     { label: "Approvals", icon: Bot, path: "/approvals", count: ws.pendingApprovals },
     { label: "Settings", icon: Settings, path: "/settings" },
-  ].filter((item) => !hidden.has(item.label));
+  );
+  return items.filter((item) => !hidden.has(item.label));
+}
+
+const ROLE_NOTICE: Record<string, { title: Key<"shared">; body: Key<"shared"> }> = {
+  viewer: { title: "shells.role.viewer.title", body: "shells.role.viewer.body" },
+  finance: { title: "shells.role.finance.title", body: "shells.role.finance.body" },
+  consultant: { title: "shells.role.consultant.title", body: "shells.role.consultant.body" },
+};
+
+/** A persistent note for an applicant role that cannot change everything it can open. */
+export function ApplicantRoleNotice({ padding }: { padding: string }) {
+  const role = useWorkspace("applicant").member.role;
+  const copy = role ? ROLE_NOTICE[role] : undefined;
+  if (!copy) return null;
+  return (
+    <div style={{ padding }}>
+      <Notice tone="info" title={t(copy.title)}>
+        {t(copy.body)}
+      </Notice>
+    </div>
+  );
 }
 
 export const APPLICANT_RAIL: RailItem[] = [
@@ -186,6 +216,8 @@ export function FunderShell({ active, overlay, firstRun = false, children }: She
   const base = useWorkspace("funder");
   // A first-run workspace has nothing waiting on anyone yet.
   const ws = firstRun ? { ...base, unreadNotifications: 0, pendingApprovals: 0 } : base;
+  const competitions = useApiQuery((api) => api.listCompetitions(), [ws.id]);
+  const panelPath = competitions.status === "ready" ? panelDecisionsPath(competitions.data) : null;
   return (
     <div className="gms gms-funder gms-frame" style={tenantStyle(ws)}>
       <TopBar ws={ws} roleLabel={t("shells.funder")} avatarClass="av" />
@@ -196,7 +228,7 @@ export function FunderShell({ active, overlay, firstRun = false, children }: She
             <div className="sub">{ws.sub}</div>
           </div>
           <FundSwitcher />
-          <RailList ws={ws} items={funderRail(ws)} active={active} />
+          <RailList ws={ws} items={funderRail(ws, panelPath)} active={active} />
           <div className="rail-foot">
             {ws.member.name} · {ws.member.title}
           </div>
@@ -227,7 +259,10 @@ export function ApplicantShell({ active, overlay, children }: ShellProps) {
             {ws.member.name} · {ws.member.title}
           </div>
         </nav>
-        {children}
+        <div style={{ flex: "1 1 560px", minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <ApplicantRoleNotice padding="28px 40px 0" />
+          {children}
+        </div>
       </div>
       <nav className="phone-tabs gms-phone-only" aria-label={t("shells.primary")}>
         {APPLICANT_TABS.map(({ label, icon: Icon, path, rail }) => {

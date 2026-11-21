@@ -17,11 +17,11 @@ const ANSWERS_FILE = "answers.txt";
 const sizeText = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : bytes >= 1024 ? `${Math.round(bytes / 1024)} KB` : `${bytes} bytes`);
 
 /** The button for the application's header, with its dialog. One line to mount. */
-export function SendToFunderButton({ applicationId }: { applicationId: string }) {
+export function SendToFunderButton({ applicationId, primary = false }: { applicationId: string; primary?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button type="button" className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setOpen(true)}>
+      <button type="button" className={primary ? "btn btn-primary" : "btn btn-secondary"} aria-haspopup="dialog" onClick={() => setOpen(true)}>
         <Package className="ic" aria-hidden="true" />
         {t("outsideSendToFunder.sendToTheFunder")}
       </button>

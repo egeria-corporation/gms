@@ -458,7 +458,7 @@ function Builder({ opportunity, programs, initialVisited, onSaved }: { opportuni
               {t("opportunityBuilder.saveDraft")}
             </button>
             {opportunity && (
-              <Link to={`${base}/opportunities/${opportunity.id}/competition`} className="btn btn-primary">
+              <Link to={competition ? `${base}/competitions/${competition.id}` : `${base}/opportunities/${opportunity.id}/competition`} className="btn btn-primary">
                 {t("opportunityBuilder.competitionStages")}
                 <ArrowRight className="ic" aria-hidden="true" />
               </Link>

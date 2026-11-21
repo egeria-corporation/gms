@@ -50,6 +50,19 @@ export type DecisionOutcome = "awarded" | "declined" | "withdrawn";
 export const decisionOutcomes = (stage: OutsideStage): DecisionOutcome[] => (stage === "submitted" ? ["awarded", "declined", "withdrawn"] : stage === "loi" ? ["declined"] : []);
 export const canReopen = (stage: OutsideStage) => CLOSED_STAGES.has(stage);
 
+const WRITING: ReadonlySet<OutsideStage> = new Set(["prospect", "deciding", "loi", "invited", "drafting"]);
+
+/** The one header action that leads. Drafting with every answer ready or approved is ready to send. */
+export type OutsidePrimary = "questions" | "send" | "decision";
+
+export function outsidePrimary(stage: OutsideStage, questions: readonly { status: string; obligationId?: string | null }[]): OutsidePrimary | null {
+  if (stage === "submitted") return "decision";
+  if (!WRITING.has(stage)) return null;
+  const writing = questions.filter((q) => !q.obligationId);
+  const ready = stage === "drafting" && writing.length > 0 && writing.every((q) => q.status === "ready" || q.status === "approved");
+  return ready ? "send" : "questions";
+}
+
 /** What a plain move reads as on its button. */
 export const MOVE_LABELS: Record<OutsideStage, string> = {
   prospect: "Back to prospect",

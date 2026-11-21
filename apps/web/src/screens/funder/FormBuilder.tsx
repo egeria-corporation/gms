@@ -809,7 +809,7 @@ export default function FormBuilder() {
   if (missing) return <NotFound />;
 
   return (
-    <FunderShell active="Opportunities">
+    <FunderShell active="">
       <title>{t("formBuilder.formBuilder", { title: data.status === "ready" ? data.data.title : t("formBuilder.form") })}</title>
       {data.status === "loading" && (
         <main className="main">

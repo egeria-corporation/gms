@@ -165,7 +165,7 @@ function ProgramDetail({ program, opportunities, awards, competitions, received,
               { key: "stage", header: t("funderPrograms.stage"), cell: (o) => { const c = competitionOf(o); return c ? `${c.stages.map((st) => st.label).join(" → ")}${c.status === "open" ? "" : ` · ${statusLook("competition", c.status).label}`}` : t("funderPrograms.noCompetition"); } },
               { key: "apps", header: t("funderPrograms.applications"), numeric: true, cell: (o) => { const c = competitionOf(o); return c ? (received.get(c.id) ?? "—") : "—"; } },
               { key: "closes", header: t("funderPrograms.closes"), cell: (o) => formatDate(o.keyDates.closeDate?.date), sort: (o) => o.keyDates.closeDate?.date ?? null },
-              { key: "go", header: "", numeric: true, cell: (o) => <Link to={`${base}/opportunities/${o.id}/competition`} className="btn btn-sm btn-secondary">{t("funderPrograms.competition")}</Link> },
+              { key: "go", header: "", numeric: true, cell: (o) => { const c = competitionOf(o); return <Link to={c ? `${base}/competitions/${c.id}` : `${base}/opportunities/${o.id}/competition`} className="btn btn-sm btn-secondary">{t("funderPrograms.competition")}</Link>; } },
             ]}
           />
         </div>

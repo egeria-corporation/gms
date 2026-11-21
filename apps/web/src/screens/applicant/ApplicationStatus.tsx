@@ -31,6 +31,28 @@ const EVENT: Record<string, { icon: LucideIcon; text: (e: ApplicationEvent) => s
   request_revision: { icon: RotateCcw, text: () => t("applicationStatus.event.revisionRequested"), cls: "tl-warn" },
   withdraw: { icon: LogOut, text: () => t("applicationStatus.event.withdrawn"), cls: "" },
 };
+/** One line for a submitted application: what the person does now. Drafts already lead with Continue editing. */
+export function statusNext(status: string): string | null {
+  switch (status) {
+    case "submitted":
+      return t("applicationStatus.now.submitted");
+    case "screening":
+      return t("applicationStatus.now.screening");
+    case "under_review":
+      return t("applicationStatus.now.underReview");
+    case "revision_requested":
+      return t("applicationStatus.now.revision");
+    case "interview":
+      return t("applicationStatus.now.interview");
+    case "recommended":
+      return t("applicationStatus.now.recommended");
+    case "waitlisted":
+      return t("applicationStatus.now.waitlisted");
+    default:
+      return null;
+  }
+}
+
 export function describe(e: ApplicationEvent) {
   const known = EVENT[e.type];
   if (known) return { icon: known.icon, text: known.text(e), cls: known.cls };
@@ -65,6 +87,7 @@ export default function ApplicationStatus() {
             {({ status, summary, thread }) => {
               const funder = summary?.funder.name ?? t("applicationStatus.theFunder");
               const editable = status.status === "draft" || status.status === "revision_requested";
+              const now = statusNext(status.status);
               const revisions = status.timeline.filter((e) => e.type === "request_revision");
               const onSend = async (e: FormEvent) => {
                 e.preventDefault();
@@ -102,6 +125,7 @@ export default function ApplicationStatus() {
                         <span>·</span>
                         <span className="mono">{status.id}</span>
                       </div>
+                      {now && <p className="small" style={{ margin: "8px 0 0" }}>{now}</p>}
                     </div>
                     <div className="actions">
                       {editable && (
