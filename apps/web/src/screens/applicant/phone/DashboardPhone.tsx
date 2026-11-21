@@ -129,7 +129,7 @@ export default function DashboardPhone() {
                   ) : (
                     <div className="card">
                       <EmptyState icon={Search} title={t("dashboardPhone.nothingInProgress")} actions={<Link to={`${base}/find`} className="btn btn-primary">{t("dashboardPhone.findFunding")}</Link>}>
-                        {t("dashboardPhone.startAnApplicationWithYourPassport")}
+                        {d.readiness.linked ? t("dashboardPhone.startAnApplicationWithYourPassport") : t("dashboard.findAnOpportunityYouAreEligible")}
                       </EmptyState>
                     </div>
                   )}

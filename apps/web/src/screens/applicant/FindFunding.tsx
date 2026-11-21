@@ -32,8 +32,8 @@ import { t, useApplicantText } from "./i18n.ts";
 type Tab = "here" | "index" | "saved" | "alerts";
 
 const load = async (api: ApplicantApi, outside: OutsideApi) => {
-  const [competitions, saved, mine] = await Promise.all([api.discover(), api.saved(), outside.list().catch(() => [] as OutsideListItem[])]);
-  return { competitions, saved, mine };
+  const [competitions, saved, mine, readiness] = await Promise.all([api.discover(), api.saved(), outside.list().catch(() => [] as OutsideListItem[]), api.readiness()]);
+  return { competitions, saved, mine, readiness };
 };
 
 /** Saved rows that are funding alerts belong on the Alerts tab, never under Saved. */
@@ -597,14 +597,18 @@ export default function FindFunding() {
                 <h1>{t("findFunding.findFunding")}</h1>
               </div>
               <div className="meta">
-                <span>{t("findFunding.eligibilityIsCheckedAgainstYourPassport")}</span>
+                <span>
+                  {query.status === "ready" && query.data.readiness.linked
+                    ? t("findFunding.eligibilityIsCheckedAgainstYourPassport")
+                    : t("findFunding.eligibilityIsUnknownUntilYouConnect")}
+                </span>
               </div>
             </div>
           </div>
           <DigestPrompt workspaceId={ws.id} digest="new_matches" settingsTo={`${base}/settings#digests`} />
 
           <Loaded query={query} label={t("findFunding.checkingWhatYouAreEligibleFor")}>
-            {({ competitions, saved: everySaved, mine }) => {
+            {({ competitions, saved: everySaved, mine, readiness }) => {
               const saved = everySaved.filter((x) => !isAlertRow(x));
               const gmsSaved = saved.filter((x) => x.source === "gms");
               const prospects = mine.filter((o) => o.stage === "prospect");
@@ -628,7 +632,7 @@ export default function FindFunding() {
                 },
                 onSaveGms: async (item) => {
                   const s = await saveGms.run(item);
-                  if (s) query.set({ competitions, saved: [s, ...everySaved.filter((x) => x.id !== s.id)], mine });
+                  if (s) query.set({ competitions, saved: [s, ...everySaved.filter((x) => x.id !== s.id)], mine, readiness });
                 },
                 canStart: access.applications,
                 canSave: access.discovery,

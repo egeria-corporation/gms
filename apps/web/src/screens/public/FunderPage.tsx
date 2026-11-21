@@ -9,6 +9,7 @@ import type { PublicOpportunityCard } from "../../api/types.ts";
 import { NotFound } from "../../components/NotFound.tsx";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { applicantTypeLabel, daysUntil, formatAwardCount, formatAwardRange, formatDate } from "../../lib/format.ts";
+import { isAfterToday } from "../../lib/openDate.ts";
 import { PublicFrame, PublicState } from "./PublicFrame.tsx";
 import { FunderExtras, UnverifiedFunderBanner } from "./publicExtras.tsx";
 
@@ -16,9 +17,11 @@ import { translator } from "../../i18n/index.tsx";
 
 const tr = translator("public");
 /** The badge on an opportunity card: how long it stays open, in words. */
-export function DeadlineBadge({ opp, now = new Date() }: { opp: Pick<PublicOpportunityCard, "status" | "keyDates">; now?: Date }) {
+export function DeadlineBadge({ opp, now = new Date(), opensOn }: { opp: Pick<PublicOpportunityCard, "status" | "keyDates" | "acceptingApplications">; now?: Date; opensOn?: string | null }) {
   const close = opp.keyDates.closeDate?.date;
   const days = daysUntil(close, now);
+  // Not taking applications, and an open date is still ahead: say when it opens, not when it closes.
+  const opens = opensOn ?? (opp.acceptingApplications === false ? (opp.keyDates.postDate?.date ?? null) : null);
   if (opp.status === "closed") {
     return (
       <span className="bdg bdg-done">
@@ -32,6 +35,14 @@ export function DeadlineBadge({ opp, now = new Date() }: { opp: Pick<PublicOppor
       <span className="bdg bdg-neutral">
         <Calendar className="ic" aria-hidden="true" />
         {opp.keyDates.postDate?.date ? tr("funderPage.opens", { date: formatDate(opp.keyDates.postDate.date) }) : tr("funderPage.forecasted")}
+      </span>
+    );
+  }
+  if (opens && isAfterToday(opens, now)) {
+    return (
+      <span className="bdg bdg-neutral">
+        <Calendar className="ic" aria-hidden="true" />
+        {tr("funderPage.opens", { date: formatDate(opens) })}
       </span>
     );
   }

@@ -14,7 +14,7 @@ vi.mock("@supabase/supabase-js", () => ({
   }),
 }));
 
-import { createSupabaseAuth, TOTP_ISSUER } from "../src/auth/supabase.ts";
+import { createSupabaseAuth, TOTP_FRIENDLY_NAME, TOTP_ISSUER } from "../src/auth/supabase.ts";
 
 beforeEach(() => enroll.mockReset());
 
@@ -24,8 +24,9 @@ describe("enrollTotp", () => {
     const auth = createSupabaseAuth("http://supabase.test", "test-anon-key");
     const out = await auth.enrollTotp();
     expect(TOTP_ISSUER).toBe("OpenGrants");
+    expect(TOTP_FRIENDLY_NAME).toBe("Authenticator");
     expect(enroll).toHaveBeenCalledTimes(1);
-    expect(enroll).toHaveBeenCalledWith({ factorType: "totp", issuer: "OpenGrants" });
+    expect(enroll).toHaveBeenCalledWith({ factorType: "totp", issuer: "OpenGrants", friendlyName: "Authenticator" });
     expect(out).toEqual({ factorId: "factor-1", secret: "S", uri: "otpauth://totp/OpenGrants:a%40b.example?secret=S&issuer=OpenGrants", qrCode: "<svg/>" });
   });
 

@@ -20,11 +20,18 @@ type Mode = "choose" | "link" | "details";
 /** Hosts whose `/f/{handle}/o/{slug}` pages are opportunities on this GMS. */
 export const ownHosts = () => [...new Set([globalThis.location?.host, "gms.opengrants.io"].filter((h): h is string => !!h))];
 
-/** Creates the application, then links it to the funder record whose name it carries, if the server did not. */
+/**
+ * Creates the application and links it to a funder record of the same name. When none exists yet,
+ * one is created from the name (and portal, if the person gave one) and then linked.
+ */
 export async function createLinked(api: OutsideApi, input: OutsideCreateInput, records: FunderRecord[]) {
   const made = await api.create(input);
-  const rec = records.find((r) => r.name.trim().toLowerCase() === input.funderName.trim().toLowerCase());
-  return rec && made.funderRecordId !== rec.id ? api.update(made.id, { funderRecordId: rec.id }) : made;
+  const name = input.funderName.trim();
+  const rec = records.find((r) => r.name.trim().toLowerCase() === name.toLowerCase());
+  if (rec) return made.funderRecordId !== rec.id ? api.update(made.id, { funderRecordId: rec.id }) : made;
+  if (made.funderRecordId) return made;
+  const created = await api.createFunderRecord({ name, ...(input.portalUrl ? { portalUrl: input.portalUrl } : {}) });
+  return api.update(made.id, { funderRecordId: created.id });
 }
 
 function Choice({ icon: Icon, title, detail, onClick }: { icon: typeof Search; title: string; detail: string; onClick: () => void }) {

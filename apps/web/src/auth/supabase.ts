@@ -40,6 +40,8 @@ function fail(error: { message: string; status?: number }): never {
 
 /** The name authenticator apps show for the two-step verification entry. */
 export const TOTP_ISSUER = "OpenGrants";
+/** A real name, so a second enrollment is not refused for an empty friendly name. */
+export const TOTP_FRIENDLY_NAME = "Authenticator";
 
 export function createSupabaseAuth(url: string, anonKey: string): AuthClient {
   const supabase: SupabaseClient = createClient(url, anonKey, {
@@ -51,6 +53,13 @@ export function createSupabaseAuth(url: string, anonKey: string): AuthClient {
     const session = toSession(data.session);
     if (!session) throw new AuthError("Not signed in", "unknown");
     return session;
+  };
+
+  // `data.totp` is verified factors only. An interrupted enrollment lives in `data.all`.
+  const listAll = async () => {
+    const { data, error } = await supabase.auth.mfa.listFactors();
+    if (error) fail(error);
+    return (data.all ?? []).flatMap((f) => (f.factor_type === "totp" ? [{ id: f.id, status: f.status === "verified" ? ("verified" as const) : ("unverified" as const) }] : []));
   };
 
   return {
@@ -83,13 +92,16 @@ export function createSupabaseAuth(url: string, anonKey: string): AuthClient {
       if (!session) throw new AuthError("That sign-in has expired.", "invalid_code");
       return session;
     },
+    listAllTotpFactors: listAll,
     async listTotpFactors() {
-      const { data, error } = await supabase.auth.mfa.listFactors();
+      return (await listAll()).filter((f) => f.status === "verified").map((f) => f.id);
+    },
+    async unenrollTotp(factorId) {
+      const { error } = await supabase.auth.mfa.unenroll({ factorId });
       if (error) fail(error);
-      return data.totp.filter((f) => f.status === "verified").map((f) => f.id);
     },
     async enrollTotp(): Promise<TotpEnrollment> {
-      const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", issuer: TOTP_ISSUER });
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", issuer: TOTP_ISSUER, friendlyName: TOTP_FRIENDLY_NAME });
       if (error) fail(error);
       return { factorId: data.id, secret: data.totp.secret, uri: data.totp.uri, qrCode: data.totp.qr_code };
     },

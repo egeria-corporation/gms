@@ -76,6 +76,10 @@ export function createMockAuth(opts: MockAuthOptions = {}): AuthClient {
       return set({ ...demoSession("aal1"), accessToken: MOCK_PASSPORT_SESSION })!;
     },
     listTotpFactors: async () => (enrolled ? ["mock-totp"] : []),
+    listAllTotpFactors: async () => (enrolled ? [{ id: "mock-totp", status: "verified" as const }] : []),
+    unenrollTotp: async (id) => {
+      if (id === "mock-totp") enrolled = false;
+    },
     enrollTotp: async () => ({
       factorId: "mock-totp",
       secret: "QHX7-R2MP-4TLC-W9KD",

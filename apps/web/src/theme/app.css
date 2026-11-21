@@ -545,6 +545,17 @@
 .phone-tabs { display: flex; border-top: 1px solid var(--og-gray-200); background: #fff; }
 .phone-tabs a { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0 12px; font-size: 11px; font-weight: 700; color: var(--og-gray-600); text-decoration: none; }
 .phone-tabs a.on { color: var(--og-teal-dark); }
+/* The members table sits beside the invite card. Below this width the card drops under the table so the MFA column can scroll into view. */
+.team-split { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 1100px) {
+  .team-split { grid-template-columns: minmax(0, 1fr); }
+}
+/* Userback's launcher is `#userback_button_container`. On a phone it sits on the tab bar. */
+@media (max-width: 720px) {
+  #userback_button_container.userback-button-container {
+    bottom: 76px !important;
+  }
+}
 .gms-phone .main { padding: 16px; gap: 16px; }
 .gms-phone .tbl td, .gms-phone .tbl th { white-space: normal; }
 

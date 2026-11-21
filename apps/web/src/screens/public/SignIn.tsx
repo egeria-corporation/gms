@@ -9,7 +9,9 @@ import { ArrowRight, Building2, CircleX, ExternalLink, Info, Lock, TriangleExcla
 import { useServices } from "../../app/services.tsx";
 import { rememberSsoNext, takeSsoNext } from "../../auth/sso.ts";
 import { ssoPortFor } from "../../auth/ssoHooks.ts";
+import { startSecondStep } from "../../auth/secondStep.ts";
 import type { TotpEnrollment } from "../../auth/types.ts";
+import { applyGrantOf } from "../../lib/applyReturn.ts";
 import { usePassportFlags } from "../../api/launchHooks.ts";
 import { PassportButton } from "../../components/PassportButton.tsx";
 import { passportProblem, safeNext } from "../../lib/passportSignIn.ts";
@@ -128,7 +130,9 @@ export default function SignIn() {
   const [invite, setInvite] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const mfaStarted = useRef(false);
+  const [mfaAttempt, setMfaAttempt] = useState(0);
+  const applyTo = applyGrantOf(next);
+  const [grantTitle, setGrantTitle] = useState<string | null>(null);
 
   const signedInEmail = sessionState.status === "signedIn" ? sessionState.session.email : email;
   const ssoSession = sessionState.status === "signedIn" ? (sessionState.session.ssoProviderId ?? null) : null;
@@ -176,21 +180,48 @@ export default function SignIn() {
   }, [sessionState.status, meState, next, as, wantsSecondStep, navigate, holdForSso, ssoSession, ssoJoin]);
 
   // Entering the second step: challenge an enrolled authenticator, or start enrollment.
+  // An interrupted enrollment is removed inside startSecondStep. A failure shows a translated
+  // sentence and Retry, never the provider's own words.
   useEffect(() => {
-    if (step !== "mfa" || mfaStarted.current) return;
-    mfaStarted.current = true;
+    if (step !== "mfa") return;
+    let live = true;
+    setError(null);
+    setEnrollment(null);
+    setFactorId(null);
     (async () => {
       try {
-        const factors = await auth.listTotpFactors();
-        if (factors[0]) return setFactorId(factors[0]);
-        const e = await auth.enrollTotp();
-        setEnrollment(e);
-        setFactorId(e.factorId);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : t("signIn.twoStepVerificationCouldNot"));
+        const started = await startSecondStep(auth);
+        if (!live) return;
+        if (started.kind === "challenge") setFactorId(started.factorId);
+        else {
+          setEnrollment(started.enrollment);
+          setFactorId(started.enrollment.factorId);
+        }
+      } catch {
+        if (!live) return;
+        setError(t("signIn.twoStepVerificationCouldNot"));
       }
     })();
-  }, [step, auth]);
+    return () => {
+      live = false;
+    };
+  }, [step, auth, mfaAttempt]);
+
+  // Apply sent the person here: name the grant they will return to, once its public title loads.
+  const applyHandle = applyTo?.handle ?? null;
+  const applySlug = applyTo?.slug ?? null;
+  useEffect(() => {
+    if (!applyHandle || !applySlug) return;
+    let live = true;
+    setGrantTitle(null);
+    services.api.publicOpportunity(applyHandle, applySlug).then(
+      (page) => live && setGrantTitle(page.opportunity.title),
+      () => live && setGrantTitle(null),
+    );
+    return () => {
+      live = false;
+    };
+  }, [applyHandle, applySlug, services.api]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -329,6 +360,12 @@ export default function SignIn() {
                   )}
                 </div>
               </div>
+            )}
+
+            {applyTo && (step === "email" || step === "code" || step === "mfa") && (
+              <p className="help" role="status" style={{ textAlign: "center" }}>
+                {grantTitle ? t("signIn.youWillReturnTo", { title: grantTitle }) : t("signIn.youWillReturnToTheGrant")}
+              </p>
             )}
 
             {step === "email" && (
@@ -603,7 +640,14 @@ export default function SignIn() {
                   </div>
                 )}
                 {!enrollment && !factorId ? (
-                  error && <Problem>{error}</Problem>
+                  error && (
+                    <>
+                      <Problem>{error}</Problem>
+                      <button className="btn btn-primary btn-lg" type="button" onClick={() => setMfaAttempt((n) => n + 1)}>
+                        {t("signIn.retry")}
+                      </button>
+                    </>
+                  )
                 ) : (
                   <>
                 <div className="fld">

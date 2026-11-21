@@ -52,6 +52,8 @@ const REASONS: Record<string, string> = {
 const SCOPES = () => ([t("applicantOnboarding.scopes.n0"), t("applicantOnboarding.scopes.n1"), t("applicantOnboarding.scopes.n2")]);
 
 const STEPS = () => ([t("applicantOnboarding.steps.n0"), t("applicantOnboarding.steps.n1"), t("applicantOnboarding.steps.n2")] as const);
+/** The email path never imports a Passport profile, so its stepper does not say that it does. */
+const EMAIL_STEPS = () => ([t("applicantOnboarding.steps.email0"), t("applicantOnboarding.steps.email1"), t("applicantOnboarding.steps.n2")] as const);
 
 /** A public handle for a workspace, from the legal name; applicants never see or choose it. */
 function handleFor(name: string, attempt: number): string {
@@ -217,7 +219,7 @@ export default function ApplicantOnboarding() {
 
           <div className="card" style={{ padding: "16px 24px" }}>
             <ol className="stp" aria-label={t("applicantOnboarding.onboardingSteps")} style={{ flexWrap: "wrap", rowGap: "8px" }}>
-              {STEPS().map((label, i) => (
+              {(withoutPassport ? EMAIL_STEPS() : STEPS()).map((label, i) => (
                 <li key={label} style={{ display: "contents" }}>
                   {i > 0 && <span className={i <= step ? "ln done" : "ln"} aria-hidden="true"></span>}
                   <div className={i < step ? "s done" : i === step ? "s on" : "s"} aria-current={i === step ? "step" : undefined}>
@@ -281,9 +283,9 @@ export default function ApplicantOnboarding() {
                     <button className="btn btn-primary btn-lg" type="button" onClick={onContinue} disabled={start.state === "going"}>
                       {start.state === "going" ? t("applicantOnboarding.openingPassport") : t("applicantOnboarding.continueWithPassport")}
                     </button>
-                    <Link to="/" className="btn btn-secondary btn-lg">
+                    <button type="button" className="btn btn-secondary btn-lg" onClick={() => setWithoutPassport(true)}>
                       {t("applicantOnboarding.notNow")}
-                    </Link>
+                    </button>
                   </div>
                 </section>
               )}

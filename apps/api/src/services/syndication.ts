@@ -134,7 +134,7 @@ async function publicCalls(ctx: PublicContext, opps: Opp[]): Promise<PublicCall[
     return {
       funder: { name: namesOf(w).name, handle: w.handle },
       opportunity: {
-        ...card(o, acceptingApplications(o, mine)),
+        ...card(o, acceptingApplications(o, mine, ctx.now())),
         publishedAt: o.published_at,
         eligibility: ruleLabels(parsed.ok ? parsed.rules : null),
         fund: fundOf.get(o.id) ?? null,

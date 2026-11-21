@@ -181,11 +181,44 @@ function publicFunder(w: Row<"workspaces">) {
 /** A publish switch: on unless the funder turned it off (absent = on). Also read by services/syndication.ts. */
 export const publishFlag = (o: Pick<Opp, "publish">, flag: "publicPage" | "sitemap" | "openGrantsIndex" | "feeds") => (o.publish as Record<string, unknown> | null)?.[flag] !== false;
 
+const DAY = /^(\d{4}-\d{2}-\d{2})/;
+
+/** A date-only value or timestamp is after `now`'s UTC calendar day. The open day itself is not ahead. */
+export function isAfterToday(value: string | null | undefined, now: Date): boolean {
+  if (!value) return false;
+  const day = DAY.exec(value)?.[1];
+  if (!day) return false;
+  return day > now.toISOString().slice(0, 10);
+}
+
+function publishedOpenDate(keyDates: unknown): string | null {
+  const dates = keyDates as { postDate?: { date?: unknown; startDate?: unknown } } | null;
+  const value = dates?.postDate?.date ?? dates?.postDate?.startDate;
+  return typeof value === "string" && value ? value : null;
+}
+
+/** The first stage that takes a submission, else the first stage. */
+function firstSubmissionOpens(stages: unknown): string | null {
+  if (!Array.isArray(stages) || stages.length === 0) return null;
+  const list = stages.filter((s): s is { opens?: unknown; requiresSubmission?: unknown } => !!s && typeof s === "object");
+  const first = list.find((s) => s.requiresSubmission === true) ?? list[0];
+  return typeof first?.opens === "string" && first.opens ? first.opens : null;
+}
+
 /**
- * Whether an opportunity takes applications now: it is published as open and one of its
- * competitions is open. The rule the opportunity page applies before it offers Apply.
+ * Whether an opportunity takes applications now: published as open, one competition open, and
+ * neither the published open date nor that competition's first submission stage is still ahead.
+ * `now` is the service clock. The opportunity page, the funder card, the embed and Find funding
+ * all read this flag.
  */
-export const acceptingApplications = (o: Opp, comps: Pick<Comp, "opportunity_id" | "status">[]) => o.status === "open" && comps.some((c) => c.opportunity_id === o.id && c.status === "open");
+export const acceptingApplications = (o: Pick<Opp, "id" | "status" | "key_dates">, comps: (Pick<Comp, "opportunity_id" | "status"> & { stages?: unknown })[], now: Date) => {
+  if (o.status !== "open") return false;
+  const open = comps.filter((c) => c.opportunity_id === o.id && c.status === "open");
+  if (open.length === 0) return false;
+  if (isAfterToday(publishedOpenDate(o.key_dates), now)) return false;
+  const ready = open.some((c) => !isAfterToday(firstSubmissionOpens(c.stages), now));
+  return ready;
+};
 
 /** An opportunity as the public pages show it (and the feeds and PND, services/syndication.ts). */
 export const card = (o: Opp, accepting: boolean) => ({ id: o.id, slug: o.slug, title: o.title, description: o.description, status: o.status, funding: o.funding, keyDates: o.key_dates, acceptedApplicantTypes: o.accepted_applicant_types, acceptingApplications: accepting });
@@ -208,7 +241,8 @@ export async function funderPage(ctx: PublicContext, handle: string) {
   const w = await activeFunder(ctx, handle);
   const opps = (await ctx.repos.table("opportunities").find({ workspace_id: w.id }, { notNull: ["published_at"], orderBy: "published_at", ascending: false })).filter((o) => publishFlag(o, "publicPage"));
   const open = await competitionsOf(ctx, opps.filter((o) => o.status === "open").map((o) => o.id), { status: "open" });
-  const cards = opps.map((o) => card(o, acceptingApplications(o, open)));
+  const now = ctx.now();
+  const cards = opps.map((o) => card(o, acceptingApplications(o, open, now)));
   // Each fund with the ids of its opportunities on this page only (never one left off the page).
   const onPage = new Set(cards.map((o) => o.id));
   const funds = (await publicFundsOf(ctx, w.id)).map((f) => ({ ...f, opportunityIds: f.opportunityIds.filter((id) => onPage.has(id)) }));
@@ -329,7 +363,7 @@ export async function opportunityPage(ctx: PublicContext, handle: string, slug: 
   const text = pageText(opp, parsed.ok ? parsed.rules : null, locale);
   return {
     funder: publicFunder(w),
-    opportunity: { ...card(opp, acceptingApplications(opp, comps)), title: text.title, description: text.description, language: text.language, translations: text.translations, publishedAt: opp.published_at, eligibility: text.eligibility, ...pageExtras(opp), fund: await publicFundOfOpportunity(ctx, w.id, opp.id) },
+    opportunity: { ...card(opp, acceptingApplications(opp, comps, ctx.now())), title: text.title, description: text.description, language: text.language, translations: text.translations, publishedAt: opp.published_at, eligibility: text.eligibility, ...pageExtras(opp), fund: await publicFundOfOpportunity(ctx, w.id, opp.id) },
     competitions: comps.map((c) => ({
       id: c.id,
       title: c.title,
