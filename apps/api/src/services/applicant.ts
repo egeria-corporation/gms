@@ -411,7 +411,7 @@ export async function discoverCompetitions(ctx: ServiceContext) {
       funder: { name: funder.display_name ?? null, handle: funder.handle ?? null, brand: funder.brand ?? {} },
       url: `${ctx.config.webBaseUrl}/f/${funder.handle}/o/${opp.slug}`,
     };
-    if (!acceptingApplications(opp, mineComps) || !openComp) {
+    if (!acceptingApplications(opp, mineComps, ctx.now()) || !openComp) {
       later.push({ ...card, competitionId: null, stage: null, forms: 0, eligibility: null, application: null, acceptingApplications: false as const });
       continue;
     }

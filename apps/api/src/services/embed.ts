@@ -31,8 +31,8 @@ export async function embedWidget(ctx: PublicContext, handle: string, slug: stri
       eligibility: o.eligibility.slice(0, EMBED_ELIGIBILITY_LIMIT),
       moreEligibility: Math.max(0, o.eligibility.length - EMBED_ELIGIBILITY_LIMIT),
     },
-    // The same test as the public page's Apply button: an open opportunity with an open competition.
-    acceptingApplications: o.status === "open" && page.competitions.some((c) => c.status === "open"),
+    // The public page's own flag, which already accounts for a future open date.
+    acceptingApplications: o.acceptingApplications,
     poweredBy: page.funder.poweredBy,
     links: { page: page.links.page },
   };

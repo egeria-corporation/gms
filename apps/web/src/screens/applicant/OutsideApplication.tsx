@@ -147,7 +147,7 @@ export default function OutsideApplication() {
                           </button>
                         )}
                         {primary === "send" && <SendToFunderButton applicationId={detail.id} primary />}
-                        {!locked && canMarkSubmitted(detail.stage) && (
+                        {!locked && canMarkSubmitted(detail.stage) && detail.questions.length > 0 && (
                           <button type="button" className="btn btn-secondary" aria-haspopup="dialog" onClick={() => setDialog("submit")}>
                             <Send className="ic" aria-hidden="true" />
                             {t("outsideApplication.markAsSubmitted")}
@@ -178,6 +178,10 @@ export default function OutsideApplication() {
                               disabled={busy}
                               onChange={async (e) => {
                                 const to = e.target.value as OutsideStage;
+                                if (to === "submitted") {
+                                  setDialog("submit");
+                                  return;
+                                }
                                 if (to) after(await move.run(to), t("outsideApplication.movedTo", { stage: stageLabel(to) }));
                               }}
                             >
@@ -189,6 +193,9 @@ export default function OutsideApplication() {
                                   {moveLabel(s)}
                                 </option>
                               ))}
+                              {canMarkSubmitted(detail.stage) && detail.questions.length === 0 && (
+                                <option value="submitted">{t("outsideApplication.markAsSubmitted")}</option>
+                              )}
                             </select>
                           </>
                         )}

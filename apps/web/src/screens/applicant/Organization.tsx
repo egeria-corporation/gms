@@ -2,7 +2,7 @@
 // Organization: the Passport record as funders on the GMS see it. Read-only here; every field
 // links to Passport, where it is edited once and read by every application and report.
 import { Link } from "react-router";
-import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleX, ExternalLink, Lock, RefreshCw } from "lucide-react";
+import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleX, ExternalLink, Lock, Pencil, RefreshCw } from "lucide-react";
 import type { ApplicantApi, ApplicantReadiness, Consent, MyOrganization } from "../../api/applicant.ts";
 import { useApplicantMutation, useApplicantQuery } from "../../api/applicantHooks.ts";
 import { usePassportFlags } from "../../api/launchHooks.ts";
@@ -16,6 +16,7 @@ import { AccessCard, ConnectedAppsCard, LockerCard, RepresentativesCard } from "
 import { VaultCard } from "./outside/keep.tsx";
 import { t, useApplicantText } from "./i18n.ts";
 import { readinessWords } from "../../lib/readinessText.ts";
+import { declaredFacts } from "../../lib/selfDeclared.ts";
 
 interface OrgData {
   org: MyOrganization;
@@ -36,14 +37,15 @@ const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ?
 const irsSubsection = (code: string): string =>
   code === "03" ? t("organization.irs.c3") : code === "04" ? t("organization.irs.c4") : code === "06" ? t("organization.irs.c6") : t("organization.irs.other", { code });
 
-function Value({ label, value, source = t("organization.fromPassport"), editUrl }: { label: string; value: string | null; source?: string; editUrl: string | null }) {
+function Value({ label, value, source = t("organization.fromPassport"), editUrl, settingsHref, entered = false }: { label: string; value: string | null; source?: string; editUrl: string | null; settingsHref?: string; entered?: boolean }) {
+  const Icon = entered ? Pencil : BadgeCheck;
   return (
     <div className="fld">
       <span className="lbl">
         {label}
         {value !== null && (
-          <span className="prov prov-passport">
-            <BadgeCheck className="ic" aria-hidden="true" />
+          <span className={entered ? "prov prov-entered" : "prov prov-passport"}>
+            <Icon className="ic" aria-hidden="true" />
             {source}
           </span>
         )}
@@ -53,7 +55,9 @@ function Value({ label, value, source = t("organization.fromPassport"), editUrl 
       ) : (
         <div className="row muted" style={{ gap: "8px" }}>
           <CircleDashed className="ic" aria-hidden="true" />
-          {t("organization.notSet")}{editUrl ? <> · <a href={editUrl}>{t("organization.addInPassport")}</a></> : null}
+          {t("organization.notSet")}
+          {editUrl ? <> · <a href={editUrl}>{t("organization.addInPassport")}</a></> : null}
+          {!editUrl && settingsHref ? <> · <Link to={settingsHref}>{t("organization.editInSettings")}</Link></> : null}
         </div>
       )}
     </div>
@@ -93,13 +97,21 @@ export default function Organization() {
               const money = (v: unknown) => (typeof v === "number" ? formatMinor(Math.round(v * 100)) : null);
               const subsection = text(at(profile, "commonApp.irs.subsection"));
               const payee = readiness.checks.find((c) => c.key === "payee_verified");
+              const declared = org.linked ? null : (declaredFacts(org.selfDeclared) ?? { legalName: null, ein: null, address: null, website: null, mission: null });
+              const settingsHref = `${base}/settings#organization-details`;
+              const entered = t("organization.enteredByYou");
+              const legalName = declared ? declared.legalName : text(at(o, "name"));
+              const ein = declared ? declared.ein : (text(at(o, "identifiers.org:us:ein.id"))?.replace(/^(\d{2})(\d{7})$/, "$1-$2") ?? null);
+              const mailing = declared ? declared.address : address;
+              const website = declared ? declared.website : (text(at(o, "socials.website"))?.replace(/^https?:\/\//, "") ?? null);
+              const mission = declared ? declared.mission : text(at(o, "mission"));
               return (
                 <>
                   <div className="ph">
                     <div>
                       <div className="title">
                         <h1>{t("organization.organization")}</h1>
-                        <LevelBadge level={org.level} />
+                        {org.level ? <LevelBadge level={org.level} /> : null}
                         {payee?.state === "pass" && (
                           <span className="pay pay-active">
                             <Check className="ic" aria-hidden="true" />
@@ -108,7 +120,7 @@ export default function Organization() {
                         )}
                       </div>
                       <div className="meta">
-                        <span>{t("organization.thisIsYourOpengrantsPassportRecord")}</span>
+                        <span>{org.linked ? t("organization.thisIsYourOpengrantsPassportRecord") : t("organization.enteredByYouNotVerified")}</span>
                       </div>
                     </div>
                     <div className="actions">
@@ -154,12 +166,12 @@ export default function Organization() {
                           )}
                         </div>
                         <div className="card-b" style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px 24px" }}>
-                          <Value label={t("organization.legalName")} value={text(at(o, "name"))} editUrl={org.editUrl} />
-                          <Value label={t("organization.taxStatus")} value={subsection ? irsSubsection(subsection) : null} source={src("/commonApp/irs/subsection")} editUrl={org.editUrl} />
-                          <Value label="EIN" value={text(at(o, "identifiers.org:us:ein.id"))?.replace(/^(\d{2})(\d{7})$/, "$1-$2") ?? null} editUrl={org.editUrl} />
-                          <Value label={t("organization.mailingAddress")} value={address} editUrl={org.editUrl} />
-                          <Value label={t("organization.website")} value={text(at(o, "socials.website"))?.replace(/^https?:\/\//, "") ?? null} editUrl={org.editUrl} />
-                          <Value label={t("organization.founded")} value={text(at(o, "yearFounded"))} editUrl={org.editUrl} />
+                          <Value label={t("organization.legalName")} value={legalName} source={declared ? entered : undefined} entered={!!declared} editUrl={declared ? null : org.editUrl} settingsHref={declared ? settingsHref : undefined} />
+                          <Value label={t("organization.taxStatus")} value={declared ? null : subsection ? irsSubsection(subsection) : null} source={src("/commonApp/irs/subsection")} editUrl={declared ? null : org.editUrl} settingsHref={declared ? settingsHref : undefined} />
+                          <Value label="EIN" value={ein} source={declared ? entered : undefined} entered={!!declared} editUrl={declared ? null : org.editUrl} settingsHref={declared ? settingsHref : undefined} />
+                          <Value label={t("organization.mailingAddress")} value={mailing} source={declared ? entered : undefined} entered={!!declared} editUrl={declared ? null : org.editUrl} settingsHref={declared ? settingsHref : undefined} />
+                          <Value label={t("organization.website")} value={website} source={declared ? entered : undefined} entered={!!declared} editUrl={declared ? null : org.editUrl} settingsHref={declared ? settingsHref : undefined} />
+                          <Value label={t("organization.founded")} value={declared ? null : text(at(o, "yearFounded"))} editUrl={declared ? null : org.editUrl} settingsHref={declared ? settingsHref : undefined} />
                         </div>
                       </section>
 
@@ -175,16 +187,24 @@ export default function Organization() {
                           )}
                         </div>
                         <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                          {text(at(o, "mission")) ? (
+                          {mission ? (
                             <>
-                              <span className="prov prov-passport" style={{ alignSelf: "flex-start" }}>
-                                <BadgeCheck className="ic" aria-hidden="true" />
-                                {t("organization.fromPassport")}
+                              <span className={declared ? "prov prov-entered" : "prov prov-passport"} style={{ alignSelf: "flex-start" }}>
+                                {declared ? <Pencil className="ic" aria-hidden="true" /> : <BadgeCheck className="ic" aria-hidden="true" />}
+                                {declared ? entered : t("organization.fromPassport")}
                               </span>
-                              <p>{text(at(o, "mission"))}</p>
+                              <p>{mission}</p>
                             </>
                           ) : (
-                            <p className="muted">{t("organization.noMissionStatementInPassportYet")}</p>
+                            <p className="muted">
+                              {declared ? (
+                                <>
+                                  {t("organization.noMissionYet")} <Link to={settingsHref}>{t("organization.editInSettings")}</Link>
+                                </>
+                              ) : (
+                                t("organization.noMissionStatementInPassportYet")
+                              )}
+                            </p>
                           )}
                         </div>
                       </section>
@@ -213,7 +233,7 @@ export default function Organization() {
                         </div>
                       </section>
                       <VaultCard base={base} />
-                      <LockerCard editUrl={org.editUrl} />
+                      <LockerCard editUrl={org.editUrl} linked={org.linked} />
                       <AccessCard consents={consents} base={base} onChanged={query.reload} />
                     </div>
 
@@ -223,7 +243,7 @@ export default function Organization() {
                           <h2 id="ready-h" style={{ fontSize: "18px" }}>
                             {t("organization.readiness")}
                           </h2>
-                          <LevelBadge level={readiness.level} />
+                          {readiness.level ? <LevelBadge level={readiness.level} /> : null}
                         </div>
                         <div className="card-b">
                           <ul className="rc">

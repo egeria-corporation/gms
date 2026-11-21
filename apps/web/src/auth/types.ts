@@ -22,6 +22,12 @@ export interface TotpEnrollment {
   qrCode?: string;
 }
 
+/** A TOTP factor, including one that was started and never verified. */
+export interface TotpFactor {
+  id: string;
+  status: "verified" | "unverified";
+}
+
 export interface AuthClient {
   getSession(): Promise<Session | null>;
   /** Calls back on sign-in, sign-out and assurance-level changes. Returns an unsubscribe function. */
@@ -36,6 +42,10 @@ export interface AuthClient {
   redeemSignIn(tokenHash: string, type: string): Promise<Session>;
   /** Ids of this user's verified TOTP factors. */
   listTotpFactors(): Promise<string[]>;
+  /** Every TOTP factor, including one that was started and never verified. */
+  listAllTotpFactors(): Promise<TotpFactor[]>;
+  /** Removes a factor so a new enrollment can take its place. */
+  unenrollTotp(factorId: string): Promise<void>;
   enrollTotp(): Promise<TotpEnrollment>;
   /** Verifies a code for a factor (completing enrollment or a challenge) and raises the session to aal2. */
   verifyTotp(factorId: string, code: string): Promise<Session>;

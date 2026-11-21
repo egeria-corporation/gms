@@ -258,8 +258,8 @@ export default function TeamAccess() {
                   />
 
                   <TabPanel idPrefix="team" tab="members" active={tab}>
-                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-                      <section aria-labelledby="team-h" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div className="team-split">
+                      <section aria-labelledby="team-h" style={{ display: "flex", flexDirection: "column", gap: "10px", minWidth: 0 }}>
                         <h2 id="team-h" style={{ fontSize: "18px" }}>
                           {t("teamAccess.members")}
                         </h2>
@@ -270,8 +270,8 @@ export default function TeamAccess() {
                   </TabPanel>
 
                   <TabPanel idPrefix="team" tab="consultants" active={tab}>
-                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 1fr)", gap: "20px", alignItems: "start" }}>
-                      <section aria-labelledby="cons-h" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div className="team-split">
+                      <section aria-labelledby="cons-h" style={{ display: "flex", flexDirection: "column", gap: "10px", minWidth: 0 }}>
                         <h2 id="cons-h" style={{ fontSize: "18px" }}>
                           {t("teamAccess.consultants")}
                         </h2>

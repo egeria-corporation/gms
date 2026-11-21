@@ -48,8 +48,9 @@ async function publishCalls(api: ApiHarness, userId: string, workspaceId: string
     keyDates: { closeDate: { name: "Deadline", eventType: "singleDate", date: "2099-09-30" }, postDate: { name: "Opens", eventType: "singleDate", date: "2099-01-05" } },
     acceptedApplicantTypes: ["non_profit_with_501c3"],
   };
-  const make = async (title: string) => data<{ id: string }>(await api.request("/gms/opportunities", json(who, { ...OPP, title })));
-  const open = await make("Open Call");
+  const make = async (title: string, keyDates = OPP.keyDates) => data<{ id: string }>(await api.request("/gms/opportunities", json(who, { ...OPP, title, keyDates })));
+  // The published open date is already past the service clock. A future post date would mean the call is not taking applications yet.
+  const open = await make("Open Call", { closeDate: OPP.keyDates.closeDate, postDate: { name: "Opens", eventType: "singleDate", date: "2027-01-05" } });
   const form = await data<{ id: string }>(await api.request("/gms/forms", json(who, { title: "Application", purpose: "application", jsonSchema: { type: "object", properties: { a: { type: "string" } } }, uiSchema: { type: "VerticalLayout", elements: [{ type: "Control", scope: "#/properties/a" }] } })));
   await api.request(`/gms/forms/${form.id}/publish`, { method: "POST", headers: who });
   const rubric = await data<{ id: string }>(await api.request("/gms/rubrics", json(who, { name: "Screen", criteria: [{ key: "fit", label: "Fit", weight: 1, scale: { type: "numeric", min: 1, max: 5 } }] })));

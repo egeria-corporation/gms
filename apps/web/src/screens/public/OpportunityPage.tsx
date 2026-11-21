@@ -19,6 +19,7 @@ import { rememberSocialLanding } from "../../lib/socialLanding.ts";
 import { ErrorBanner } from "../../components/ui.tsx";
 import { FormView } from "../../forms/FormView.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
+import { firstSubmissionOpens, isAfterToday } from "../../lib/openDate.ts";
 import { DeadlineBadge } from "./FunderPage.tsx";
 import { PublicFrame, PublicState } from "./PublicFrame.tsx";
 import { openBlob } from "../../lib/browser.ts";
@@ -34,11 +35,38 @@ const t = translator("public");
  */
 export const APPLY_NEEDS_OPEN_OPPORTUNITY = true;
 
-/** Whether the page offers Apply: a competition is open, and the opportunity is open (see above). */
+/**
+ * Whether the page offers Apply. A false `acceptingApplications` from the server wins (that flag
+ * already refuses a future open date). Without the flag, a competition must be open and the
+ * opportunity itself open.
+ */
 export function takingApplications(data: Pick<OpportunityPageData, "opportunity" | "competitions">): boolean {
   const status = data.opportunity.status;
   if (status === "closed" || (APPLY_NEEDS_OPEN_OPPORTUNITY && status !== "open")) return false;
+  if (data.opportunity.acceptingApplications === false) return false;
   return data.competitions.some((c) => c.status === "open");
+}
+
+/**
+ * The date to say "Opens" for, when the server says the call is not taking applications yet and
+ * an open date is still ahead. A call the server says is accepting keeps its close badge.
+ */
+export function pendingOpenDate(data: Pick<OpportunityPageData, "opportunity" | "competitions">, now = new Date()): string | null {
+  if (data.opportunity.status === "closed" || data.opportunity.status === "forecasted") return null;
+  if (data.opportunity.acceptingApplications !== false) return null;
+  const post = data.opportunity.keyDates.postDate?.date ?? null;
+  if (post && isAfterToday(post, now)) return post;
+  for (const competition of data.competitions) {
+    if (competition.status !== "open") continue;
+    const opens = firstSubmissionOpens(competition.stages);
+    if (opens && isAfterToday(opens, now)) return opens;
+  }
+  return null;
+}
+
+/** The two FAQ sentences, with a space between them. */
+export function passportFaqText(base: string, extra: string | null): string {
+  return extra ? `${base} ${extra}` : base;
 }
 
 /** Save for later, for a signed-in person with an applicant workspace. It lands under Saved in Find funding. */
@@ -201,7 +229,7 @@ export default function OpportunityPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                 <h1 style={{ fontSize: "24px" }}>{o.title}</h1>
-                <DeadlineBadge opp={o} />
+                <DeadlineBadge opp={o} opensOn={pendingOpenDate(data)} />
               </div>
               <div className="muted" style={{ fontSize: "14px" }}>
                 {/* A fund other than the default is named, with its page (sent once the public data carries funds). */}
@@ -372,9 +400,12 @@ export default function OpportunityPage() {
                 <ChevronDown className="ic" aria-hidden="true" />
               </summary>
               <p>
-                {t("opportunityPage.noYouCanSetUp", { name: funder.name })}
-                {passportFlags.linking &&
-                  t(passportFlags.payments ? "opportunityPage.passportRecommendedPayments" : "opportunityPage.passportRecommended", { name: funder.name })}
+                {passportFaqText(
+                  t("opportunityPage.noYouCanSetUp", { name: funder.name }),
+                  passportFlags.linking
+                    ? t(passportFlags.payments ? "opportunityPage.passportRecommendedPayments" : "opportunityPage.passportRecommended", { name: funder.name })
+                    : null,
+                )}
               </p>
             </details>
             <details>

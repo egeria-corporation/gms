@@ -4,7 +4,7 @@
 // status with the change-control note, readiness, and who has access. Everything is read from
 // Passport and edited there.
 import { Link } from "react-router";
-import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleX, Clock, Landmark } from "lucide-react";
+import { BadgeCheck, Check, CircleCheck, CircleDashed, CircleX, Clock, Landmark, Pencil } from "lucide-react";
 import type { ApplicantApi } from "../../../api/applicant.ts";
 import { useApplicantMutation, useApplicantQuery } from "../../../api/applicantHooks.ts";
 import { initialsOf } from "../../../api/client.ts";
@@ -19,6 +19,7 @@ import { ConnectedAppsCard, LockerCard, RepresentativesCard } from "../organizat
 import { VaultCard } from "../outside/keep.tsx";
 import { t, useApplicantText } from "../i18n.ts";
 import { readinessWords } from "../../../lib/readinessText.ts";
+import { declaredFacts } from "../../../lib/selfDeclared.ts";
 
 const load = async (api: ApplicantApi) => {
   const [org, readiness, consents] = await Promise.all([api.organization(), api.readiness(), api.consents()]);
@@ -42,14 +43,15 @@ const BASIS: Record<string, string> = {
   get shared_submission() { return t("organizationPhone.basis.shared"); },
 };
 
-function Row({ label, value, source, last = false }: { label: string; value: string | null; source: string; last?: boolean }) {
+function Row({ label, value, source, entered = false, last = false }: { label: string; value: string | null; source: string; entered?: boolean; last?: boolean }) {
+  const Icon = entered ? Pencil : BadgeCheck;
   return (
     <div style={{ padding: "12px 16px", ...(last ? {} : { borderBottom: "1px solid var(--og-gray-100)" }), display: "flex", flexDirection: "column", gap: "4px" }}>
       <dt className="row small muted" style={{ gap: "8px", flexWrap: "wrap" }}>
         {label}
         {value !== null && (
-          <span className="prov prov-passport">
-            <BadgeCheck className="ic" aria-hidden="true" />
+          <span className={entered ? "prov prov-entered" : "prov prov-passport"}>
+            <Icon className="ic" aria-hidden="true" />
             {source}
           </span>
         )}
@@ -80,6 +82,9 @@ export default function OrganizationPhone() {
               const subsection = text(at(profile, "commonApp.irs.subsection"));
               const budget = at(profile, "commonApp.financials.budget");
               const payee = readiness.checks.find((c) => c.key === "payee_verified");
+              const declared = org.linked ? null : (declaredFacts(org.selfDeclared) ?? { legalName: null, ein: null, address: null, website: null, mission: null });
+              const entered = t("organization.enteredByYou");
+              const passport = t("organization.fromPassport");
               const active = consents.filter((c) => !c.revokedAt);
               const done = readiness.summary.pass;
               const total = readiness.checks.length || 1;
@@ -93,7 +98,7 @@ export default function OrganizationPhone() {
                       <div className="grow" style={{ minWidth: "0" }}>
                         <h2 style={{ fontSize: "20px", lineHeight: 1.25 }}>{org.displayName}</h2>
                         <div className="row wrap" style={{ gap: "6px", marginTop: "6px" }}>
-                          <LevelBadge level={org.level} />
+                          {org.level ? <LevelBadge level={org.level} /> : null}
                           {payee?.state === "pass" && (
                             <span className="pay pay-active">
                               <Check className="ic" aria-hidden="true" />
@@ -112,7 +117,7 @@ export default function OrganizationPhone() {
                         <div className="fill" style={{ width: `${Math.round((done / total) * 100)}%` }}></div>
                       </div>
                     </div>
-                    <p className="small muted">{t("organizationPhone.everythingHereIsReadFromYour")}</p>
+                    <p className="small muted">{org.linked ? t("organizationPhone.everythingHereIsReadFromYour") : t("organization.enteredByYouNotVerified")}</p>
                     {org.linked && (
                       <button
                         className="btn btn-secondary btn-lg btn-block"
@@ -152,13 +157,13 @@ export default function OrganizationPhone() {
                       )}
                     </div>
                     <dl style={{ margin: "0", display: "flex", flexDirection: "column" }}>
-                      <Row label={t("organizationPhone.legalName")} value={text(at(o, "name")) ?? org.displayName} source={t("organization.fromPassport")} />
-                      <Row label={t("organizationPhone.taxStatus")} value={subsection ? irsSubsection(subsection) : null} source={src("/commonApp/irs/subsection")} />
-                      <Row label="EIN" value={text(at(o, "identifiers.org:us:ein.id"))} source={t("organization.fromPassport")} />
-                      <Row label={t("organizationPhone.mailingAddress")} value={address} source={t("organization.fromPassport")} />
-                      <Row label={t("organizationPhone.website")} value={text(at(o, "socials.website"))} source={t("organization.fromPassport")} />
-                      <Row label={t("organizationPhone.annualOperatingBudget")} value={typeof budget === "number" ? formatMinor(Math.round(budget * 100)) : null} source={src("/commonApp/financials/budget")} />
-                      <Row label={t("organizationPhone.mission")} value={text(at(o, "mission"))} source={t("organization.fromPassport")} last />
+                      <Row label={t("organizationPhone.legalName")} value={declared ? declared.legalName : text(at(o, "name"))} source={declared ? entered : passport} entered={!!declared} />
+                      <Row label={t("organizationPhone.taxStatus")} value={declared ? null : subsection ? irsSubsection(subsection) : null} source={src("/commonApp/irs/subsection")} />
+                      <Row label="EIN" value={declared ? declared.ein : text(at(o, "identifiers.org:us:ein.id"))} source={declared ? entered : passport} entered={!!declared} />
+                      <Row label={t("organizationPhone.mailingAddress")} value={declared ? declared.address : address} source={declared ? entered : passport} entered={!!declared} />
+                      <Row label={t("organizationPhone.website")} value={declared ? declared.website : text(at(o, "socials.website"))} source={declared ? entered : passport} entered={!!declared} />
+                      <Row label={t("organizationPhone.annualOperatingBudget")} value={declared ? null : typeof budget === "number" ? formatMinor(Math.round(budget * 100)) : null} source={src("/commonApp/financials/budget")} />
+                      <Row label={t("organizationPhone.mission")} value={declared ? declared.mission : text(at(o, "mission"))} source={declared ? entered : passport} entered={!!declared} last />
                     </dl>
                   </section>
 
@@ -263,7 +268,7 @@ export default function OrganizationPhone() {
                     )}
                   </section>
                   <VaultCard base={base} />
-                  <LockerCard editUrl={org.editUrl} />
+                  <LockerCard editUrl={org.editUrl} linked={org.linked} />
                   <ConnectedAppsCard sources={(org.profileSources ?? {}) as Record<string, unknown>} editUrl={org.editUrl} />
                   <RepresentativesCard editUrl={org.editUrl} />
                 </>

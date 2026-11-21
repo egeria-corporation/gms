@@ -79,6 +79,35 @@ describe("applicant screens render from the API", () => {
     expect(screen.getAllByRole("link", { name: /Edit in Passport/ })[0]).toHaveAttribute("href", expect.stringContaining("passport.opengrants.io"));
   });
 
+  it("organization: a workspace without Passport shows what was entered, not an empty Passport record", async () => {
+    const store = seedApplicantStore();
+    Object.assign(store.organization, {
+      linked: false,
+      level: null,
+      source: "self_declared",
+      passportOrgId: null,
+      organization: null,
+      profile: null,
+      editUrl: null,
+      selfDeclared: {
+        legalName: "UX Test Nonprofit",
+        ein: "123456789",
+        website: "https://example.org",
+        mission: "Grow food.",
+        address: { street: "1 Main", city: "Portland", region: "OR", postalCode: "97201" },
+      },
+    });
+    open("/w/alder-creek/organization", { store });
+    expect(await screen.findByText("UX Test Nonprofit")).toBeInTheDocument();
+    expect(screen.getByText("These details are entered by you, not verified.")).toBeInTheDocument();
+    expect(screen.getByText("Grow food.")).toBeInTheDocument();
+    expect(screen.getByText("12-3456789")).toBeInTheDocument();
+    expect(screen.getAllByText("Entered by you").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/This is your OpenGrants Passport record/)).not.toBeInTheDocument();
+    expect(screen.queryByText("L?")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Your documents are safe in Passport/)).not.toBeInTheDocument();
+  });
+
   it("find funding: eligibility per competition, start, and the OpenGrants index", async () => {
     open("/w/alder-creek/find");
     const health = await screen.findByRole("article", { name: "Community Health Grants 2027" });
@@ -86,6 +115,7 @@ describe("applicant screens render from the API", () => {
     expect(within(health).getByRole("link", { name: "Continue application" })).toBeInTheDocument();
     const housing = screen.getByRole("article", { name: "Housing Stability 2027" });
     expect(within(housing).getByText("Eligibility unknown")).toBeInTheDocument();
+    expect(screen.getByText(/Eligibility is checked against your Passport record/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "OpenGrants index" }));
     await userEvent.type(screen.getByRole("searchbox", { name: "Search the OpenGrants index" }), "rural");

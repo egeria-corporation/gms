@@ -118,7 +118,7 @@ export function RepresentativesCard({ editUrl }: { editUrl: string | null }) {
   );
 }
 
-export function LockerCard({ editUrl }: { editUrl: string | null }) {
+export function LockerCard({ editUrl, linked }: { editUrl: string | null; linked: boolean }) {
   const query = useFullQuery((api) => api.locker(), []);
   return (
     <section className="card" aria-labelledby="locker-h">
@@ -137,7 +137,9 @@ export function LockerCard({ editUrl }: { editUrl: string | null }) {
           {(locker) =>
             locker.state === "unavailable" ? (
               <p className="muted" role="status">
-                {t("organizationExtras.lockerUnavailable", { reason: locker.reason ?? t("organizationExtras.passportCouldNotBeReached") })}
+                {linked
+                  ? t("organizationExtras.lockerUnavailable", { reason: locker.reason ?? t("organizationExtras.passportCouldNotBeReached") })
+                  : t.rich("organizationExtras.lockerNotLinked", { link: (chunks) => <Link to="documents">{chunks}</Link> })}
               </p>
             ) : locker.items.length === 0 ? (
               <p className="muted">{t("organizationExtras.noDocumentsInYourPassportLocker")}</p>

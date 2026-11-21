@@ -12,6 +12,7 @@ import { useAppConfig } from "../../api/launchHooks.ts";
 import type { OutsideListItem, OwnerRef, PipelineItem } from "../../api/outside.ts";
 import { useOutsideMutation, useOutsideQuery } from "../../api/outsideHooks.ts";
 import { useServices } from "../../app/services.tsx";
+import { useIsPhone } from "../../app/usePhone.ts";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { Loaded } from "../../components/applicant.tsx";
 import { RequirementsCalendar, type CalendarItem } from "../../components/RequirementsCalendar.tsx";
@@ -97,6 +98,31 @@ export function matchesDeadline(d: string | null, f: DeadlineFilter, now = new D
   const n = daysUntil(d, now);
   if (n === null) return false;
   return f === "overdue" ? n < 0 : n >= 0 && n <= Number(f);
+}
+
+/** The list at phone width: one card per application, not the wide table. */
+function PhoneList({ rows }: { rows: Row[] }) {
+  if (rows.length === 0) {
+    return (
+      <EmptyState icon={Search} title={t("pipeline.nothingMatchesTheseFilters")}>
+        {t("pipeline.clearAFilterToSeeMore")}
+      </EmptyState>
+    );
+  }
+  return (
+    <ul aria-label={t("pipeline.applications")} style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
+      {rows.map((row) => (
+        <li key={row.key} className="card" style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "6px" }}>
+          <Link to={row.href} className="b" style={{ overflowWrap: "anywhere" }}>
+            {row.item.title}
+          </Link>
+          {row.item.funderName ? <span className="small muted">{row.item.funderName}</span> : null}
+          <StageCell row={row} />
+          <span className="small">{row.deadline ? <DeadlineText date={row.deadline} /> : LANE_LABELS[row.lane]}</span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function StageCell({ row }: { row: Row }) {
@@ -255,6 +281,7 @@ function Archived({ base }: { base: string }) {
 
 export default function Applications() {
   useApplicantText();
+  const phone = useIsPhone();
   const ws = useWorkspace("applicant");
   const access = applicantAccess(ws.member.role);
   const base = `/w/${ws.handle}`;
@@ -463,6 +490,8 @@ export default function Applications() {
                   <CalendarView rows={filtered} />
                 ) : view === "board" ? (
                   <Board rows={filtered} lanes={LANES.filter((l) => CORE_LANES.has(l) || filtered.some((r) => r.lane === l) || lane === l)} />
+                ) : phone ? (
+                  <PhoneList rows={filtered} />
                 ) : (
                   <DataTable
                     label={t("pipeline.applications")}
