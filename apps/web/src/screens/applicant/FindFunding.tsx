@@ -24,6 +24,7 @@ import { StatusBadge } from "../../components/status.tsx";
 import { EmptyState, ErrorBanner, Notice, TabPanel, Tabs } from "../../components/ui.tsx";
 import { formatAwardRange, formatDate } from "../../lib/format.ts";
 import { explainResult } from "../../lib/eligibilityText.ts";
+import { applicantAccess } from "../../lib/roles.ts";
 import { FundingAlerts } from "./fundingAlerts.tsx";
 import { socialSourceFor } from "../../lib/socialLanding.ts";
 import { t, useApplicantText } from "./i18n.ts";
@@ -135,7 +136,7 @@ function NotOpenCard({ c, saved, onSave, saving }: { c: DiscoverItem; saved: boo
   );
 }
 
-function CompetitionCard({ c, base, onStart, starting, saved, saving, onSave }: { c: OpenDiscoverItem; base: string; onStart: (c: OpenDiscoverItem) => void; starting: boolean; saved: boolean; saving: boolean; onSave: () => void }) {
+function CompetitionCard({ c, base, onStart, starting, saved, saving, onSave, canStart = true, canSave = true }: { c: OpenDiscoverItem; base: string; onStart: (c: OpenDiscoverItem) => void; starting: boolean; saved: boolean; saving: boolean; onSave: () => void; canStart?: boolean; canSave?: boolean }) {
   const failed = c.eligibility.results.filter((r) => r.outcome === "fail");
   const unknown = c.eligibility.results.filter((r) => r.outcome === "unknown");
   const range = formatAwardRange(c.opportunity.funding as OppFunding);
@@ -209,14 +210,18 @@ function CompetitionCard({ c, base, onStart, starting, saved, saving, onSave }: 
             <StatusBadge kind="application" status={c.application.status} />
           </>
         ) : c.eligibility.eligible === false ? (
+          canSave ? (
           <button className="btn btn-secondary" type="button" disabled={saved || saving} onClick={onSave}>
             <Bookmark className="ic" aria-hidden="true" />
             {saved ? t("findFunding.saved") : t("findFunding.save")}
           </button>
-        ) : (
+          ) : null
+        ) : canStart ? (
           <button className={c.eligibility.eligible === true ? "btn btn-primary" : "btn btn-secondary"} type="button" onClick={() => onStart(c)} disabled={starting}>
             {starting ? t("findFunding.starting") : c.eligibility.eligible === true ? t("findFunding.startApplication") : t("findFunding.startAnyway")}
           </button>
+        ) : (
+          <p className="small muted">{t("access.cannotStart")}</p>
         )}
         {c.eligibility.eligible === "unknown" && !c.application && <span className="small muted">{t("findFunding.youCanStartEligibilityReChecks")}</span>}
         {c.funder.handle && (
@@ -254,6 +259,8 @@ interface ListingHandlers {
   onStartOutside: (l: OpenGrantsListing) => void;
   onSaveOutside: (l: OpenGrantsListing) => void;
   onSaveGms: (item: DiscoverItem) => void;
+  canStart: boolean;
+  canSave: boolean;
 }
 
 function ListingActions({ l, action, h, size = "sm" }: { l: OpenGrantsListing; action: ListingAction; h: ListingHandlers; size?: "sm" | "md" }) {
@@ -267,10 +274,12 @@ function ListingActions({ l, action, h, size = "sm" }: { l: OpenGrantsListing; a
         </Link>
       );
     }
-    return (
+    return h.canStart ? (
       <button className={`btn btn-primary${sm}`} type="button" disabled={h.busy} onClick={() => h.onStartBuiltIn(action.kind === "builtin" ? action.item.competitionId : action.competitionId)}>
         {t("findFunding.startApplication")}
       </button>
+    ) : (
+      <p className="small muted">{t("access.cannotStart")}</p>
     );
   }
   if (action.kind === "not-open") {
@@ -278,7 +287,7 @@ function ListingActions({ l, action, h, size = "sm" }: { l: OpenGrantsListing; a
     return (
       <>
         <NotTakingYet />
-        {action.item && (
+        {action.item && h.canSave && (
           <button className={`btn btn-secondary${sm}`} type="button" disabled={saved || h.busy} onClick={() => h.onSaveGms(action.item!)}>
             <Bookmark className="ic" aria-hidden="true" />
             {saved ? t("findFunding.saved") : t("findFunding.save")}
@@ -294,15 +303,19 @@ function ListingActions({ l, action, h, size = "sm" }: { l: OpenGrantsListing; a
         <Link to={`${h.base}/outside/${existing.id}`} className={`btn btn-primary${sm}`}>
           {t("findFunding.openApplication")}
         </Link>
-      ) : (
+      ) : h.canStart ? (
         <button className={`btn btn-primary${sm}`} type="button" disabled={h.busy} onClick={() => h.onStartOutside(l)}>
           {t("findFunding.startApplication")}
         </button>
+      ) : (
+        <p className="small muted">{t("access.cannotStart")}</p>
       )}
+      {h.canSave && (
       <button className={`btn btn-secondary${sm}`} type="button" disabled={!!existing || h.busy} onClick={() => h.onSaveOutside(l)}>
         <Bookmark className="ic" aria-hidden="true" />
         {existing ? t("findFunding.saved") : t("findFunding.save")}
       </button>
+      )}
     </>
   );
 }
@@ -482,9 +495,13 @@ function SavedTab({ base, prospects, gmsSaved, competitions, h, onStartProspect,
               {p.deadlines.fullDue ? ` · ${t("findFunding.closesOn", { date: formatDate(p.deadlines.fullDue) })}` : p.deadlines.rolling ? ` · ${t("findFunding.rolling")}` : ""} · {t("findFunding.prospect")}
             </div>
           </div>
+          {h.canStart ? (
           <button className="btn btn-sm btn-primary" type="button" disabled={startingId === p.id} onClick={() => onStartProspect(p)}>
             {startingId === p.id ? t("findFunding.starting") : t("findFunding.startApplication")}
           </button>
+          ) : (
+            <p className="small muted">{t("access.cannotStart")}</p>
+          )}
         </li>
       ))}
       {gmsSaved.map((s, i) => {
@@ -503,10 +520,12 @@ function SavedTab({ base, prospects, gmsSaved, competitions, h, onStartProspect,
                 <Link to={`${base}/applications/${item.application.id}${item.application.status === "draft" ? "/edit" : ""}`} className="btn btn-sm btn-primary">
                   {item.application.status === "draft" ? t("findFunding.continueApplication") : t("findFunding.openApplication")}
                 </Link>
-              ) : (
+              ) : h.canStart ? (
                 <button className="btn btn-sm btn-primary" type="button" disabled={h.busy} onClick={() => h.onStartBuiltIn(item.competitionId)}>
                   {t("findFunding.startApplication")}
                 </button>
+              ) : (
+                <p className="small muted">{t("access.cannotStart")}</p>
               )
             ) : (
               <NotTakingYet />
@@ -526,6 +545,7 @@ function SavedTab({ base, prospects, gmsSaved, competitions, h, onStartProspect,
 export default function FindFunding() {
   useApplicantText();
   const ws = useWorkspace("applicant");
+  const access = applicantAccess(ws.member.role);
   const base = `/w/${ws.handle}`;
   const navigate = useNavigate();
   const outside = useOutsideApi();
@@ -610,6 +630,8 @@ export default function FindFunding() {
                   const s = await saveGms.run(item);
                   if (s) query.set({ competitions, saved: [s, ...everySaved.filter((x) => x.id !== s.id)], mine });
                 },
+                canStart: access.applications,
+                canSave: access.discovery,
               };
               return (
                 <>
@@ -647,7 +669,7 @@ export default function FindFunding() {
                           <div key={c.competitionId ?? c.opportunity.id} ref={c === found ? wantedCard : undefined} style={c === found ? { outline: "2px solid var(--og-teal)", outlineOffset: "2px", borderRadius: "12px" } : undefined} data-wanted={c === found ? "true" : undefined}>
                             {c === found && <div className="small b" style={{ padding: "0 0 6px 4px" }}>{t("findFunding.theOpportunityYouChose")}</div>}
                             {isAccepting(c) ? (
-                              <CompetitionCard c={c} base={base} onStart={(x) => void onStart(x.competitionId)} starting={startingId === c.competitionId} saved={isSavedGms(c)} saving={saveGms.state === "saving"} onSave={() => h.onSaveGms(c)} />
+                              <CompetitionCard c={c} base={base} onStart={(x) => void onStart(x.competitionId)} starting={startingId === c.competitionId} saved={isSavedGms(c)} saving={saveGms.state === "saving"} onSave={() => h.onSaveGms(c)} canStart={h.canStart} canSave={h.canSave} />
                             ) : (
                               <NotOpenCard c={c} saved={isSavedGms(c)} saving={saveGms.state === "saving"} onSave={() => h.onSaveGms(c)} />
                             )}

@@ -106,8 +106,9 @@ export class PassportClient {
     return (await this.request<PaginatedEnvelope<FunderSource>>({ method: "GET", path: `/passport/funders/${seg(funderOrgId)}/sources` })).body.items;
   }
 
-  /** Link the funder to a nonprofit so it receives `payee.*` events for it. */
+  /** Link the funder to a nonprofit so it receives `payee.*` events for it. Same switch as creating the award. */
   linkNonprofit(funderOrgId: string, nonprofitOrgId: string): Promise<unknown> {
+    if (!this.awardWrite) throw new PassportFeatureDisabledError("award:write");
     return this.data({ method: "POST", path: `/passport/funders/${seg(funderOrgId)}/links`, body: { nonprofitOrgId } });
   }
 

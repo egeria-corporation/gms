@@ -35,6 +35,7 @@ import { validationMessage } from "../../forms/FormView.tsx";
 import { t, useApplicantText } from "./i18n.ts";
 import { YourProfilePanel } from "./YourProfilePanel.tsx";
 import { explainResult } from "../../lib/eligibilityText.ts";
+import { applicantAccess } from "../../lib/roles.ts";
 
 interface EditorData {
   app: Application;
@@ -385,11 +386,13 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
               {t("editor.preview")}
             </Link>
           )}
-          {canSubmit && (
+          {canSubmit ? (
             <button className="btn btn-primary" type="button" aria-haspopup="dialog" onClick={() => setSubmitOpen(true)}>
               {t("editor.submit")}
             </button>
-          )}
+          ) : applicantAccess(role).draft ? (
+            <p className="small muted">{t("access.adminSubmits")}</p>
+          ) : null}
         </div>
       </div>
 
@@ -553,20 +556,26 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                   </div>
                 </div>
               ))}
-              <label className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
-                <Upload className="ic" aria-hidden="true" />
-                {t("editor.uploadAFile")}
-                <input
-                  type="file"
-                  className="sr"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = "";
-                    if (file) void uploadFile(file).catch((error: unknown) => setSave({ state: "error", error }));
-                  }}
-                />
-              </label>
-              <DriveAttachButton onFile={(file) => uploadFile(file)} />
+              {readOnly ? (
+                <p className="small muted">{t("access.cannotChangeApplication")}</p>
+              ) : (
+                <>
+                  <label className="btn btn-secondary" style={{ alignSelf: "flex-start" }}>
+                    <Upload className="ic" aria-hidden="true" />
+                    {t("editor.uploadAFile")}
+                    <input
+                      type="file"
+                      className="sr"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (file) void uploadFile(file).catch((error: unknown) => setSave({ state: "error", error }));
+                      }}
+                    />
+                  </label>
+                  <DriveAttachButton onFile={(file) => uploadFile(file)} />
+                </>
+              )}
             </div>
           </section>
 
@@ -709,6 +718,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
 
               <TabPanel idPrefix="ed" tab="comments" active={tab}>
                 <CommentsPanel
+                  readOnly={readOnly}
                   comments={comments}
                   def={def}
                   onAdd={async (body, fieldPath) => {
@@ -724,7 +734,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
 
               <TabPanel idPrefix="ed" tab="assignments" active={tab}>
                 <p className="small muted" style={{ marginBottom: "10px" }}>
-                  {t("editor.whoOwnsEachSectionAConsultant")}
+                  {readOnly ? t("access.cannotChangeApplication") : t("editor.whoOwnsEachSectionAConsultant")}
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   {sections.map((s) => (
@@ -737,7 +747,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
                         id={`own-${slug(s.label)}`}
                         style={{ height: "36px", fontSize: "14px" }}
                         value={formOwners[s.label] ?? ""}
-                        disabled={consultant}
+                        disabled={consultant || readOnly}
                         onInvite={() => setInviting({ section: s.label })}
                         onChoose={async (value) => {
                           const r = await api.assignSections(app.id, `frm_${activeFormId}`, { [s.label]: value || null });
@@ -857,7 +867,7 @@ function EditorBody({ data, openSubmit, phone }: { data: EditorData; openSubmit:
   );
 }
 
-function CommentsPanel({ comments, def, onAdd, onResolve }: { comments: Comment[]; def: FormDefinition; onAdd: (body: string, fieldPath: string) => Promise<void>; onResolve: (id: string) => Promise<void> }) {
+function CommentsPanel({ comments, def, onAdd, onResolve, readOnly = false }: { comments: Comment[]; def: FormDefinition; onAdd: (body: string, fieldPath: string) => Promise<void>; onResolve: (id: string) => Promise<void>; readOnly?: boolean }) {
   const [body, setBody] = useState("");
   const [field, setField] = useState("");
   const [busy, setBusy] = useState(false);
@@ -877,13 +887,16 @@ function CommentsPanel({ comments, def, onAdd, onResolve }: { comments: Comment[
           <div className="bd">{c.body}</div>
           {c.resolvedAt ? (
             <span className="small muted">{t("editor.resolvedAgo", { ago: timeAgo(c.resolvedAt) })}</span>
-          ) : (
+          ) : readOnly ? null : (
             <button className="btn btn-sm btn-ghost" type="button" style={{ alignSelf: "flex-start" }} onClick={() => void onResolve(c.id)}>
               {t("editor.resolve")}
             </button>
           )}
         </div>
       ))}
+      {readOnly ? (
+        <p className="small muted">{t("access.cannotChangeApplication")}</p>
+      ) : (
       <form
         className="col"
         onSubmit={async (e) => {
@@ -920,6 +933,7 @@ function CommentsPanel({ comments, def, onAdd, onResolve }: { comments: Comment[
           {t("editor.comment")}
         </button>
       </form>
+      )}
     </div>
   );
 }

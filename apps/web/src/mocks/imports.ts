@@ -3,7 +3,8 @@
 // API (@gms/importers): sensitive columns dropped first, the targets' validators, row keys, the
 // reconciliation, saved mappings and the idempotent run log, all in page memory. Outside
 // applications are written to the outside-applications mock store, so they appear in the
-// Applications list; grant history is kept in this store only. Google Sheets and Airtable are
+// Applications list. Award history is kept here and also published onto Awards and Grantees.
+// Google Sheets and Airtable are
 // stand-ins with one spreadsheet and one base. Importer adapters (v1.9.0) run as on the server: a
 // grants system's preset and its never-awarded rows set aside; Fluxx and Zengine are stand-ins
 // with a few made-up records; zip files are matched by path and kept by name and size only.
@@ -58,6 +59,7 @@ import type { ConnectedApp, ImportCommitted, ImportFile, ImportPreview, ImportPu
 import type { OutsideApi } from "../api/outside.ts";
 import type { OutsideStore } from "./outside.ts";
 import { attachMockHistoryFile, seedHistoryStore, writeMockHistory, type HistoryStore, type MockAwardLinks } from "./history.ts";
+import { publishImportedAward } from "./importedAwards.ts";
 
 /** The stand-in spreadsheet and base. Their links are shown in the wizard's help in mock mode. */
 export const MOCK_SHEET_ID = "1MockSheetAbCdEfGhIjKlMnOpQrStUvWxYz012345";
@@ -382,7 +384,9 @@ export function createMockImportsApi(opts: MockImportsOptions): ImportsApi {
         } else {
           const rec = row.record as { title: string; recipientName: string; awardedAmountMinor: number; payment: { amountMinor: number } | null };
           id = `awd_${crypto.randomUUID()}`;
-          store.awards.push({ id, title: rec.title, recipientName: rec.recipientName, amountMinor: rec.awardedAmountMinor, paidMinor: rec.payment?.amountMinor ?? null });
+          const paidMinor = rec.payment?.amountMinor ?? null;
+          store.awards.push({ id, title: rec.title, recipientName: rec.recipientName, amountMinor: rec.awardedAmountMinor, paidMinor });
+          await publishImportedAward({ id, title: rec.title, recipientName: rec.recipientName, amountMinor: rec.awardedAmountMinor, paidMinor, status: "completed", programName: null });
         }
         store.written.set(k, now().toISOString());
         const entityType = r.run.target === "outside_applications" ? "outside_application" : r.run.target === "history_applications" ? "history_application" : r.run.target === "history_reviews" ? "history_review" : r.run.target === "history_reports" ? "history_report" : "award";

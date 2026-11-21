@@ -182,8 +182,22 @@ function McpServers() {
     await api.removeMcpServer(id);
     return true;
   });
+  const config = useAppConfig();
+  // The flag is absent while config is loading, and a missing flag used to look like "available".
+  if (!config.ready) {
+    return (
+      <section id="servers" className="card" aria-labelledby="servers-h">
+        <div className="card-h">
+          <h3 id="servers-h">{t("settingsMcp.customMcpServers")}</h3>
+        </div>
+        <div className="card-b">
+          <Loading label={t("settingsMcp.loadingServers")} />
+        </div>
+      </section>
+    );
+  }
   // Where this server cannot store a server's credentials, the form could only fail: say so instead.
-  if (useAppConfig().available?.customMcp === false) {
+  if (config.available?.customMcp === false) {
     return (
       <section id="servers" className="card" aria-labelledby="servers-h">
         <div className="card-h">
@@ -272,27 +286,33 @@ function Connectors() {
   const connect = useApiMutation((api) => api.connectConnector("mercury", token.trim()));
   const sync = useApiMutation((api) => api.syncConnector("mercury"));
   const disconnect = useApiMutation((api) => api.disconnectConnector("mercury"));
+  const config = useAppConfig();
   const [mercury] = page.data ?? [];
-  if (useAppConfig().available?.mercury === false) {
+  if (!config.ready) {
     return (
       <section id="integrations" className="card" aria-labelledby="integrations-h">
         <div className="card-h">
           <h3 id="integrations-h">{t("settingsMcp.integrations")}</h3>
         </div>
         <div className="card-b">
-          <Notice tone="neu" title={t("settingsMcp.mercuryReconciliationIsNot")}>
-            {t("settingsMcp.itNeedsToBe")}
-          </Notice>
+          <Loading label={t("settingsMcp.loadingIntegrations")} />
         </div>
       </section>
     );
   }
+  const mercuryOff = config.available?.mercury === false;
   return (
     <section id="integrations" className="card" aria-labelledby="integrations-h">
       <div className="card-h">
         <h3 id="integrations-h">{t("settingsMcp.integrations")}</h3>
       </div>
       <div className="card-b" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        {mercuryOff ? (
+          <Notice tone="neu" title={t("settingsMcp.mercuryReconciliationIsNot")}>
+            {t("settingsMcp.itNeedsToBe")}
+          </Notice>
+        ) : (
+          <>
         {page.status === "loading" && <Loading label={t("settingsMcp.loadingIntegrations")} />}
         {(page.status === "error" || connect.error !== null || sync.error !== null || disconnect.error !== null) && <ErrorBanner error={page.error ?? connect.error ?? sync.error ?? disconnect.error} onRetry={page.reload} />}
         {mercury && (
@@ -335,6 +355,8 @@ function Connectors() {
               </form>
             )}
           </div>
+        )}
+          </>
         )}
         <GoogleWorkspaceCard />
       </div>
@@ -874,7 +896,7 @@ export default function SettingsMcp() {
               <ApiClients />
               <Webhooks />
               <Team workspaceId={ws.id} />
-              <ContactsEditor />
+              <ContactsEditor canEdit={ws.member.role === "admin"} />
               <Ledger />
             </div>
           </div>

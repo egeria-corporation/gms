@@ -17,6 +17,7 @@ export function ProfileForm({
   onSubmit,
   secondary,
   idPrefix = "profile",
+  contactHelp,
 }: {
   initial?: Partial<SelfDeclaredProfile>;
   submitLabel: string;
@@ -26,6 +27,8 @@ export function ProfileForm({
   /** Another action beside the submit button, such as Cancel. */
   secondary?: ReactNode;
   idPrefix?: string;
+  /** Replaces the applicant sentence under the contact email. */
+  contactHelp?: string;
 }) {
   const [v, setV] = useState({
     legalName: initial?.legalName ?? "",
@@ -71,7 +74,7 @@ export function ProfileForm({
       <Field id={id("legal-name")} label={tr("profileForm.legalName")} required error={err("legalName")}>
         <input className={err("legalName") ? "inp err" : "inp"} id={id("legal-name")} value={v.legalName} onChange={set("legalName")} autoComplete="organization" />
       </Field>
-      <Field id={id("contact-email")} label={tr("profileForm.contactEmail")} required error={err("contactEmail")} help={tr("profileForm.shownToFundersYouApply")}>
+      <Field id={id("contact-email")} label={tr("profileForm.contactEmail")} required error={err("contactEmail")} help={contactHelp ?? tr("profileForm.shownToFundersYouApply")}>
         <input className={err("contactEmail") ? "inp err" : "inp"} id={id("contact-email")} type="email" value={v.contactEmail} onChange={set("contactEmail")} autoComplete="email" />
       </Field>
       <details open={problems.some((p) => p.path !== "legalName" && p.path !== "contactEmail") || undefined}>

@@ -9,7 +9,9 @@ import type { PackageEmailPreview, SendPackage } from "../../../api/sendPackage.
 import { useSendPackageMutation, useSendPackageQuery } from "../../../api/sendPackageHooks.ts";
 import { Dialog } from "../../../components/Dialog.tsx";
 import { ErrorBanner, Field, Loading, Notice, problemFor } from "../../../components/ui.tsx";
+import { useWorkspace } from "../../../app/workspace.tsx";
 import { downloadBlob } from "../../../lib/browser.ts";
+import { applicantAccess } from "../../../lib/roles.ts";
 import { t } from "../i18n.ts";
 
 /** The package's plain-text file, by its name. */
@@ -199,6 +201,7 @@ function EmailSection({ pkg, applicationId, blocked, onSent }: { pkg: SendPackag
     send.reset();
   };
   const unavailable = !pkg.email.available && !sent;
+  const canEmail = applicantAccess(useWorkspace("applicant").member.role).draft;
   return (
     <section aria-labelledby="stf-email">
       <h4 id="stf-email" style={{ fontSize: "14px", marginBottom: "6px" }}>
@@ -208,6 +211,8 @@ function EmailSection({ pkg, applicationId, blocked, onSent }: { pkg: SendPackag
         <Notice tone="ok" title={t("outsideSendToFunder.sentTo", { email: sent.to })}>
           {t("outsideSendToFunder.sentBody", { replyTo: sent.replyTo, count: sent.remainingToday })}
         </Notice>
+      ) : !canEmail ? (
+        <p className="small muted">{t("access.cannotEmailPackage")}</p>
       ) : unavailable ? (
         <Notice tone="neu" title={t("outsideSendToFunder.itCannotBeEmailedFromHere")}>
           {pkg.email.reason}

@@ -65,7 +65,18 @@ jobs:
           version: 2.108.0
       - run: pnpm install --frozen-lockfile
       - name: Start Supabase
-        run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,mailpit
+        # The database port is fixed at 57322 so this stack can sit beside Passport. Docker on a
+        # runner sometimes still holds that port after the first attempt. Stop and try again.
+        run: |
+          for attempt in 1 2 3; do
+            if supabase start -x studio,imgproxy,vector,logflare,edge-runtime,supavisor,realtime,mailpit; then
+              exit 0
+            fi
+            echo "supabase start failed (attempt ${attempt})"
+            supabase stop --no-backup || true
+            sleep $((attempt * 5))
+          done
+          exit 1
       - name: Database tests (pgTAP)
         run: supabase test db
       - name: Compile TypeSpec (contract tests validate against it)

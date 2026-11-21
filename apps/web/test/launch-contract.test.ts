@@ -121,7 +121,7 @@ describe.each([
     expect(config).toMatchObject({ facilitatedPayments: expect.any(Boolean) });
     // Which optional connections this server can make, each a plain yes or no.
     expect(Object.values(config.available ?? {}).every((v) => typeof v === "boolean")).toBe(true);
-    expect(Object.keys(config.available ?? {}).sort()).toEqual(["assistant", "customMcp", "googleCalendar", "googleDrive", "googleWorkspace", "mercury", "openGrants", "salesforce", "slack"]);
+    expect(Object.keys(config.available ?? {}).sort()).toEqual(["assistant", "customMcp", "googleCalendar", "googleDrive", "googleWorkspace", "mercury", "openGrants", "salesforce", "slack", "social"]);
     expect(await b.funder.config()).toEqual(config);
   });
 

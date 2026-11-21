@@ -2,7 +2,7 @@
 // Awards (build spec §10.1, §10.6, §11.5): the lifecycle lives here, the money lives in Passport.
 // Status changes go through the award machine; `funding.disbursedAmount` is only ever the value
 // last read from Passport, never a sum computed in the GMS.
-import type { FunderAwardInput } from "@gms/passport-client";
+import { PassportApiError, type FunderAwardInput } from "@gms/passport-client";
 import { buildSchedule, DEFAULT_PLAN, ScheduleError, type PlanItem } from "@gms/payments";
 import { filtered, matchesFilter, parseSearchRequest, projectAward, ProjectionError, readPath, sortByPath, toMinor, toMoney, type AwardBase, type AwardRow, type Money } from "@gms/protocol";
 import { awardCgStatus, awardEffects, awardMachine, NO_AGREEMENT_REQUIRED, trancheMachine, type AgreementStatus, type AwardAction, type AwardContext, type AwardStatus, type TrancheStatus } from "@gms/workflow";
@@ -407,6 +407,14 @@ export async function mirrorAward(ctx: ServiceContext, award: Award): Promise<Mi
   try {
     const passport = await passportClientFor(ctx, award.workspace_id);
     if (!passport) return { state: "skipped", reason: "Connect Passport to pay: this workspace has no Passport client" };
+    // Payment alerts for a destination change or a level drop reach this funder only after the
+    // nonprofit is linked. The same flag that allows the award write allows the link. 409 means it
+    // is already there, so a retry does not fail the mirror.
+    try {
+      await passport.linkNonprofit(funder.passport_org_id, recipient.passport_org_id);
+    } catch (e) {
+      if (!(e instanceof PassportApiError) || e.status !== 409) throw e;
+    }
     const parent = award.parent_award_id ? await ctx.repos.table("awards").one({ id: award.parent_award_id }) : null;
     const input = mirrorInput(ctx, award, recipient.passport_org_id, parent?.passport_award_id ?? null);
     let passportAwardId = award.passport_award_id;

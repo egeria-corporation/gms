@@ -4,12 +4,15 @@
 import { useEffect, useState } from "react";
 import type { BudgetCategoryMapping } from "../../api/launch.ts";
 import { useLaunchMutation, useLaunchQuery } from "../../api/launchHooks.ts";
+import { useWorkspace } from "../../app/workspace.tsx";
 import { ErrorBanner, SaveNote } from "../../components/ui.tsx";
+import { applicantAccess } from "../../lib/roles.ts";
 import { t } from "./i18n.ts";
 
 export function BudgetMappingForm({ awardId, categories }: { awardId: string; categories: string[] }) {
   const saved = useLaunchQuery((api) => api.budgetMapping(awardId), [awardId]);
   const save = useLaunchMutation((api, mapping: BudgetCategoryMapping[]) => api.putBudgetMapping(awardId, mapping));
+  const canWrite = applicantAccess(useWorkspace("applicant").member.role).awards;
   const [draft, setDraft] = useState<Record<string, string>>({});
   useEffect(() => {
     if (saved.status === "ready") setDraft(Object.fromEntries(saved.data.map((m) => [m.category, m.ownCategory])));
@@ -41,7 +44,7 @@ export function BudgetMappingForm({ awardId, categories }: { awardId: string; ca
                 <label className="sr" htmlFor={id}>
                   {t("grantBudgetMapping.ledgerFor", { category })}
                 </label>
-                <input id={id} className="inp mono" style={{ height: "36px", fontSize: "13px" }} value={draft[category] ?? ""} placeholder={t("grantBudgetMapping.eG6100SalariesWages")} onChange={(e) => setDraft((d) => ({ ...d, [category]: e.target.value }))} />
+                <input id={id} className="inp mono" style={{ height: "36px", fontSize: "13px" }} value={draft[category] ?? ""} placeholder={t("grantBudgetMapping.eG6100SalariesWages")} readOnly={!canWrite} onChange={(e) => setDraft((d) => ({ ...d, [category]: e.target.value }))} />
               </div>
               <div className="muted" style={{ textAlign: "center" }} aria-hidden="true">
                 →
@@ -51,12 +54,16 @@ export function BudgetMappingForm({ awardId, categories }: { awardId: string; ca
           );
         })}
       </div>
+      {canWrite ? (
       <div className="row">
         <button type="submit" className="btn btn-sm btn-primary" disabled={save.state === "saving"}>
           {t("grantBudgetMapping.saveMapping")}
         </button>
         <SaveNote state={save.state} />
       </div>
+      ) : (
+        <p className="small muted">{t("access.cannotChangeAward")}</p>
+      )}
       <span className="help">{t("grantBudgetMapping.keptWithThisGrantForYour")}</span>
     </form>
   );

@@ -36,6 +36,7 @@ import type {
   WebhookDelivery,
 } from "../api/funderMoney.ts";
 import { MOCK_IDS, USERS, type MockFunderCtx } from "./funder.ts";
+import { bindImportedAwards, publishImportedAward } from "./importedAwards.ts";
 import { IDS } from "./store.ts";
 
 const id = (prefix: string, block: string, n: number) => `${prefix}_${block}0000000-0000-7000-8000-${String(n).padStart(12, "0")}`;
@@ -256,6 +257,22 @@ export function createMockFunderMoneyApi(ctx: MockFunderCtx): FunderMoneyApi & M
     if (!states.has(w.record.id)) states.set(w.record.id, w.record.id === IDS.riverbend ? seed() : empty());
     return { w, s: states.get(w.record.id)! };
   }
+  bindImportedAwards({
+    grantee: async (row) => {
+      const { s } = await st();
+      const id = row.id.startsWith("awd_") ? row.id : `awd_${row.id}`;
+      const already = s.awards.find((a) => a.id === id);
+      if (already) return already.recipient;
+      const known = s.recipients.find((r) => r.name.toLowerCase() === row.recipientName.toLowerCase());
+      const workspaceId = known?.workspaceId ?? bare("2", ++s.seq);
+      if (!known) {
+        const handle = row.recipientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "imported";
+        s.recipients.push({ workspaceId, name: row.recipientName, handle, level: "L0", bankName: "", last4: "", pendingChangeUntil: null, active: true, consent: false, tags: ["imported"], notes: null, ein: "", city: "" });
+      }
+      s.awards.push({ id, title: row.title, recipient: workspaceId, awardedMinor: row.amountMinor, disbursedMinor: row.paidMinor ?? 0, programId: "", programName: row.programName ?? "Imported", agreementExecuted: row.status === "completed" });
+      return workspaceId;
+    },
+  });
   const same = (a: string, b: string) => a === b || a.replace(/^[a-z]{3}_/, "") === b.replace(/^[a-z]{3}_/, "");
   const find = <T extends { id: string }>(rows: T[], idv: string, what: string): T => {
     const row = rows.find((r) => same(r.id, idv));
@@ -652,15 +669,24 @@ export function createMockFunderMoneyApi(ctx: MockFunderCtx): FunderMoneyApi & M
       const [header = "", ...rows] = input.csv.trim().split(/\r?\n/);
       const cols = header.split(",").map((c) => c.trim());
       for (const target of ["recipientName", "title", "awardedAmount"]) if (!input.mapping[target] || !cols.includes(input.mapping[target])) throw ctx.fail(422, `Map a column to ${target}`, [{ field: `mapping.${target}`, message: "Required" }]);
-      const results = rows.map((line, i) => {
+      const cell = (cells: string[], key: string) => {
+        const named = input.mapping[key];
+        const at = named ? cols.indexOf(named) : -1;
+        return at >= 0 ? (cells[at] ?? "").trim() : "";
+      };
+      const parsed = rows.map((line, i) => {
         const cells = line.split(",").map((c) => c.trim());
-        const name = cells[cols.indexOf(input.mapping.recipientName!)] ?? "";
-        const amount = Number(cells[cols.indexOf(input.mapping.awardedAmount!)]);
-        if (!name || !Number.isFinite(amount) || amount <= 0) return { row: i + 2, ok: false, error: "Recipient name and a positive amount are required" };
-        return { row: i + 2, ok: true, matchedRecipient: s.recipients.some((r) => r.name.toLowerCase() === name.toLowerCase()) };
+        const name = cell(cells, "recipientName");
+        const title = cell(cells, "title");
+        const amount = Number(cell(cells, "awardedAmount").replace(/[$,\s]/g, ""));
+        if (!name || !title || !Number.isFinite(amount) || amount <= 0) return { row: i + 2, ok: false as const, error: !name ? "No recipient name" : !title ? "No title" : "The amount is not a positive number" };
+        return { row: i + 2, ok: true as const, name, title, amountMinor: Math.round(amount * 100), programName: cell(cells, "programName") || null, status: /closed|complete/i.test(cell(cells, "status")) ? ("completed" as const) : ("active" as const), matchedRecipient: s.recipients.some((r) => r.name.toLowerCase() === name.toLowerCase()) };
       });
-      const okRows = results.filter((r) => r.ok);
-      return { dryRun: input.dryRun ?? false, rows: rows.length, created: input.dryRun ? 0 : okRows.length, failed: results.length - okRows.length, unmatchedRecipients: okRows.filter((r) => !r.matchedRecipient).length, results };
+      const okRows = parsed.filter((r) => r.ok);
+      if (!input.dryRun) {
+        for (const r of okRows) await publishImportedAward({ id: `awd_${crypto.randomUUID()}`, title: r.title, recipientName: r.name, amountMinor: r.amountMinor, paidMinor: null, status: r.status, programName: r.programName });
+      }
+      return { dryRun: input.dryRun ?? false, rows: rows.length, created: input.dryRun ? 0 : okRows.length, failed: parsed.length - okRows.length, unmatchedRecipients: okRows.filter((r) => !r.matchedRecipient).length, results: parsed.map((r) => (r.ok ? { row: r.row, ok: true as const, matchedRecipient: r.matchedRecipient } : { row: r.row, ok: false as const, error: r.error })) };
     },
 
     async listWebhooks() {

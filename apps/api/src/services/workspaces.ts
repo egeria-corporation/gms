@@ -230,7 +230,14 @@ export async function updateWorkspace(ctx: ServiceContext, id: string, input: z.
 }
 
 export async function listMembers(ctx: ServiceContext, workspaceId: string) {
-  const ws = await authorize(ctx, { scope: "workspace:admin", owner: workspaceId, what: "Workspace" });
+  // Any signed-in member of an applicant workspace can read who is on the team. Inviting, changing
+  // a role and removing someone stay with an admin. A token still needs workspace:admin. A funder
+  // roster stays with workspace admins, so a reviewer is not handed every colleague's address.
+  const applicantMember = ctx.workspace?.kind === "applicant" && !!ctx.actor.userId;
+  const ws = applicantMember
+    ? await authorize(ctx, { owner: workspaceId, kind: "applicant", what: "Workspace" })
+    : await authorize(ctx, { scope: "workspace:admin", owner: workspaceId, what: "Workspace" });
+  if (!ws) throw forbidden("workspace_required", "Name a workspace for this action");
   const rows = await ctx.repos.table("workspace_members").find({ workspace_id: workspaceId }, { orderBy: "created_at" });
   const people = (await ctx.ports.directory?.lookup(rows.map((m) => m.user_id))) ?? new Map<string, { email: string | null; name: string | null }>();
   return rows.map((m) => memberView(m, ws.kind, people.get(m.user_id)));

@@ -15,6 +15,7 @@ import { ApplicantShell } from "../../components/shells.tsx";
 import { DataTable, EmptyState, ErrorBanner, Field, Notice, type Column } from "../../components/ui.tsx";
 import { openBlob } from "../../lib/browser.ts";
 import { formatDate } from "../../lib/format.ts";
+import { applicantAccess } from "../../lib/roles.ts";
 import { DOC_TYPES, EXPIRY_WARN_DAYS, expiryState, type DocType } from "../../lib/writeKeep.ts";
 import { docTypeLabel } from "./labels.ts";
 import { ExpiryBadge, VaultUploadDialog } from "./outside/keep.tsx";
@@ -68,6 +69,7 @@ function EditDialog({ doc, onClose, onDone }: { doc: VaultDocument; onClose: () 
 export default function Documents() {
   useApplicantText();
   const ws = useWorkspace("applicant");
+  const canChange = applicantAccess(ws.member.role).draft;
   const base = `/w/${ws.handle}`;
   const query = useWKQuery((api) => api.vault(), [ws.id]);
   const [dialog, setDialog] = useState<null | "upload" | VaultDocument>(null);
@@ -83,7 +85,7 @@ export default function Documents() {
     return true;
   });
 
-  const columns: Column<VaultDocument>[] = [
+  const allColumns: Column<VaultDocument>[] = [
     {
       key: "name",
       header: t("documents.col.document"),
@@ -141,6 +143,7 @@ export default function Documents() {
         ),
     },
   ];
+  const columns = allColumns.filter((c) => canChange || c.key !== "actions");
 
   return (
     <>
@@ -162,10 +165,14 @@ export default function Documents() {
               </div>
             </div>
             <div className="actions">
+              {canChange ? (
               <button type="button" className="btn btn-primary" aria-haspopup="dialog" onClick={() => setDialog("upload")}>
                 <Plus className="ic" aria-hidden="true" />
                 {t("documents.addADocument")}
               </button>
+              ) : (
+                <p className="small muted">{t("access.cannotChangeDocuments")}</p>
+              )}
             </div>
           </div>
           {note && <Notice tone="ok" title={note} />}
@@ -188,7 +195,7 @@ export default function Documents() {
                     rows={docs}
                     rowKey={(d) => d.id}
                     empty={
-                      <EmptyState icon={FolderLock} title={t("documents.noDocumentsYet")} actions={<button type="button" className="btn btn-primary" onClick={() => setDialog("upload")}>{t("documents.addADocument")}</button>}>
+                      <EmptyState icon={FolderLock} title={t("documents.noDocumentsYet")} actions={canChange ? <button type="button" className="btn btn-primary" onClick={() => setDialog("upload")}>{t("documents.addADocument")}</button> : <p className="small muted">{t("access.cannotChangeDocuments")}</p>}>
                         {t("documents.yourIrsDeterminationLetterLatestAudit")}
                       </EmptyState>
                     }
