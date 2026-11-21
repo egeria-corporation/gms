@@ -270,6 +270,22 @@ describe("the pipeline", () => {
 });
 
 describe("Find funding", () => {
+  it("offers Save and the failing rule when the organization is not eligible", async () => {
+    const store = seedApplicantStore();
+    const housing = store.competitions.find((c) => c.title === "Housing Stability 2027")!;
+    housing.eligibility = () => ({
+      eligible: false,
+      results: [{ rule: {}, label: "Must be a 501(c)(3)", outcome: "fail", explain: "The Passport record does not show tax-exempt status." }],
+    });
+    open("/w/alder-creek/find", { store });
+    const card = await screen.findByRole("article", { name: "Housing Stability 2027" });
+    expect(within(card).getByText("Must be a 501(c)(3)")).toBeInTheDocument();
+    expect(within(card).getByText(/The Passport record does not show tax-exempt status/)).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: "Start application" })).toBeNull();
+    expect(within(card).getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
+
   it("starts an outside application from an OpenGrants result, and saves another as a prospect", async () => {
     const store = seedApplicantStore();
     store.openGrants!.push({ id: "og_food", title: "Food Access Fund", funder: "Larkspur Foundation", summary: "Pantry grants.", amount: "$10,000", deadline: "2027-02-01", url: "https://larkspur.example/food", gms: null });

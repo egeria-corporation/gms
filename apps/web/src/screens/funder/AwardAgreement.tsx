@@ -4,7 +4,7 @@
 // attesting, against the hash of the document that was sent. Payments stay on their own tab.
 import { useState } from "react";
 import { openBlob } from "../../lib/browser.ts";
-import { Link, useLocation, useParams } from "react-router";
+import { Link, Navigate, useLocation, useParams } from "react-router";
 import { Award as AwardIcon, Check, FileText, Hash, PenLine, Plus, Send, Upload } from "lucide-react";
 import { useApiMutation, useApiQuery } from "../../api/hooks.ts";
 import type { Agreement, AwardDetail, AwardSummary } from "../../api/funder.ts";
@@ -248,7 +248,9 @@ export default function AwardAgreement() {
   // The fund chosen in the switcher narrows the list to awards from its programs.
   const fund = useFundFilter();
   const awards = fund.current && all.status === "ready" ? { ...all, data: all.data.filter((a) => { const p = programs.data?.find((x) => x.id === a.programId); return !!p && fund.keepProgram(p); }) } : all;
-  const current: AwardSummary | undefined = awards.data?.find((a) => a.id === awardId) ?? awards.data?.[0];
+  // The address names the award on screen. /awards with a list redirects to the first one's agreement.
+  const current: AwardSummary | undefined = awardId && all.status === "ready" ? all.data.find((a) => a.id === awardId) : undefined;
+  const openAward = !awardId && awards.status === "ready" ? awards.data[0] : undefined;
   const award = useApiQuery(async (api) => (current ? api.getAward(current.id) : null), [current?.id]);
   const [tab, setTab] = useAwardTab("agreement", current?.id, base);
   const tranches = useApiQuery((api) => api.listTranches(), []);
@@ -269,6 +271,7 @@ export default function AwardAgreement() {
 
   return (
     <>
+      {openAward ? <Navigate to={`${base}/awards/${openAward.id}/agreement`} replace /> : null}
       <title>{t("awardAgreement.awards", { name: ws.name })}</title>
       <FunderShell active="Awards">
         <main className="main">

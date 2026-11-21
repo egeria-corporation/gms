@@ -14,6 +14,7 @@ import { cleanLine, cleanText } from "@gms/notify";
 import { listMyDocuments } from "./organization.ts";
 import { OUTSIDE_ROLES, createOutside } from "./outside.ts";
 import { orgFacts } from "./profile.ts";
+import { acceptingApplications, publishFlag } from "./public.ts";
 import { OpenGrantsProfileError, OpenGrantsUnavailableError, OpenGrantsUnsupportedError, sha256Hex, type OpenGrantsListing, type OpenGrantsTool, type OrgSearchContext } from "./ports.ts";
 import type { Row } from "./repos/types.ts";
 
@@ -380,52 +381,60 @@ function orgContext(ws: Ws): OrgSearchContext {
   return { orgType: text(readPath(org, "orgType.code")), region: text(readPath(org, "addresses.primary.stateOrProvince")), mission: text(org.mission)?.slice(0, 500), revenueBand: band };
 }
 
-/** Competitions open on this GMS, each with the caller's eligibility. `unknown` is shown as such. */
+/**
+ * Open here: the same published calls a public funder page lists (public page on, funder active),
+ * with the same accepting label (`acceptingApplications` in services/public.ts). One row per
+ * opportunity. A call that is taking applications carries its newest open competition and this
+ * organization's eligibility; the rest can be saved and say they are not taking applications yet.
+ * One eligibility check that throws does not blank the list.
+ */
 export async function discoverCompetitions(ctx: ServiceContext) {
   const ws = await authorize(ctx, { scope: "discovery", kind: "applicant" });
   const me = required(await ctx.repos.table("workspaces").one({ id: ws.id }), "Workspace");
-  const open = await ctx.repos.table("competitions").find({ status: "open" }, { orderBy: "created_at", ascending: false, limit: 500 });
-  const mine = await ctx.repos.table("applications").find({ applicant_workspace_id: ws.id });
-  const out = [];
-  for (const c of open) {
-    const opp = await ctx.repos.table("opportunities").one({ id: c.opportunity_id });
-    if (!opp?.published_at) continue;
-    const funder = await ctx.repos.table("workspaces").one({ id: c.workspace_id });
-    const eligibility = await runRules(ctx, opp.id, me, []);
-    const first = stagesOf(c)[0];
-    const started = mine.find((a) => a.competition_id === c.id && a.status !== "withdrawn");
-    out.push({
-      competitionId: c.id,
+  const published = (await ctx.repos.table("opportunities").find({ status: ["open", "forecasted", "closed"] }, { notNull: ["published_at"], orderBy: "published_at", ascending: false, limit: 5000 })).filter((o) => publishFlag(o, "publicPage"));
+  if (!published.length) return [];
+  const funderRows = await ctx.repos.table("workspaces").find({ id: [...new Set(published.map((o) => o.workspace_id))] });
+  const funders = new Map(funderRows.filter((w) => w.kind === "funder" && w.status === "active").map((w) => [w.id, w] as const));
+  const listed = published.filter((o) => funders.has(o.workspace_id));
+  const openIds = listed.filter((o) => o.status === "open").map((o) => o.id);
+  const comps = [];
+  for (let i = 0; i < openIds.length; i += 100) comps.push(...(await ctx.repos.table("competitions").find({ opportunity_id: openIds.slice(i, i + 100) })));
+  const mine = listed.length ? await ctx.repos.table("applications").find({ applicant_workspace_id: ws.id }) : [];
+  const accepting = [];
+  const later = [];
+  for (const opp of listed) {
+    const funder = funders.get(opp.workspace_id)!;
+    const mineComps = comps.filter((c) => c.opportunity_id === opp.id);
+    const openComp = mineComps.filter((c) => c.status === "open").sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))[0];
+    const card = {
       opportunity: { id: apiId("opportunity", opp.id), slug: opp.slug, title: opp.title, description: opp.description, funding: opp.funding },
-      funder: { name: funder?.display_name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? {} },
+      funder: { name: funder.display_name ?? null, handle: funder.handle ?? null, brand: funder.brand ?? {} },
+      url: `${ctx.config.webBaseUrl}/f/${funder.handle}/o/${opp.slug}`,
+    };
+    if (!acceptingApplications(opp, mineComps) || !openComp) {
+      later.push({ ...card, competitionId: null, stage: null, forms: 0, eligibility: null, application: null, acceptingApplications: false as const });
+      continue;
+    }
+    let eligibility: { eligible: boolean | "unknown"; results: Awaited<ReturnType<typeof runRules>>["results"] };
+    try {
+      const ran = await runRules(ctx, opp.id, me, []);
+      eligibility = { eligible: ran.eligible, results: ran.results };
+    } catch {
+      eligibility = { eligible: "unknown", results: [] };
+    }
+    const first = stagesOf(openComp)[0];
+    const started = mine.find((a) => a.competition_id === openComp.id && a.status !== "withdrawn");
+    accepting.push({
+      ...card,
+      competitionId: openComp.id,
       stage: first ? { key: first.key, label: first.label, closes: first.closes ?? null } : null,
-      forms: Object.keys(stageForms(c, first?.key ?? "application")).length,
-      eligibility: { eligible: eligibility.eligible, results: eligibility.results },
+      forms: Object.keys(stageForms(openComp, first?.key ?? "application")).length,
+      eligibility,
       application: started ? { id: apiId("application", started.id), status: started.status } : null,
-      url: funder ? `${ctx.config.webBaseUrl}/f/${funder.handle}/o/${opp.slug}` : null,
-      acceptingApplications: true,
+      acceptingApplications: true as const,
     });
   }
-  // Published, listed opportunities with no open competition (owner decision D10): shown so they
-  // can be saved, labelled as not taking applications yet. No eligibility is run for them.
-  const openOpportunities = new Set(open.map((c) => c.opportunity_id));
-  const published = (await ctx.repos.table("opportunities").find({}, { notNull: ["published_at"], orderBy: "published_at", ascending: false, limit: 500 })).filter((o) => !openOpportunities.has(o.id) && (o.publish as Record<string, unknown> | null)?.publicPage !== false);
-  const funders = published.length ? await ctx.repos.table("workspaces").find({ id: [...new Set(published.map((o) => o.workspace_id))] }) : [];
-  for (const opp of published) {
-    const funder = funders.find((f) => f.id === opp.workspace_id);
-    out.push({
-      competitionId: null,
-      opportunity: { id: apiId("opportunity", opp.id), slug: opp.slug, title: opp.title, description: opp.description, funding: opp.funding },
-      funder: { name: funder?.display_name ?? null, handle: funder?.handle ?? null, brand: funder?.brand ?? {} },
-      stage: null,
-      forms: 0,
-      eligibility: null,
-      application: null,
-      url: funder ? `${ctx.config.webBaseUrl}/f/${funder.handle}/o/${opp.slug}` : null,
-      acceptingApplications: false,
-    });
-  }
-  return out;
+  return [...accepting, ...later];
 }
 
 const CACHE_TTL_MS = 15 * 60 * 1000;

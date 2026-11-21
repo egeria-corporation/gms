@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Find funding: opportunities on this GMS (open ones with this organization's eligibility, and
 // published ones not taking applications yet), the OpenGrants index searched with the Passport
-// profile as context, and what the organization saved. "Start application" works on every
-// listing: an opportunity open on this GMS starts the built-in application; anything else starts
-// (or opens) an outside application the organization tracks itself.
+// profile as context, and what the organization saved. "Start application" works on an eligible
+// or not-yet-known call open on this GMS; an ineligible one shows the failing rule and Save.
+// Anything else starts (or opens) an outside application the organization tracks itself.
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Bookmark, CalendarClock, CircleCheck, CircleDashed, CircleX, ExternalLink, Info, Search, X } from "lucide-react";
@@ -135,7 +135,7 @@ function NotOpenCard({ c, saved, onSave, saving }: { c: DiscoverItem; saved: boo
   );
 }
 
-function CompetitionCard({ c, base, onStart, starting }: { c: OpenDiscoverItem; base: string; onStart: (c: OpenDiscoverItem) => void; starting: boolean }) {
+function CompetitionCard({ c, base, onStart, starting, saved, saving, onSave }: { c: OpenDiscoverItem; base: string; onStart: (c: OpenDiscoverItem) => void; starting: boolean; saved: boolean; saving: boolean; onSave: () => void }) {
   const failed = c.eligibility.results.filter((r) => r.outcome === "fail");
   const unknown = c.eligibility.results.filter((r) => r.outcome === "unknown");
   const range = formatAwardRange(c.opportunity.funding as OppFunding);
@@ -209,8 +209,9 @@ function CompetitionCard({ c, base, onStart, starting }: { c: OpenDiscoverItem; 
             <StatusBadge kind="application" status={c.application.status} />
           </>
         ) : c.eligibility.eligible === false ? (
-          <button className="btn btn-secondary" type="button" disabled>
-            {t("findFunding.startApplication")}
+          <button className="btn btn-secondary" type="button" disabled={saved || saving} onClick={onSave}>
+            <Bookmark className="ic" aria-hidden="true" />
+            {saved ? t("findFunding.saved") : t("findFunding.save")}
           </button>
         ) : (
           <button className={c.eligibility.eligible === true ? "btn btn-primary" : "btn btn-secondary"} type="button" onClick={() => onStart(c)} disabled={starting}>
@@ -646,7 +647,7 @@ export default function FindFunding() {
                           <div key={c.competitionId ?? c.opportunity.id} ref={c === found ? wantedCard : undefined} style={c === found ? { outline: "2px solid var(--og-teal)", outlineOffset: "2px", borderRadius: "12px" } : undefined} data-wanted={c === found ? "true" : undefined}>
                             {c === found && <div className="small b" style={{ padding: "0 0 6px 4px" }}>{t("findFunding.theOpportunityYouChose")}</div>}
                             {isAccepting(c) ? (
-                              <CompetitionCard c={c} base={base} onStart={(x) => void onStart(x.competitionId)} starting={startingId === c.competitionId} />
+                              <CompetitionCard c={c} base={base} onStart={(x) => void onStart(x.competitionId)} starting={startingId === c.competitionId} saved={isSavedGms(c)} saving={saveGms.state === "saving"} onSave={() => h.onSaveGms(c)} />
                             ) : (
                               <NotOpenCard c={c} saved={isSavedGms(c)} saving={saveGms.state === "saving"} onSave={() => h.onSaveGms(c)} />
                             )}

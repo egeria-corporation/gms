@@ -385,6 +385,7 @@ function Where() {
   const l = useLocation();
   return <output data-testid="where">{l.pathname + l.search}</output>;
 }
+const where = () => screen.getByTestId("where").textContent ?? "";
 function open(path: string, services: Services) {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -467,6 +468,17 @@ describe("the funder's screens", () => {
     expect(directAwardProblems({ ...valid, message: "See https://example.org" }).message).toMatch(/cannot contain a web or email address/);
     expect(directAwardProblems({ ...valid, title: "Write to me@x.org" }).title).toMatch(/cannot contain/);
     expect(directAwardProblems({ ...valid, startDate: "2027-07-01" }).endDate).toMatch(/both the start and the end/);
+  });
+
+  it("puts the award on screen into the address", async () => {
+    const services = createMockServices({ session: demoSession() });
+    await services.api.workspace("riverbend");
+    open("/w/riverbend/awards", services);
+    await waitFor(() => expect(where()).toMatch(/^\/w\/riverbend\/awards\/[^/]+\/agreement$/));
+    const selected = within(screen.getByRole("table", { name: "Awards" })).getByRole("link", { name: "Alder Creek Family Services" });
+    expect(selected).toHaveAttribute("href", where());
+    expect(selected).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("link", { name: "New award" })).toBeInTheDocument();
   });
 
   it("offers New award only to an admin or finance member", async () => {

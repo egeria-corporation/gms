@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { Link } from "react-router";
-import { Columns3, Download, Inbox } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { useWorkspace } from "../../app/workspace.tsx";
 import { FunderShell } from "../../components/shells.tsx";
 import { t, useFunderMessages } from "./i18n.ts";
@@ -25,35 +25,8 @@ export default function ApplicationsEmpty() {
               <div className="title">
                 <h1>{t("applicationsEmpty.applications2")}</h1>
               </div>
-              <div className="meta">
-                <span>{t("applicationsEmpty.noCompetitionsYet")}</span>
-              </div>
-            </div>
-            <div className="actions">
-              <button className="btn btn-secondary" disabled aria-disabled="true">
-                <Columns3 className="ic" aria-hidden="true" />
-                {t("applicationsEmpty.columns")}
-              </button>
-              <button className="btn btn-secondary" disabled aria-disabled="true">
-                <Download className="ic" aria-hidden="true" />
-                {t("applicationsEmpty.export")}
-              </button>
             </div>
           </div>
-          <nav className="tabs" aria-label={t("applicationsEmpty.savedViews")}>
-            <Link to={`${base}/applications`} className="tab on" aria-current="page">
-              {t.rich("applicationsEmpty.all0", { span: (chunks) => <span className="n">{chunks}</span> })}
-            </Link>
-            <span className="tab" aria-disabled="true">
-              {t.rich("applicationsEmpty.needsScreening0", { span: (chunks) => <span className="n">{chunks}</span> })}
-            </span>
-            <span className="tab" aria-disabled="true">
-              {t.rich("applicationsEmpty.reviewComplete0", { span: (chunks) => <span className="n">{chunks}</span> })}
-            </span>
-            <span className="tab" aria-disabled="true">
-              {t.rich("applicationsEmpty.flagged0", { span: (chunks) => <span className="n">{chunks}</span> })}
-            </span>
-          </nav>
           <div className="card empty" style={{ minHeight: "360px", justifyContent: "center", padding: "64px 24px" }}>
             <Inbox className="ic" aria-hidden="true" />
             <h3 style={{ fontSize: "20px" }}>{t("applicationsEmpty.noApplicationsYet")}</h3>
@@ -64,7 +37,7 @@ export default function ApplicationsEmpty() {
               <Link to={`${base}/programs`} className="btn btn-primary btn-lg">
                 {t("applicationsEmpty.createAProgram")}
               </Link>
-              <Link to={`${base}/analytics`} className="b" style={{ fontSize: "14px" }}>
+              <Link to={`${base}/import`} className="b" style={{ fontSize: "14px" }}>
                 {t("applicationsEmpty.importApplicationsFromCsv")}
               </Link>
             </div>
